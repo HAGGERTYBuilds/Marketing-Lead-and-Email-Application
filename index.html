@@ -211,6 +211,23 @@
   .pri1{color:var(--red);font-weight:500}
   .taskbar{display:grid;grid-template-columns:1fr 130px 96px auto;gap:8px;
            margin-bottom:16px;align-items:end}
+
+  /* ---------- subtasks ---------- */
+  .subs{display:block;margin-top:9px;padding-left:2px;
+        border-left:2px solid var(--rule-soft)}
+  .sub{display:flex;align-items:center;gap:9px;padding:4px 0 4px 10px}
+  .sub .st{flex:1;font-size:13px;color:var(--grey);min-width:0}
+  .sub.done .st{text-decoration:line-through;color:var(--slate)}
+  .box.sm{width:14px;height:14px;margin-top:0;font-size:9px}
+  .sub.done .box.sm{background:var(--green);border-color:var(--green);color:#fff}
+  .sub .linkbtn{font-size:11.5px;opacity:0}
+  .sub:hover .linkbtn{opacity:1}
+  .subadd{display:flex;gap:7px;align-items:center;margin-top:9px;
+          padding-left:12px;flex-wrap:wrap}
+  .subadd input{flex:1;min-width:160px;font-size:13px;padding:6px 9px}
+  .subctl{display:flex;gap:12px;margin-top:7px}
+  .subctl .linkbtn{font-size:12px;padding-left:0}
+  .task .mid .bar{max-width:260px}
   @media (max-width:700px){.taskbar{grid-template-columns:1fr}}
 
   /* ---------- warnings ---------- */
@@ -543,6 +560,7 @@ const S = {
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
   tasks:{}, seq:null, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
+  taskOpen:{}, subDraft:null,
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
   apvNote:'', apvHist:{}, apvOpen:false, apvSaving:false, apvFile:null,
@@ -1197,7 +1215,10 @@ async function loadTasks(owner){
 }
 
 function dayStats(owner){
-  const rows = S.tasks[owner] || [];
+  /* Only top level tasks count. A task with six subtasks would otherwise
+     make the day read as seven times the work, and the done percentage
+     would swing on whichever task happened to be broken down furthest. */
+  const rows = (S.tasks[owner] || []).filter(t => !t.parent_id);
   if(!rows.length) return null;
   const t0 = today();
   const done  = rows.filter(t=>t.status==='done').length;
@@ -1561,6 +1582,40 @@ function wirePage(){
     el.addEventListener('click',()=>cycleTask(el.dataset.taskToggle)));
   document.querySelectorAll('[data-task-del]').forEach(el=>
     el.addEventListener('click',()=>delTask(el.dataset.taskDel)));
+
+  document.querySelectorAll('[data-task-open]').forEach(el=>
+    el.addEventListener('click',()=>{
+      const id = el.dataset.taskOpen;
+      const t = (S.tasks[S.dayOwner||S.me]||[]).find(x=>x.id===id);
+      const shown = S.taskOpen[id] !== undefined
+        ? S.taskOpen[id] : (t && t.status === 'doing');
+      S.taskOpen[id] = !shown; render();
+    }));
+
+  document.querySelectorAll('[data-sub-add]').forEach(el=>
+    el.addEventListener('click',()=>{
+      S.subDraft = { parentId: el.dataset.subAdd, title:'' };
+      S.taskOpen[el.dataset.subAdd] = true;
+      S.subFocus = true; render(); S.subFocus = false;
+    }));
+
+  const si = document.getElementById('subInput');
+  if(si){
+    si.addEventListener('input', ()=>{ if(S.subDraft) S.subDraft.title = si.value; });
+    si.addEventListener('keydown', e=>{
+      if(e.key === 'Enter') addSubtask();
+      if(e.key === 'Escape'){ S.subDraft = null; render(); }
+    });
+    if(S.subFocus){
+      si.focus();
+      const n = si.value.length;
+      try{ si.setSelectionRange(n, n); }catch(e){}
+    }
+  }
+  const ss = document.getElementById('subSave');
+  if(ss) ss.addEventListener('click', addSubtask);
+  const sc = document.getElementById('subCancel');
+  if(sc) sc.addEventListener('click', ()=>{ S.subDraft = null; render(); });
   const ex = document.getElementById('exportCsv');
   if(ex) ex.addEventListener('click', exportCsv);
   const pr = document.getElementById('printPage');
@@ -3135,7 +3190,24 @@ function pageDay(owner){
   </main>`;
 }
 
+function subsOf(t){
+  return (S.tasks[S.dayOwner || S.me] || [])
+    .filter(x => x.parent_id === t.id)
+    .sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+}
+
+function subHtml(s){
+  const done = s.status === 'done';
+  return `<div class="sub ${done?'done':''}">
+    <button class="box sm" data-task-toggle="${s.id}"
+      title="${done?'Click to reopen':'Click to tick off'}">${done?'&#10003;':''}</button>
+    <span class="st">${esc(s.title)}</span>
+    <button class="linkbtn" data-task-del="${s.id}">remove</button>
+  </div>`;
+}
+
 function taskHtml(t){
+  if(t.parent_id) return '';   // rendered under its parent, not on its own
   const cls = t.status==='done' ? 'done' : (t.status==='doing' ? 'doing' : '');
   /* Age is the useful signal on a carried task. A thing sitting for six
      days is a different problem from a thing sitting since yesterday. */
@@ -3143,6 +3215,17 @@ function taskHtml(t){
   const days = carried
     ? Math.max(1, Math.round((new Date(today()) - new Date(t.work_date)) / 86400000))
     : 0;
+  const subs = subsOf(t);
+  const sdone = subs.filter(x => x.status === 'done').length;
+  const pct = subs.length ? Math.round(100 * sdone / subs.length) : 0;
+  /* Expanded while the task is in progress, since that is when the
+     detail is actually being worked through. The bar carries enough at
+     a glance the rest of the time. */
+  const open = S.taskOpen[t.id] !== undefined
+    ? S.taskOpen[t.id]
+    : (t.status === 'doing' && subs.length > 0);
+  const adding = S.subDraft && S.subDraft.parentId === t.id;
+
   return `<div class="task ${cls}">
     <button class="box" data-task-toggle="${t.id}" title="Click to advance">${t.status==='done'?'&#10003;':''}</button>
     <span class="mid">
@@ -3152,6 +3235,23 @@ function taskHtml(t){
         ${t.priority==1?' &middot; <span class="pri1">high</span>':''}
         ${t.status==='doing'?' &middot; in progress':''}
         ${carried?` &middot; <span style="color:var(--orange)">carried ${days}d</span>`:''}
+        ${subs.length?` &middot; ${sdone} of ${subs.length}`:''}
+      </span>
+      ${subs.length?`<span class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></span>`:''}
+
+      ${open && subs.length ? `<span class="subs">${subs.map(subHtml).join('')}</span>` : ''}
+
+      ${adding ? `<span class="subadd">
+        <input type="text" id="subInput" value="${esc(S.subDraft.title)}"
+               placeholder="What needs doing" autocomplete="off" />
+        <button class="btn small" id="subSave">Add</button>
+        <button class="linkbtn" id="subCancel">Cancel</button>
+      </span>` : ''}
+
+      <span class="subctl">
+        ${subs.length ? `<button class="linkbtn" data-task-open="${t.id}">${
+          open ? 'Hide steps' : `Show ${subs.length} step${subs.length===1?'':'s'}`}</button>` : ''}
+        ${adding ? '' : `<button class="linkbtn" data-sub-add="${t.id}">Add a step</button>`}
       </span>
     </span>
     <button class="linkbtn" data-task-del="${t.id}">remove</button>
@@ -4180,7 +4280,8 @@ async function addTask(){
   try{
     const { error } = await sb.from('tasks').insert({
       title, category, priority, owner,
-      work_date: today(), sort_order: (S.tasks[owner]||[]).length
+      work_date: today(),
+      sort_order: (S.tasks[owner]||[]).filter(t=>!t.parent_id).length
     });
     if(error) throw error;
     // Clear the text but keep area and priority: tasks come in runs.
@@ -4196,17 +4297,82 @@ async function addTask(){
 
 async function cycleTask(id){
   const owner = S.dayOwner || S.me;
-  const t = (S.tasks[owner]||[]).find(x=>x.id===id);
+  const rows = S.tasks[owner] || [];
+  const t = rows.find(x=>x.id===id);
   if(!t) return;
-  const next = t.status==='open' ? 'doing' : (t.status==='doing' ? 'done' : 'open');
+
+  /* A step is done or not done. Cycling it through "in progress" would
+     make the progress bar lie, since a half-finished step still fills
+     none of it. */
+  const next = t.parent_id
+    ? (t.status === 'done' ? 'open' : 'done')
+    : (t.status==='open' ? 'doing' : (t.status==='doing' ? 'done' : 'open'));
+
   try{
     /* work_date moves to today whenever the status changes. Without it a
        carried task marked done keeps its old date, which satisfies
        neither half of the rollover query, and it disappears from the
        screen the instant it is ticked. */
     await sb.from('tasks').update({ status: next, work_date: today() }).eq('id', id);
+
+    /* The parent follows its steps. Ticking the last one finishes the
+       task; un-ticking any of them reopens it, which is what makes a
+       mistake recoverable without a separate undo. */
+    if(t.parent_id){
+      const sibs = rows.filter(x => x.parent_id === t.parent_id)
+        .map(x => x.id === id ? { ...x, status: next } : x);
+      const allDone = sibs.length > 0 && sibs.every(x => x.status === 'done');
+      const parent = rows.find(x => x.id === t.parent_id);
+      if(parent){
+        if(allDone && parent.status !== 'done'){
+          await sb.from('tasks').update({ status:'done', work_date: today() })
+            .eq('id', parent.id);
+        } else if(!allDone && parent.status === 'done'){
+          await sb.from('tasks').update({ status:'doing', work_date: today() })
+            .eq('id', parent.id);
+        }
+      }
+    }
+
     await loadTasks(owner); render();
   }catch(err){ S.err = err.message||String(err); render(); }
+}
+
+async function addSubtask(){
+  const d = S.subDraft;
+  if(!d) return;
+  const el = document.getElementById('subInput');
+  if(el) d.title = el.value;
+  const title = String(d.title||'').trim();
+  if(!title){ S.subFocus = true; render(); S.subFocus = false; return; }
+
+  const owner = S.dayOwner || S.me;
+  const parent = (S.tasks[owner]||[]).find(x => x.id === d.parentId);
+  S.err = '';
+  try{
+    const { error } = await sb.from('tasks').insert({
+      title,
+      /* Category and owner come from the parent. A step belongs to its
+         task, so letting it carry a different one would only create
+         ways for the two to disagree. */
+      category: parent ? parent.category : 'other',
+      priority: 2,
+      owner,
+      parent_id: d.parentId,
+      work_date: today(),
+      sort_order: (S.tasks[owner]||[]).filter(x => x.parent_id === d.parentId).length
+    });
+    if(error) throw error;
+    /* Stays open with the field cleared: steps get written in a run,
+       and reopening the form each time would break that. */
+    S.subDraft = { parentId: d.parentId, title: '' };
+    S.taskOpen[d.parentId] = true;
+    await loadTasks(owner);
+    S.subFocus = true; render(); S.subFocus = false;
+  }catch(err){
+    S.err = err.message||String(err);
+    S.subFocus = true; render(); S.subFocus = false;
+  }
 }
 
 async function delTask(id){
