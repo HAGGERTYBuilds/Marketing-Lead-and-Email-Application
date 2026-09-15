@@ -480,6 +480,58 @@
   .sheet-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule)}
   .sheet-foot .btn{width:100%}
 
+  /* ---------- reel ideas ---------- */
+  .reel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
+  .reelcard{background:var(--card);border:1px solid var(--rule);
+            border-top:3px solid var(--rule);display:flex;flex-direction:column}
+  .reelcard.rhino{border-top-color:var(--orange)}
+  .reelcard.both{border-top-color:var(--grey)}
+  .reelcard.archived{opacity:.62}
+  .reelthumb{position:relative;width:100%;aspect-ratio:3/4;background:var(--wash);
+             border:0;padding:0;display:block;cursor:pointer;overflow:hidden;
+             border-bottom:1px solid var(--rule-soft)}
+  .reelthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .reelph{position:absolute;inset:0;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:10px;padding:14px;background:var(--wash)}
+  .reelph.text{align-items:stretch;justify-content:flex-start;text-align:left;
+               padding:40px 14px 14px;gap:8px}
+  .reelph .g{width:44px;height:44px;border:1.5px solid var(--rule);border-radius:50%;
+             display:flex;align-items:center;justify-content:center;
+             color:var(--slate);font-size:14px;padding-left:3px}
+  .reelph .p{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+             font-size:11.5px;color:var(--slate);font-weight:600}
+  .reelph .x{font-size:13px;color:var(--grey);line-height:1.5;
+             display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden}
+  .reeltag{position:absolute;top:9px;left:9px;display:flex;gap:5px;flex-wrap:wrap}
+  .reeltag .chip{background:var(--card)}
+  .reelbody{padding:11px 13px 12px;display:flex;flex-direction:column;gap:5px;flex:1}
+  .reelbody h4{margin:0;font-size:13.5px;font-weight:600;line-height:1.4}
+  .reelbody .m{font-family:var(--mono);font-size:11px;color:var(--slate);margin-top:auto}
+  .reelfoot{display:flex;gap:6px;padding:0 13px 12px}
+  .reelfoot .btn{flex:1}
+  .sheet-in.reel{max-width:920px;padding:0}
+  .reel-head{display:flex;align-items:flex-start;justify-content:space-between;
+             gap:12px;padding:16px 20px;border-bottom:1px solid var(--rule)}
+  .reel-head h2{font-family:var(--display);font-size:23px;font-weight:700;margin:0;line-height:1.15}
+  .reelgrid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+  .reelgrid2.solo{grid-template-columns:1fr}
+  .reelgrid2.solo .reelplay{display:none}
+  .reelplay{background:#000;min-height:300px;display:flex;align-items:center;justify-content:center}
+  .reelplay iframe{width:100%;height:560px;border:0;display:block}
+  .reelplay .none{color:#9AA3A8;font-size:13px;padding:40px 22px;text-align:center}
+  .reelside{padding:16px 20px 20px;border-left:1px solid var(--rule);
+            display:flex;flex-direction:column;gap:12px}
+  .reelgrid2.solo .reelside{border-left:0}
+  .reelside textarea{min-height:90px}
+  .reelside .idea{font-size:13.5px;color:var(--grey);white-space:pre-wrap;
+                  background:var(--wash);border-left:3px solid var(--rule);
+                  padding:10px 12px;max-height:180px;overflow:auto}
+  @media (max-width:860px){
+    .reelgrid2{grid-template-columns:1fr}
+    .reelside{border-left:0;border-top:1px solid var(--rule)}
+    .reelplay iframe{height:420px}
+  }
+
   /* ---------- states ---------- */
   .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
   .loginbox{width:100%;max-width:360px;background:var(--card);
@@ -545,7 +597,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['leads','Leads']
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['leads','Leads']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -569,6 +621,10 @@ const S = {
   /* inbound requests, shown as a section on Liam's day rather than a tab */
   requests:null, reqUrls:{}, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
   reqShowDone:false,
+  /* reel ideas */
+  reels:null, reelView:'active', reelBrand:'all', reelQ:'', reelOpenId:null,
+  reelBusy:'', reelErr:'', reelNote:'', reelNotes:'', reelAddOpen:false,
+  reelSaving:false, reelForm:{ url:'', text:'', brand:'haggerty', priority:'2' },
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -1456,6 +1512,7 @@ async function ensure(page){
   }
   if(OWNERS[page] && !S.loaded.tasks[OWNERS[page]]) await loadTasks(OWNERS[page]);
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
+  if(page==='reels' && !S.loaded.reels) await loadReels();
   if(page==='leads'){
     if(!S.loaded.verticals) await loadVerticals();
     if(!S.loaded.labels) await loadLabels();
@@ -1529,6 +1586,7 @@ function render(){
   if(S.page==='calendar') inner = pageCalendar();
   if(S.page==='kpis')     inner = pageKpis();
   if(S.page==='approvals') inner = pageApprovals();
+  if(S.page==='reels')    inner = pageReels();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
   if(S.page==='leads')    inner = pageLeads();
   app.innerHTML = topbar() + crmPanel() + inner;
@@ -1628,6 +1686,7 @@ function wirePage(){
   if(ks) ks.addEventListener('click', saveKpiTargets);
   wireRequests();
   wireApprovals();
+  wireReels();
   wireBoard();
   wireLeads();
 }
@@ -4431,6 +4490,371 @@ function exportCsv(){
   a.download = 'haggerty-marketing-' + today() + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ================= reel ideas ================= */
+/* Ideas arrive two ways and both end up in the same table: posted in the
+   Teams channel, which the Reel Ideas Inbox workflow parses and inserts,
+   or typed straight in here. A link becomes a playable card, plain text
+   becomes a written one. Complete moves it to the archive rather than
+   deleting it, because the archive is the record of what has been shot. */
+
+const REEL_PLAT = { instagram:'Instagram', tiktok:'TikTok', youtube:'YouTube',
+                    facebook:'Facebook', vimeo:'Vimeo', other:'Link' };
+const REEL_BRAND = { haggerty:'HAGGERTY', rhino:'RHINO', both:'Both' };
+
+async function loadReels(){
+  const { data, error } = await sb.from('reel_ideas').select('*')
+    .order('created_at', { ascending:false }).limit(400);
+  if(error) throw error;
+  S.reels = data || [];
+  S.loaded.reels = true;
+}
+
+/* Same rules as the Parse Reel Idea node in n8n, so a link typed here and
+   the same link posted in Teams produce identical cards. Instagram gives
+   no thumbnail without a Graph token, so those cards stay as a platform
+   tile until opened. The embed itself plays. */
+function parseReelLink(url){
+  const out = { platform:'other', video_id:'', embed_url:'', thumbnail_url:'' };
+  if(!url) return out;
+  const low = String(url).toLowerCase();
+  let m;
+  if(low.indexOf('instagram.com') > -1){
+    out.platform = 'instagram';
+    m = url.match(/instagram\.com\/(?:[^\/]+\/)?(?:reels|reel|p|tv)\/([A-Za-z0-9_-]+)/);
+    out.video_id = m ? m[1] : '';
+    out.embed_url = out.video_id ? 'https://www.instagram.com/reel/' + out.video_id + '/embed/' : '';
+  } else if(low.indexOf('tiktok.com') > -1){
+    out.platform = 'tiktok';
+    m = url.match(/video\/(\d+)/);
+    out.video_id = m ? m[1] : '';
+    out.embed_url = out.video_id ? 'https://www.tiktok.com/embed/v2/' + out.video_id : '';
+  } else if(low.indexOf('youtube.com') > -1 || low.indexOf('youtu.be') > -1){
+    out.platform = 'youtube';
+    m = url.match(/(?:shorts\/|watch\?v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{6,})/);
+    out.video_id = m ? m[1] : '';
+    out.embed_url = out.video_id ? 'https://www.youtube.com/embed/' + out.video_id : '';
+    out.thumbnail_url = out.video_id ? 'https://i.ytimg.com/vi/' + out.video_id + '/hqdefault.jpg' : '';
+  } else if(low.indexOf('facebook.com') > -1 || low.indexOf('fb.watch') > -1){
+    out.platform = 'facebook';
+    out.embed_url = 'https://www.facebook.com/plugins/video.php?show_text=false&href=' + encodeURIComponent(url);
+  } else if(low.indexOf('vimeo.com') > -1){
+    out.platform = 'vimeo';
+    m = url.match(/vimeo\.com\/(\d+)/);
+    out.video_id = m ? m[1] : '';
+    out.embed_url = out.video_id ? 'https://player.vimeo.com/video/' + out.video_id : '';
+  }
+  return out;
+}
+
+function reelVisible(){
+  const q = String(S.reelQ||'').trim().toLowerCase();
+  return (S.reels||[]).filter(r=>{
+    const active = r.status === 'new';
+    if(S.reelView === 'active' ? !active : active) return false;
+    if(S.reelBrand !== 'all' && r.brand !== S.reelBrand && r.brand !== 'both') return false;
+    if(q){
+      const hay = [r.title, r.idea_text, r.posted_by, r.platform, r.notes]
+        .filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function reelThumb(r){
+  const ph = r.kind === 'text'
+    ? `<span class="reelph text">
+         <span class="p">Written idea</span>
+         <span class="x">${esc(r.idea_text || r.title)}</span></span>`
+    : `<span class="reelph">
+         <span class="g">&#9654;</span>
+         <span class="p">${esc(REEL_PLAT[r.platform] || 'Link')}</span></span>`;
+  return r.thumbnail_url
+    ? ph + `<img src="${esc(r.thumbnail_url)}" alt="" loading="lazy" onerror="this.remove()" />`
+    : ph;
+}
+
+function reelCard(r){
+  const busy = S.reelBusy === r.id;
+  const sub = [r.posted_by || 'Dashboard', shortDate(r.created_at)].filter(Boolean).join(' · ');
+  return `<article class="reelcard ${esc(r.brand)} ${r.status!=='new'?'archived':''}">
+    <button class="reelthumb" data-reel-open="${esc(r.id)}"
+            aria-label="Open ${esc(r.title)}">
+      ${reelThumb(r)}
+      <span class="reeltag">
+        <span class="chip ${r.brand==='rhino'?'hot':''}">${esc(REEL_BRAND[r.brand]||r.brand)}</span>
+        ${r.kind==='link'?`<span class="chip">${esc(REEL_PLAT[r.platform]||'Link')}</span>`:''}
+      </span>
+    </button>
+    <div class="reelbody">
+      ${r.kind==='text'?'':`<h4>${esc(r.title)}</h4>`}
+      <span class="m">${esc(sub)}</span>
+    </div>
+    <div class="reelfoot">
+      ${r.status === 'new'
+        ? `<button class="btn small" data-reel-do="${esc(r.id)}" data-val="complete" ${busy?'disabled':''}>Complete</button>
+           <button class="btn small ghost" data-reel-do="${esc(r.id)}" data-val="dismissed" ${busy?'disabled':''}>Skip</button>`
+        : `<button class="btn small ghost" data-reel-do="${esc(r.id)}" data-val="new" ${busy?'disabled':''}>Back to ideas</button>`}
+    </div>
+  </article>`;
+}
+
+function reelSheet(){
+  const r = (S.reels||[]).find(x => x.id === S.reelOpenId);
+  if(!r) return '';
+  const busy = S.reelBusy === r.id;
+  const facts = [
+    r.posted_by || 'Dashboard',
+    fmtDay(r.created_at),
+    REEL_BRAND[r.brand] || r.brand,
+    r.kind === 'link' ? (REEL_PLAT[r.platform] || 'Link') : 'Written idea'
+  ].filter(Boolean);
+  if(r.status === 'complete') facts.push('Shot' + (r.completed_by ? ' · ' + r.completed_by : ''));
+  if(r.status === 'dismissed') facts.push('Skipped');
+
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Reel idea">
+    <div class="sheet-in reel">
+      <div class="reel-head">
+        <h2>${esc(r.title)}</h2>
+        <button class="linkbtn" id="reelClose">Close</button>
+      </div>
+      <div class="reelgrid2 ${(!r.embed_url && !r.url) ? 'solo' : ''}">
+        <div class="reelplay">
+          ${r.embed_url
+            ? `<iframe src="${esc(r.embed_url)}" allowfullscreen
+                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                 referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+            : `<div class="none">${r.url
+                ? 'This one will not play inside the dashboard. Open the original on the right.'
+                : 'Nothing to play.'}</div>`}
+        </div>
+        <div class="reelside">
+          <div class="inv-facts">${facts.map(esc).join(' &middot; ')}</div>
+          ${r.idea_text?`<div class="idea">${esc(r.idea_text)}</div>`:''}
+          <div class="chips" style="margin:0">
+            ${r.url?`<a class="chip hot" href="${esc(r.url)}" target="_blank" rel="noopener">Open the original</a>`:''}
+            ${r.teams_message_url?`<a class="chip" href="${esc(r.teams_message_url)}" target="_blank" rel="noopener">View in Teams</a>`:''}
+          </div>
+          <div class="field"><label for="reelNotes">Notes</label>
+            <textarea id="reelNotes" placeholder="Shot list, location, who is on camera">${esc(S.reelNotes)}</textarea></div>
+          ${S.reelErr?`<p class="hint err">${esc(S.reelErr)}</p>`:''}
+          <div class="actions" style="margin-top:auto">
+            ${r.status === 'new'
+              ? `<button class="btn" data-reel-do="${esc(r.id)}" data-val="complete" ${busy?'disabled':''}>Mark complete</button>
+                 <button class="btn ghost small" data-reel-do="${esc(r.id)}" data-val="dismissed" ${busy?'disabled':''}>Skip this one</button>`
+              : `<button class="btn ghost small" data-reel-do="${esc(r.id)}" data-val="new" ${busy?'disabled':''}>Move back to ideas</button>`}
+            <button class="linkbtn" id="reelSaveNotes" ${busy?'disabled':''}>Save notes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function reelAddSheet(){
+  if(!S.reelAddOpen) return '';
+  const f = S.reelForm;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Add a reel idea">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>Add a reel idea</h2>
+        <button class="linkbtn" id="reelAddClose">Close</button></div>
+
+      <div class="field"><label for="reelUrl">Link</label>
+        <input type="text" id="reelUrl" value="${esc(f.url)}"
+               placeholder="https://www.instagram.com/reel/..." autocomplete="off" /></div>
+
+      <div class="field"><label for="reelText">Idea</label>
+        <textarea id="reelText" style="min-height:100px"
+          placeholder="What the idea is, or why this one works">${esc(f.text)}</textarea></div>
+
+      <div class="field"><label for="reelBrandSel">Brand</label>
+        <select id="reelBrandSel">${Object.entries(REEL_BRAND).map(([k,l])=>
+          `<option value="${k}" ${f.brand===k?'selected':''}>${l}</option>`).join('')}</select></div>
+
+      <div class="field"><label for="reelPri">Priority</label>
+        <select id="reelPri">${[['1','High'],['2','Normal'],['3','Someday']].map(([v,l])=>
+          `<option value="${v}" ${f.priority===v?'selected':''}>${l}</option>`).join('')}</select></div>
+
+      ${S.reelErr?`<p class="hint err">${esc(S.reelErr)}</p>`:''}
+
+      <div class="sheet-foot">
+        <button class="btn" id="reelAddSave" ${S.reelSaving?'disabled':''}>${
+          S.reelSaving?'Adding&hellip;':'Add to the board'}</button>
+        <p class="hint" style="margin-top:8px">A link on its own is fine, and so is text on its own.
+          Anything posted in the Teams channel lands here by itself.</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageReels(){
+  if(!S.loaded.reels) return loading();
+  const all = S.reels || [];
+  const active = all.filter(r => r.status === 'new').length;
+  const rows = reelVisible();
+
+  const tabs = [['active','Ideas', active], ['archive','Archive', all.length - active]]
+    .map(([k,label,n])=>`<button class="fchip ${S.reelView===k?'on':''}" data-reelview="${k}">${label} <b>${n}</b></button>`).join('');
+  const brands = [['all','All brands'],['haggerty','HAGGERTY'],['rhino','RHINO']]
+    .map(([k,label])=>`<button class="filt ${S.reelBrand===k?'on':''}" data-reelbrand="${k}">${label}</button>`).join('');
+
+  return `<main class="page wide">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="fchips" style="margin:0">${tabs}</div>
+      <div class="filters">${brands}</div>
+      <input type="text" id="reelSearch" value="${esc(S.reelQ)}"
+             placeholder="Search ideas, people, platforms"
+             style="flex:1;min-width:200px;width:auto" />
+      <button class="btn small" id="reelAdd">Add an idea</button>
+    </div>
+
+    ${S.reelNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.reelNote)}</p></div>`:''}
+    ${S.reelErr && !S.reelOpenId && !S.reelAddOpen?`<p class="hint err" style="margin-bottom:14px">${esc(S.reelErr)}</p>`:''}
+
+    ${rows.length
+      ? `<div class="reel-grid">${rows.map(reelCard).join('')}</div>`
+      : `<div class="empty" style="padding:44px 0">
+           <h2>${S.reelView==='active'?'Nothing on the board':'Nothing archived'}</h2>
+           <p>${S.reelView==='active'
+             ? 'Post a link or a note in the Teams channel and it appears here within a minute. Or add one directly.'
+             : 'Anything marked complete or skipped ends up here.'}</p>
+         </div>`}
+
+    <p class="hint" style="margin-top:18px">Complete keeps the idea, it just moves it to the archive.
+      Instagram gives no thumbnail without a Graph token, so those show as a platform tile until opened.</p>
+  </main>${reelSheet()}${reelAddSheet()}`;
+}
+
+async function setReelStatus(id, status){
+  if(S.reelBusy) return;
+  S.reelBusy = id; S.reelErr = ''; render();
+  let who = null;
+  try{ const { data } = await sb.auth.getUser(); who = data && data.user ? data.user.email : null; }
+  catch(e){ who = null; }
+  try{
+    const patch = { status };
+    if(status === 'complete') patch.completed_by = who;
+    const { error } = await sb.from('reel_ideas').update(patch).eq('id', id);
+    if(error) throw error;
+    S.reelNote = status === 'complete' ? 'Moved to the archive.'
+               : status === 'dismissed' ? 'Skipped.' : 'Back on the board.';
+    S.reelOpenId = null;
+    S.loaded.reels = false;
+    await loadReels();
+  }catch(err){ S.reelErr = err.message || String(err); }
+  S.reelBusy = ''; render();
+}
+
+async function saveReelNotes(){
+  const id = S.reelOpenId;
+  if(!id || S.reelBusy) return;
+  const el = document.getElementById('reelNotes');
+  if(el) S.reelNotes = el.value;
+  S.reelBusy = id; S.reelErr = ''; render();
+  try{
+    const { error } = await sb.from('reel_ideas')
+      .update({ notes: String(S.reelNotes||'').trim() || null }).eq('id', id);
+    if(error) throw error;
+    const row = (S.reels||[]).find(r => r.id === id);
+    if(row) row.notes = String(S.reelNotes||'').trim() || null;
+    S.reelNote = 'Notes saved.';
+  }catch(err){ S.reelErr = err.message || String(err); }
+  S.reelBusy = ''; render();
+}
+
+async function submitReel(){
+  if(S.reelSaving) return;
+  const f = S.reelForm;
+  const url = String(f.url||'').trim();
+  const text = String(f.text||'').trim();
+  if(!url && !text){ S.reelErr = 'Add a link or some text.'; return render(); }
+
+  S.reelSaving = true; S.reelErr = ''; render();
+  let who = '';
+  try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }
+  catch(e){ who = ''; }
+
+  try{
+    const p = parseReelLink(url);
+    let title = (text.split('\n')[0] || '').trim();
+    if(title.length > 120) title = title.slice(0,117) + '...';
+    if(!title) title = (REEL_PLAT[p.platform] || 'Link') + ' idea';
+
+    const { error } = await sb.from('reel_ideas').insert({
+      kind: url ? 'link' : 'text',
+      title, idea_text: text || title, url: url || null,
+      platform: p.platform, video_id: p.video_id || null,
+      embed_url: p.embed_url || null, thumbnail_url: p.thumbnail_url || null,
+      brand: f.brand, priority: Number(f.priority),
+      source: 'dashboard', posted_by: who, posted_by_email: who
+    });
+    if(error) throw error;
+
+    S.reelNote = 'Added to the board.';
+    S.reelAddOpen = false;
+    S.reelForm = { url:'', text:'', brand:f.brand, priority:'2' };
+    S.loaded.reels = false;
+    await loadReels();
+  }catch(err){ S.reelErr = 'That did not go through: ' + (err.message || err); }
+  S.reelSaving = false; render();
+}
+
+let reelTimer = null;
+
+function wireReels(){
+  document.querySelectorAll('[data-reelview]').forEach(el=>
+    el.addEventListener('click',()=>{ S.reelView = el.dataset.reelview; S.reelNote=''; render(); }));
+  document.querySelectorAll('[data-reelbrand]').forEach(el=>
+    el.addEventListener('click',()=>{ S.reelBrand = el.dataset.reelbrand; render(); }));
+
+  document.querySelectorAll('[data-reel-open]').forEach(el=>
+    el.addEventListener('click',()=>{
+      const id = el.dataset.reelOpen;
+      const r = (S.reels||[]).find(x => x.id === id);
+      S.reelOpenId = id; S.reelNotes = (r && r.notes) || ''; S.reelErr=''; S.reelNote=''; render();
+    }));
+  document.querySelectorAll('[data-reel-do]').forEach(el=>
+    el.addEventListener('click',()=>setReelStatus(el.dataset.reelDo, el.dataset.val)));
+
+  const cl = document.getElementById('reelClose');
+  if(cl) cl.addEventListener('click',()=>{ S.reelOpenId=null; S.reelErr=''; render(); });
+  const nt = document.getElementById('reelNotes');
+  if(nt) nt.addEventListener('input',()=>{ S.reelNotes = nt.value; });
+  const sn = document.getElementById('reelSaveNotes');
+  if(sn) sn.addEventListener('click', saveReelNotes);
+
+  const ad = document.getElementById('reelAdd');
+  if(ad) ad.addEventListener('click',()=>{ S.reelAddOpen=true; S.reelErr=''; S.reelNote=''; render(); });
+  const ac = document.getElementById('reelAddClose');
+  if(ac) ac.addEventListener('click',()=>{ S.reelAddOpen=false; S.reelErr=''; render(); });
+  const as = document.getElementById('reelAddSave');
+  if(as) as.addEventListener('click', submitReel);
+
+  const ru = document.getElementById('reelUrl');
+  if(ru) ru.addEventListener('input',()=>{ S.reelForm.url = ru.value; });
+  const rt = document.getElementById('reelText');
+  if(rt) rt.addEventListener('input',()=>{ S.reelForm.text = rt.value; });
+  const rb = document.getElementById('reelBrandSel');
+  if(rb) rb.addEventListener('change',()=>{ S.reelForm.brand = rb.value; });
+  const rp = document.getElementById('reelPri');
+  if(rp) rp.addEventListener('change',()=>{ S.reelForm.priority = rp.value; });
+
+  /* Typed search re-renders on a delay, then puts the cursor back where
+     it was, the same way the classification search does. */
+  const rs = document.getElementById('reelSearch');
+  if(rs){
+    rs.addEventListener('input',()=>{
+      S.reelQ = rs.value;
+      clearTimeout(reelTimer);
+      reelTimer = setTimeout(()=>{
+        render();
+        const el = document.getElementById('reelSearch');
+        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+      }, 250);
+    });
+  }
 }
 
 /* ================= boot ================= */
