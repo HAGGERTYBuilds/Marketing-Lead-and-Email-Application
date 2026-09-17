@@ -112,6 +112,20 @@
      day it came from or it reads as new work. */
   .carry{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;
        color:var(--orange);margin-left:26px;display:block;margin-top:3px}
+  /* Skipped today. Collapsed by default so a heavily skipped morning does
+     not bury the work, but never further away than one click. */
+  .skipgroup{border-top:1px solid var(--rule);margin-top:6px}
+  .skiphead{display:flex;width:100%;align-items:center;justify-content:space-between;
+       gap:8px;background:none;border:0;cursor:pointer;padding:11px 17px;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+       text-transform:uppercase;color:var(--slate);text-align:left}
+  .skiphead:hover{background:#FBFAF8;color:var(--ink)}
+  .skiphead .caret{font-size:9px}
+  .row.skipped{background:var(--wash);opacity:.72}
+  .row.skipped .name{font-weight:500;color:var(--slate);text-decoration:line-through}
+  .row.skipped:hover{background:var(--wash);opacity:1}
+  .row.skipped .undo{margin-left:auto;font-size:11px}
+  .carry.back{color:var(--slate)}
 
   .who h1{font-family:var(--display);font-size:32px;font-weight:700;margin:0 0 2px;line-height:1.1}
   .who .role{color:var(--grey);font-size:15px}
@@ -613,13 +627,13 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-09-17c';
+const BUILD = '2026-09-17e';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
-  tasks:{}, seq:null, seqErr:'', loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
+  tasks:{}, seq:null, seqErr:'', skipOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
@@ -757,7 +771,8 @@ async function loadBoard(){
     for(const x of (d||[])) (S.drafts[x.queue_id] ||= []).push(x);
   }
   if(!S.activeId || !S.board.some(r=>r.queue_id===S.activeId)){
-    const next = S.board.find(r=>!r.handled) || S.board[0];
+    const next = S.board.find(r=>!r.handled && r.status!=='skipped')
+      || S.board.find(r=>r.status!=='skipped') || S.board[0];
     S.activeId = next ? next.queue_id : null;
     S.open = {};
     const f = S.activeId && S.drafts[S.activeId]?.[0];
@@ -1564,7 +1579,8 @@ async function ensure(page){
 
 /* ================= chrome ================= */
 function topbar(){
-  const done = S.board.filter(r=>r.handled).length;
+  const live = S.board.filter(r=>r.status !== 'skipped');
+  const done = live.filter(r=>r.handled).length;
   return `<header class="topbar">
     <span class="wordmark">HAGGERT<span>Y</span></span>
     <nav class="tabs">
@@ -1584,7 +1600,7 @@ function topbar(){
     </div>
     <span class="spacer"></span>
     <span class="tally" title="Build ${BUILD}">${esc(prettyDate())}</span>
-    ${S.board.length?`<span class="tally"><b>${done}</b> / ${S.board.length} cleared</span>`:''}
+    ${live.length?`<span class="tally"><b>${done}</b> / ${live.length} cleared</span>`:''}
     <button class="linkbtn" id="signout">Sign out</button>
   </header>`;
 }
@@ -1649,6 +1665,12 @@ function wirePage(){
     el.addEventListener('click',()=>insertAsset(el.dataset.draft, el.dataset.asset)));
   document.querySelectorAll('[data-stop]').forEach(el=>
     el.addEventListener('click',()=>stopFollowUp(el.dataset.stop, el.dataset.stopnow === '1')));
+  document.querySelectorAll('[data-skip]').forEach(el=>
+    el.addEventListener('click',()=>skipToday(el.dataset.skip, true)));
+  document.querySelectorAll('[data-unskip]').forEach(el=>
+    el.addEventListener('click',e=>{ e.stopPropagation(); skipToday(el.dataset.unskip, false); }));
+  const st = document.getElementById('skipToggle');
+  if(st) st.addEventListener('click',()=>{ S.skipOpen=!S.skipOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
     el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
   const all = document.getElementById('genAll');
@@ -1769,18 +1791,28 @@ function pageToday(){
       </div></div><div>${side}</div></div>`;
   }
 
-  const done = S.board.filter(r=>r.handled).length;
-  const carried = S.board.filter(r=>r.carried).length;
+  // Skipped rows leave the count as well as the list. Pat cleared the board
+  // if he dealt with everything he meant to deal with.
+  const live = S.board.filter(r=>r.status !== 'skipped');
+  const done = live.filter(r=>r.handled).length;
+  const carried = live.filter(r=>r.carried).length;
   // Carried follow-ups survive the Gold filter. Hiding overdue work behind
   // a view toggle is the same disappearing act this fix is meant to end.
-  const shownRows = S.goldOnly ? S.board.filter(r=>r.is_gold || r.carried) : S.board;
+  const shownRows = S.goldOnly ? live.filter(r=>r.is_gold || r.carried) : live;
+  const skipped = S.board.filter(r=>r.status === 'skipped');
   return sectorBar() + `<div class="split">
     <nav class="board">
-      <div class="board-head"><span class="eyebrow">${done} of ${S.board.length} cleared${
+      <div class="board-head"><span class="eyebrow">${done} of ${live.length} cleared${
         S.goldOnly?` &middot; showing Pat's Gold only`:''}</span>${
         carried?`<span class="eyebrow" style="color:var(--orange);display:block;margin-top:3px">${
           carried} follow-up${carried===1?'':'s'} carried over</span>`:''}</div>
       ${shownRows.map(rowHtml).join('')}
+      ${skipped.length?`<div class="skipgroup">
+        <button class="skiphead" id="skipToggle" aria-expanded="${S.skipOpen?'true':'false'}">
+          <span>Skipped today (${skipped.length})</span>
+          <span class="caret">${S.skipOpen?'&#9662;':'&#9656;'}</span></button>
+        ${S.skipOpen ? skipped.map(skipRowHtml).join('') : ''}
+      </div>`:''}
     </nav>
     <main class="page cols3">
       <div>${detailHtml()}</div>
@@ -1823,9 +1855,13 @@ function seqPanel(){
     <div style="border:1px solid var(--rule)">
       ${shown.map(r=>{
         const queued = r.follow_up_state === 'queued';
+        // Once Pat picks a variant the draft is in his mailbox, not on the
+        // board. Saying "on the board" then sends him looking in the wrong place.
+        const inOutlook = queued && r.child_status === 'selected';
         const qd = Number(r.child_queued_days_ago);
         const d = Number(r.days_until);
-        const when = queued
+        const when = inOutlook ? 'waiting to send'
+          : queued
           ? (qd === 0 ? 'drafted today' : qd === 1 ? 'drafted yesterday'
              : `drafted ${qd}d ago`)
           : d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'today'
@@ -1835,7 +1871,7 @@ function seqPanel(){
           <span class="t" style="color:${hot?'var(--orange)':'var(--slate)'}">${esc(when)}</span>
           <span class="s">${esc(r.full_name||'')}
             ${r.company_name?`<em>${esc(r.company_name)}</em>`:''}</span>
-          <span class="kind">${queued?'On the board':'Touch '+esc(r.next_touch)}</span>
+          <span class="kind">${inOutlook?'In Outlook':queued?'On the board':'Touch '+esc(r.next_touch)}</span>
         </div>`;
       }).join('')}
     </div>
@@ -1855,6 +1891,24 @@ function rowHtml(r,i){
     ${r.handled?'<span class="tick">&#10003;</span>':''}</span>
     <span class="org">${esc(r.company_name||r.vertical)}</span>
     ${carryTag}</button>`;
+}
+
+/* A div, not a button, because the Undo inside it is itself a button and
+   nesting the two is invalid markup that Safari renders unpredictably.
+
+   The eligibility date is shown rather than left implied. The queue builder
+   locks a contact for 90 days when it queues them, so a skip is a longer
+   goodbye than the word "today" suggests, and Pat should be able to see how
+   long without asking anyone. */
+function skipRowHtml(r){
+  const back = r.next_eligible_at ? new Date(r.next_eligible_at) : null;
+  const future = back && !isNaN(back) && back > new Date();
+  return `<div class="row skipped" data-row="${r.queue_id}">
+    <span class="row-top"><span class="name">${esc(r.full_name||r.email)}</span>
+      <button class="linkbtn undo" data-unskip="${esc(r.queue_id)}">Undo</button></span>
+    <span class="org">${esc(r.company_name||r.vertical)}</span>
+    ${future?`<span class="carry back">ELIGIBLE AGAIN ${
+      esc(shortDate(r.next_eligible_at)).toUpperCase()}</span>`:''}</div>`;
 }
 
 function warnBlock(r){
@@ -1939,6 +1993,27 @@ async function stopFollowUp(contactId, stop){
   finally{ S.busy = false; render(); }
 }
 
+/* Off today's board, nothing more. The contact keeps its next_eligible_at,
+   so the queue builder can pick it up again whenever it next comes round.
+   Undo restores the status the row had, inferred from whether drafts exist,
+   which avoids carrying a second status column just for this. */
+async function skipToday(queueId, skip){
+  S.busy = true; S.err = ''; render();
+  try{
+    const back = (S.drafts[queueId] || []).length ? 'drafted' : 'queued';
+    const { error } = await sb.from('email_queue').update({
+      status: skip ? 'skipped' : back,
+      skipped_reason: null,
+      updated_at: new Date().toISOString()
+    }).eq('id', queueId);
+    if(error) throw error;
+    if(skip && S.activeId === queueId) S.activeId = null;
+    if(!skip) S.activeId = queueId;
+    await loadBoard();
+  }catch(err){ S.err = err.message || String(err); }
+  finally{ S.busy = false; render(); }
+}
+
 function detailHtml(){
   const r = S.board.find(x=>x.queue_id===S.activeId);
   if(!r) return '';
@@ -1972,10 +2047,17 @@ function detailHtml(){
       ${r.draft_web_link?`<p style="margin-top:9px"><a href="${esc(r.draft_web_link)}" target="_blank" rel="noopener"><b>Open it in Outlook</b></a></p>`:''}
       </div>`;
   }
-  if(!drafts.length) return head + `<div class="panelbox"><p class="none">No drafts generated for this contact yet.</p></div>`;
+  const skipBtn = r.status === 'skipped'
+    ? `<button class="linkbtn" data-unskip="${esc(r.queue_id)}">Put back on the board</button>`
+    : `<button class="linkbtn" data-skip="${esc(r.queue_id)}">Not today</button>`;
+  if(!drafts.length) return head + `<div class="panelbox">
+      <p class="none">No drafts generated for this contact yet.</p>
+      <p style="margin-top:10px">${skipBtn}</p></div>
+    ${S.err?`<p class="hint err">${esc(S.err)}</p>`:''}`;
   return head + `<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
       <h2 class="sec" style="flex:1;min-width:180px">${
         isFollow ? 'The nudge' : 'Five approaches'}</h2>
+      ${skipBtn}
       <button class="linkbtn" data-stop="${esc(r.contact_id)}" data-stopnow="${r.follow_up_stopped_at?'0':'1'}">
         ${r.follow_up_stopped_at ? 'Resume follow-ups' : 'Stop following up'}</button>
     </div>
