@@ -107,6 +107,11 @@
   .org{font-size:12.5px;color:var(--slate);margin-left:26px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tick{margin-left:auto;color:var(--green);font-size:13px}
+  /* A follow-up Pat did not clear on the day it was queued. It keeps its
+     place on the board until it is dealt with, so the tag has to name the
+     day it came from or it reads as new work. */
+  .carry{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;
+       color:var(--orange);margin-left:26px;display:block;margin-top:3px}
 
   .who h1{font-family:var(--display);font-size:32px;font-weight:700;margin:0 0 2px;line-height:1.1}
   .who .role{color:var(--grey);font-size:15px}
@@ -675,6 +680,20 @@ const shortDate = iso => {
   const d = new Date(iso);
   return isNaN(d) ? '' : d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 };
+/* A bare YYYY-MM-DD parses as UTC midnight, which reads as the day before
+   in Pacific. Anchoring at noon keeps a queue_date on its own date. */
+const dateOnly = ymd => {
+  if(!ymd) return '';
+  const d = new Date(String(ymd).slice(0,10) + 'T12:00:00Z');
+  return isNaN(d) ? '' : d.toLocaleDateString('en-US',
+    {month:'short',day:'numeric',timeZone:'UTC'});
+};
+const daysAgoFrom = ymd => {
+  if(!ymd) return null;
+  const d = new Date(String(ymd).slice(0,10) + 'T12:00:00Z');
+  const n = new Date(today() + 'T12:00:00Z');
+  return isNaN(d) ? null : Math.round((n - d) / 86400000);
+};
 
 function toPlain(html){
   if(!html) return '';
@@ -712,11 +731,22 @@ function renderLogin(msg){
 }
 
 /* ================= loaders ================= */
+/* Today's queue, plus any follow-up still sitting unhandled from an earlier
+   day. A follow-up used to appear for exactly one day and then fall off the
+   board for good, which is how two of them went quiet in August. Carrying
+   them forward on read costs nothing extra and heals a gap of any length. */
 async function loadBoard(){
+  const t = today();
   const { data, error } = await sb.from('v_today_board').select('*')
-    .eq('queue_date', today()).order('vertical_order').order('slot');
+    .or(`queue_date.eq.${t},and(queue_date.lt.${t},touch.gt.1,handled.is.false,status.neq.skipped)`)
+    .order('vertical_order').order('slot');
   if(error) throw error;
-  S.board = data || [];
+  const rows = data || [];
+  for(const r of rows) r.carried = r.queue_date !== t;
+  // Stable sort, so carried rows lead and everything else keeps its
+  // vertical-then-slot order. Overdue work should not need scrolling to.
+  rows.sort((a,b)=> (a.carried===b.carried) ? 0 : (a.carried ? -1 : 1));
+  S.board = rows;
   S.drafts = {};
   if(S.board.length){
     const { data:d } = await sb.from('email_drafts').select('*')
@@ -1241,9 +1271,13 @@ async function loadMetrics(){
   S.loaded.metrics = true;
 }
 
+/* show_in_panel, not halted_because. The two differ in one case: a follow-up
+   that has been queued but has not gone out yet. That is still a live
+   sequence and belongs on screen. halted_because is left alone because the
+   n8n generator reads it to decide what to queue. */
 async function loadSequences(){
   const { data } = await sb.from('v_sequences_live').select('*')
-    .is('halted_because', null).order('next_due_on').limit(40);
+    .eq('show_in_panel', true).order('next_due_on').limit(40);
   S.seq = data || [];
   S.loaded.seq = true;
 }
@@ -1730,11 +1764,16 @@ function pageToday(){
   }
 
   const done = S.board.filter(r=>r.handled).length;
-  const shownRows = S.goldOnly ? S.board.filter(r=>r.is_gold) : S.board;
+  const carried = S.board.filter(r=>r.carried).length;
+  // Carried follow-ups survive the Gold filter. Hiding overdue work behind
+  // a view toggle is the same disappearing act this fix is meant to end.
+  const shownRows = S.goldOnly ? S.board.filter(r=>r.is_gold || r.carried) : S.board;
   return sectorBar() + `<div class="split">
     <nav class="board">
       <div class="board-head"><span class="eyebrow">${done} of ${S.board.length} cleared${
-        S.goldOnly?` &middot; showing Pat's Gold only`:''}</span></div>
+        S.goldOnly?` &middot; showing Pat's Gold only`:''}</span>${
+        carried?`<span class="eyebrow" style="color:var(--orange);display:block;margin-top:3px">${
+          carried} follow-up${carried===1?'':'s'} carried over</span>`:''}</div>
       ${shownRows.map(rowHtml).join('')}
     </nav>
     <main class="page cols3">
@@ -1746,13 +1785,21 @@ function pageToday(){
 function loading(){ return `<div class="empty"><h2>Loading</h2></div>`; }
 
 /* Nothing else shows a sequence between the send and the nudge, so a
-   working sequence and a broken one looked identical for four days. */
+   working sequence and a broken one looked identical for four days.
+
+   Worse than that, as it turned out. Queueing a follow-up used to drop the
+   row out of this panel, and the queued draft only appeared on the board on
+   its own date, so an unclaimed follow-up left the app entirely. Two of them
+   did. A queued follow-up now stays here, reading "on the board", until the
+   email actually sends. */
 function seqPanel(){
   const rows = S.seq || [];
   if(!rows.length){
     return `<p class="hint">No sequences running. One starts every time an email sends.</p>`;
   }
-  const due = rows.filter(r => Number(r.days_until) <= 0).length;
+  const waiting = rows.filter(r => r.follow_up_state === 'queued').length;
+  const due = rows.filter(r => r.follow_up_state !== 'queued'
+                            && Number(r.days_until) <= 0).length;
   const shown = rows.slice(0, 8);
   return `<div class="panelbox" style="margin-top:0">
       <div style="display:flex;align-items:baseline;gap:10px">
@@ -1760,17 +1807,24 @@ function seqPanel(){
         <span class="eyebrow">waiting on a reply</span>
       </div>
       ${due?`<p class="mono" style="color:var(--orange)">${due} due now</p>`:''}
+      ${waiting?`<p class="mono" style="color:var(--orange)">${waiting} drafted, not sent</p>`:''}
     </div>
     <div style="border:1px solid var(--rule)">
       ${shown.map(r=>{
+        const queued = r.follow_up_state === 'queued';
+        const qd = Number(r.child_queued_days_ago);
         const d = Number(r.days_until);
-        const when = d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'today'
-                   : d === 1 ? 'tomorrow' : `in ${d}d`;
+        const when = queued
+          ? (qd === 0 ? 'drafted today' : qd === 1 ? 'drafted yesterday'
+             : `drafted ${qd}d ago`)
+          : d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'today'
+          : d === 1 ? 'tomorrow' : `in ${d}d`;
+        const hot = queued || d <= 0;
         return `<div class="ev">
-          <span class="t" style="color:${d<=0?'var(--orange)':'var(--slate)'}">${esc(when)}</span>
+          <span class="t" style="color:${hot?'var(--orange)':'var(--slate)'}">${esc(when)}</span>
           <span class="s">${esc(r.full_name||'')}
             ${r.company_name?`<em>${esc(r.company_name)}</em>`:''}</span>
-          <span class="kind">Touch ${esc(r.next_touch)}</span>
+          <span class="kind">${queued?'On the board':'Touch '+esc(r.next_touch)}</span>
         </div>`;
       }).join('')}
     </div>
@@ -1778,11 +1832,18 @@ function seqPanel(){
 }
 
 function rowHtml(r,i){
+  const ago = r.carried ? daysAgoFrom(r.queue_date) : null;
+  const carryTag = r.carried
+    ? `<span class="carry">FOLLOW-UP ${esc(r.touch)} &middot; QUEUED ${
+        esc(dateOnly(r.queue_date)).toUpperCase()}${
+        ago ? ` &middot; ${ago}D WAITING` : ''}</span>`
+    : '';
   return `<button class="row ${r.queue_id===S.activeId?'active':''} ${r.handled?'done':''} ${r.is_gold?'gold':''}" data-row="${r.queue_id}">
     <span class="row-top"><span class="idx">${String(i+1).padStart(2,'0')}</span>
     <span class="name">${esc(r.full_name||r.email)}</span>
     ${r.handled?'<span class="tick">&#10003;</span>':''}</span>
-    <span class="org">${esc(r.company_name||r.vertical)}</span></button>`;
+    <span class="org">${esc(r.company_name||r.vertical)}</span>
+    ${carryTag}</button>`;
 }
 
 function warnBlock(r){
