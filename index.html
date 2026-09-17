@@ -611,12 +611,15 @@ const OWNERS = { myday:'liam', iyanna:'iyanna' };
 const WHOAMI = { 'liam@haggertybuilds.com':'liam',
                  'iyanna@haggertybuilds.com':'iyanna' };
 
+/* Hover the date in the top bar to read this. Settles "is the new file
+   actually live" without anyone opening developer tools. */
+const BUILD = '2026-09-17c';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
-  tasks:{}, seq:null, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
+  tasks:{}, seq:null, seqErr:'', loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
@@ -1276,8 +1279,11 @@ async function loadMetrics(){
    sequence and belongs on screen. halted_because is left alone because the
    n8n generator reads it to decide what to queue. */
 async function loadSequences(){
-  const { data } = await sb.from('v_sequences_live').select('*')
+  const { data, error } = await sb.from('v_sequences_live').select('*')
     .eq('show_in_panel', true).order('next_due_on').limit(40);
+  // A failed query used to land in the same empty state as a quiet week,
+  // which is the exact confusion this panel keeps causing. Say it instead.
+  S.seqErr = error ? (error.message || String(error)) : '';
   S.seq = data || [];
   S.loaded.seq = true;
 }
@@ -1577,7 +1583,7 @@ function topbar(){
       ${S.crmQ?`<button class="crmx" id="crmClear" aria-label="Clear">&times;</button>`:''}
     </div>
     <span class="spacer"></span>
-    <span class="tally">${esc(prettyDate())}</span>
+    <span class="tally" title="Build ${BUILD}">${esc(prettyDate())}</span>
     ${S.board.length?`<span class="tally"><b>${done}</b> / ${S.board.length} cleared</span>`:''}
     <button class="linkbtn" id="signout">Sign out</button>
   </header>`;
@@ -1794,6 +1800,11 @@ function loading(){ return `<div class="empty"><h2>Loading</h2></div>`; }
    email actually sends. */
 function seqPanel(){
   const rows = S.seq || [];
+  if(S.seqErr){
+    return `<div class="warn"><b>This panel could not load.</b>
+      <span class="mono">${esc(S.seqErr)}</span><br>
+      Nothing is wrong with the sequences themselves. Send this line to Liam.</div>`;
+  }
   if(!rows.length){
     return `<p class="hint">No sequences running. One starts every time an email sends.</p>`;
   }
