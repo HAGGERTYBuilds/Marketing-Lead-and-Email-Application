@@ -247,6 +247,17 @@
   .subctl{display:flex;gap:12px;margin-top:7px}
   .subctl .linkbtn{font-size:12px;padding-left:0}
   .task .mid .bar{max-width:260px}
+
+  /* ---------- drag to reorder ---------- */
+  .grip{flex-shrink:0;width:14px;margin:1px -4px 0 -6px;cursor:grab;
+        color:var(--slate);opacity:.45;font-size:14px;line-height:1;
+        letter-spacing:-3px;user-select:none;touch-action:none;text-align:center}
+  .task:hover .grip{opacity:1}
+  .grip:active{cursor:grabbing}
+  .task.dragging{opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.14);
+                 position:relative;z-index:5;border-left-color:var(--orange)}
+  body.reordering{cursor:grabbing;user-select:none}
+  @media (hover:none){.grip{opacity:.8;width:22px;font-size:17px}}
   @media (max-width:700px){.taskbar{grid-template-columns:1fr}}
 
   /* ---------- warnings ---------- */
@@ -1321,8 +1332,19 @@ async function loadTasks(owner){
     .or(`work_date.eq.${t0},and(work_date.lt.${t0},status.neq.done)`)
     .order('status').order('work_date').order('priority').order('sort_order');
   if(error) throw error;
-  S.tasks[owner] = data || [];
+  S.tasks[owner] = orderTasks(data || []);
   S.loaded.tasks[owner] = true;
+}
+
+/* The order on screen is the order you set by dragging. Finished tasks
+   sink to the bottom so the list reads top down as what to do next.
+   created_at breaks ties, which only happen for rows written outside
+   the dashboard before the insert trigger numbers them. */
+function orderTasks(rows){
+  return rows.slice().sort((a,b) =>
+    ((a.status==='done') - (b.status==='done')) ||
+    ((a.sort_order||0) - (b.sort_order||0)) ||
+    String(a.created_at).localeCompare(String(b.created_at)));
 }
 
 function dayStats(owner){
@@ -1702,6 +1724,8 @@ function wirePage(){
     el.addEventListener('click',()=>cycleTask(el.dataset.taskToggle)));
   document.querySelectorAll('[data-task-del]').forEach(el=>
     el.addEventListener('click',()=>delTask(el.dataset.taskDel)));
+  document.querySelectorAll('[data-grip]').forEach(el=>
+    el.addEventListener('pointerdown', startTaskDrag));
 
   document.querySelectorAll('[data-task-open]').forEach(el=>
     el.addEventListener('click',()=>{
@@ -3375,7 +3399,7 @@ function pageDay(owner){
 
     ${ds && ds.carried ? `<div class="warn soft" style="margin-bottom:18px">
       <b>${ds.carried} ${ds.carried===1?'task has':'tasks have'} carried over.</b>
-      Still open from an earlier day, so ${ds.carried===1?'it sits':'they sit'} at the top of the list below.</div>` : ''}
+      Still open from an earlier day. Drag ${ds.carried===1?'it':'them'} up if ${ds.carried===1?'it needs':'they need'} to come first.</div>` : ''}
 
     <div class="block">
       <h2 class="sec">Add a task</h2>
@@ -3396,7 +3420,8 @@ function pageDay(owner){
 
     <div class="block">
       <h2 class="sec">${esc(name)} &middot; ${esc(prettyDate())}</h2>
-      ${ts.length ? ts.map(taskHtml).join('') : `<p class="hint">Nothing yet. Anything left open carries forward to the next day rather than disappearing.</p>`}
+      ${ts.some(t=>!t.parent_id && t.status!=='done') ? `<p class="hint" style="margin:-4px 0 10px">Drag the &#8942;&#8942; handle to put what matters most at the top.</p>` : ''}
+      ${ts.length ? `<div id="taskList">${ts.map(taskHtml).join('')}</div>` : `<p class="hint">Nothing yet. Anything left open carries forward to the next day rather than disappearing.</p>`}
     </div>
 
     ${owner === 'liam' ? requestsSection() : ''}
@@ -3439,7 +3464,8 @@ function taskHtml(t){
     : (t.status === 'doing' && subs.length > 0);
   const adding = S.subDraft && S.subDraft.parentId === t.id;
 
-  return `<div class="task ${cls}">
+  return `<div class="task ${cls}" data-tid="${t.id}">
+    ${t.status!=='done' ? `<span class="grip" data-grip="${t.id}" title="Drag to reorder">&#8942;&#8942;</span>` : ''}
     <button class="box" data-task-toggle="${t.id}" title="Click to advance">${t.status==='done'?'&#10003;':''}</button>
     <span class="mid">
       <span class="tt">${esc(t.title)}</span>
@@ -4494,7 +4520,8 @@ async function addTask(){
     const { error } = await sb.from('tasks').insert({
       title, category, priority, owner,
       work_date: today(),
-      sort_order: (S.tasks[owner]||[]).filter(t=>!t.parent_id).length
+      sort_order: 1 + Math.max(0, ...(S.tasks[owner]||[])
+        .filter(t=>!t.parent_id).map(t=>t.sort_order||0))
     });
     if(error) throw error;
     // Clear the text but keep area and priority: tasks come in runs.
@@ -4585,6 +4612,87 @@ async function addSubtask(){
   }catch(err){
     S.err = err.message||String(err);
     S.subFocus = true; render(); S.subFocus = false;
+  }
+}
+
+/* ---------- drag to reorder ----------
+   Pointer events cover mouse, pen and touch with one code path. The row
+   moves in the DOM while dragging, and nothing is written until release,
+   so a drag that ends where it began costs no requests. Only unfinished
+   rows take part: done rows have no handle and stay parked below. */
+function startTaskDrag(e){
+  if(e.button !== undefined && e.button !== 0) return;
+  const list = document.getElementById('taskList');
+  const row = e.currentTarget.closest('.task');
+  if(!list || !row) return;
+  e.preventDefault();
+  /* Listeners sit on window rather than the handle: moving the row in
+     the DOM drops pointer capture, and the drag would die mid-gesture. */
+  const pid = e.pointerId;
+  const before = [...list.querySelectorAll('.task[data-tid]')].map(r=>r.dataset.tid);
+  row.classList.add('dragging');
+  document.body.classList.add('reordering');
+
+  const move = ev => {
+    if(ev.pointerId !== pid) return;
+    ev.preventDefault();
+    const y = ev.clientY;
+    const others = [...list.querySelectorAll('.task[data-tid]')]
+      .filter(r => r !== row && !r.classList.contains('done'));
+    let placed = false;
+    for(const r of others){
+      const b = r.getBoundingClientRect();
+      if(y < b.top + b.height/2){
+        if(row.nextElementSibling !== r) list.insertBefore(row, r);
+        placed = true; break;
+      }
+    }
+    if(!placed && others.length){
+      const last = others[others.length-1];
+      if(last.nextElementSibling !== row) last.after(row);
+    }
+    // Keep the dragged row in view on long lists.
+    if(y < 60) window.scrollBy(0, -12);
+    else if(y > window.innerHeight - 60) window.scrollBy(0, 12);
+  };
+  const end = ev => {
+    if(ev.pointerId !== pid) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    row.classList.remove('dragging');
+    document.body.classList.remove('reordering');
+    const after = [...list.querySelectorAll('.task[data-tid]')].map(r=>r.dataset.tid);
+    if(after.join() !== before.join()) saveTaskOrder(after);
+  };
+  window.addEventListener('pointermove', move, { passive:false });
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+}
+
+async function saveTaskOrder(ids){
+  const owner = S.dayOwner || S.me;
+  const rows = S.tasks[owner] || [];
+  const byId = Object.fromEntries(rows.map(r=>[r.id, r]));
+  /* Numbered from 1 so an insert that arrives with the column default of
+     0 is easy to spot, and only rows whose number changed are written. */
+  const changes = [];
+  ids.forEach((id, i) => {
+    const r = byId[id];
+    if(r && r.sort_order !== i + 1){ changes.push({ id, sort_order: i + 1 }); r.sort_order = i + 1; }
+  });
+  S.tasks[owner] = orderTasks(rows);
+  render();
+  if(!changes.length) return;
+  try{
+    const results = await Promise.all(changes.map(c =>
+      sb.from('tasks').update({ sort_order: c.sort_order }).eq('id', c.id)));
+    const bad = results.find(r => r.error);
+    if(bad) throw bad.error;
+  }catch(err){
+    // Reload so the screen shows what actually saved.
+    S.err = 'Order not saved: ' + (err.message||String(err));
+    await loadTasks(owner); render();
   }
 }
 
