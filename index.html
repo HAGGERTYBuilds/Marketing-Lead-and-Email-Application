@@ -3879,8 +3879,10 @@ function leadHtml(l){
   if(l.company_industry) facts.push(['Industry', l.company_industry]);
   if(l.employee_count)   facts.push(['Headcount', num(l.employee_count)]);
   if(l.company_revenue)  facts.push(['Revenue', l.company_revenue]);
+  /* Where the person works drives territory; the company HQ is context. */
+  if(l.person_location)  facts.push(['Based in', String(l.person_location).replace(/,\s*United States$/i,'')]);
   if(l.company_city||l.company_state)
-    facts.push(['Location', [l.company_city,l.company_state].filter(Boolean).join(', ')]);
+    facts.push([l.person_location?'Company HQ':'Location', [l.company_city,l.company_state].filter(Boolean).join(', ')]);
   if(l.territory)        facts.push(['Territory', l.territory]);
   if(l.seniority)        facts.push(['Seniority', l.seniority]);
   if(l.months_in_role)   facts.push(['In role', tenure(l.months_in_role)]);
