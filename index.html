@@ -481,6 +481,9 @@
   .lhead{display:flex;align-items:flex-start;gap:10px}
   .lhead h3{font-family:var(--display);font-size:20px;font-weight:700;margin:0;line-height:1.15}
   .lhead .role{font-size:13px;color:var(--slate);margin-top:1px}
+  .lhead .headline{font-size:12.5px;color:var(--grey);font-style:italic;margin-top:3px;
+                   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+                   -webkit-line-clamp:2;-webkit-box-orient:vertical}
   .fit{font-family:var(--display);font-size:23px;font-weight:700;color:var(--orange);
        margin-left:auto;line-height:1;flex-shrink:0}
   .facts{display:flex;flex-wrap:wrap;gap:0 22px;margin:11px 0 0}
@@ -3859,6 +3862,15 @@ function batchRow(b){
   </button>`;
 }
 
+/* Evaboot gives tenure in months; read it the way LinkedIn shows it. */
+function tenure(m){
+  m = Number(m||0);
+  if(!m) return '';
+  const y = Math.floor(m/12), r = m%12;
+  if(!y) return `${r} mo`;
+  return r ? `${y} yr ${r} mo` : `${y} yr`;
+}
+
 function leadHtml(l){
   const on = S.picked.has(l.contact_id);
   const open = !!S.leadOpen[l.contact_id];
@@ -3871,9 +3883,9 @@ function leadHtml(l){
     facts.push(['Location', [l.company_city,l.company_state].filter(Boolean).join(', ')]);
   if(l.territory)        facts.push(['Territory', l.territory]);
   if(l.seniority)        facts.push(['Seniority', l.seniority]);
+  if(l.months_in_role)   facts.push(['In role', tenure(l.months_in_role)]);
 
   const links = [];
-  if(l.linkedin_url)    links.push(`<a class="chip" href="${esc(l.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>`);
   if(l.company_website) links.push(`<a class="chip" href="${esc(l.company_website)}" target="_blank" rel="noopener">Website</a>`);
 
   const hasMore = l.company_description || l.bio || l.company_keywords || links.length;
@@ -3888,6 +3900,8 @@ function leadHtml(l){
         <div style="min-width:0">
           <h3>${esc(l.full_name||'Unnamed')}</h3>
           <div class="role">${esc(l.title||'No title')}${l.company_name?` at <b>${esc(l.company_name)}</b>`:''}</div>
+          ${l.linkedin_headline && !String(l.linkedin_headline).toLowerCase().startsWith(String(l.title||'').toLowerCase()+' at')
+            ?`<div class="headline" title="LinkedIn headline">${esc(l.linkedin_headline)}</div>`:''}
         </div>
         <span class="fit" title="Outreach fit score">${l.fit!=null?esc(l.fit):'&ndash;'}</span>
       </div>
@@ -3903,6 +3917,8 @@ function leadHtml(l){
                  :`<span class="chip">No email</span>`}
         ${l.email_status?`<span class="chip">${esc(l.email_status)}</span>`:''}
         ${l.office_phone?`<span class="chip">${esc(l.office_phone)}</span>`:''}
+        ${l.linkedin_url?`<a class="chip" href="${esc(l.linkedin_url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>`:''}
+        ${l.sales_nav_url?`<a class="chip" href="${esc(l.sales_nav_url)}" target="_blank" rel="noopener">Sales Nav &#8599;</a>`:''}
       </div>
 
       ${facts.length?`<dl class="facts">${facts.map(([k,v])=>
