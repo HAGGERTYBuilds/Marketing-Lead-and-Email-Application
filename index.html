@@ -512,6 +512,15 @@
   .sheet-head h2{font-family:var(--display);font-size:23px;font-weight:700;margin:0}
   .sheet-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule)}
   .sheet-foot .btn{width:100%}
+  .fchecks{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13.5px}
+  .fchecks label{display:flex;align-items:center;gap:6px;text-transform:none;
+                 letter-spacing:0;font-family:var(--body);font-size:13.5px;
+                 color:var(--ink);font-weight:400;margin:0;cursor:pointer}
+  .snstep{margin-top:18px;padding-top:14px;border-top:1px solid var(--rule-soft)}
+  .snstep .eyebrow{display:block;margin-bottom:6px}
+  .sn-open{display:block;text-align:center;text-decoration:none}
+  input[type=number].sncount{width:100%;font-family:var(--body);font-size:14px;line-height:1.6;
+    color:var(--ink);background:var(--paper);border:1px solid var(--rule);padding:6px 10px}
 
   /* ---------- reel ideas ---------- */
   .reel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
@@ -604,6 +613,8 @@ const SUPABASE_KEY = 'sb_publishable_bdyRB7Mx0BKzNj1EcYlRCg_8JLDXEIL';
 const ACTION_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-outreach-action';
 const GENERATE_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-generate-vertical';
 const IMPORT_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-import';
+const SCRAPE_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-evaboot-scrape';
+const QUOTA_URL    = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-evaboot-quota';
 const APPROVE_URL  = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-approve';
 const REJECT_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-reject';
 const MOVE_URL     = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-deal-move';
@@ -666,6 +677,8 @@ const S = {
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
   impOpen:false, impBusy:false, impRows:null, impFile:'', impName:'',
   impVert:'', impErr:'',
+  snOpen:false, snSector:'', snTerr:['san-joaquin'], snLevel:'directors', snSizes:[],
+  snExtra:'', snName:'', snOpened:'', snCount:'', snBusy:false, snErr:'', snQuota:null,
   /* classifications */
   leadView:'leads', cls:null, clsFilter:'not_fit', clsPicked:new Set(),
   clsBusy:false, clsNote:'', clsErr:'',
@@ -3546,7 +3559,8 @@ function pageLeads(){
         <span class="eyebrow">Batches</span>
         <div style="display:flex;gap:6px">
           <button class="btn small ghost" id="addOpen">Add one</button>
-          <button class="btn small" id="impOpen">Import CSV</button>
+          <button class="btn small ghost" id="impOpen">Import CSV</button>
+          <button class="btn small" id="snOpenBtn">Find on LinkedIn</button>
         </div>
       </div>
       ${addLeadForm()}
@@ -3575,7 +3589,7 @@ function pageLeads(){
 
       ${all.length?actionBar(kept, vis.length):''}
     </main>
-  </div>${S.impOpen?importSheet():''}`;
+  </div>${S.impOpen?importSheet():''}${S.snOpen?findSheet():''}`;
 }
 
 function clsVisible(){
@@ -4159,6 +4173,254 @@ function labelBlock(l){
   </div>`;
 }
 
+/* ---------- Find on LinkedIn ----------
+   Builds a Sales Navigator people search from presets, sends Liam to look
+   at it on LinkedIn, and only then lets him start an Evaboot scrape.
+   Evaboot's API has no result limit: a run scrapes, and charges a credit
+   for, every person the search returns. The count typed in after looking
+   is what n8n checks against its ceiling and the credit reserve. */
+
+/* LinkedIn's own filter ids, resolved against the Sales Navigator catalog
+   in October 2026. They do not change; new territories need new ids. */
+const SN_TERRITORIES = {
+  'san-joaquin':    { label:'San Joaquin County', regions:[101831129,101412965,106503158,106070069,100762562] },
+  'central-valley': { label:'Central Valley (SJ, Stanislaus, Merced)',
+                      regions:[101831129,102641906,105763016,101412965,101671045,106503158,106070069,100762562,104337712,100338711] },
+  'sacramento':     { label:'Sacramento region', regions:[101103472,101391088,107169071,101955072,90000082] },
+  'bay-area':       { label:'Bay Area', regions:[102839053,102476922,105416315,104739033,100901743] }
+};
+const SN_SIZES = { B:'1-10', C:'11-50', D:'51-200', E:'201-500', F:'501-1000', G:'1001-5000', H:'5001-10000', I:'10001+' };
+const SN_LEVELS = {
+  directors: { label:'Directors and up',
+    terms:['Director','"Senior Director"','"Sr. Director"','VP','"Vice President"','SVP','EVP','Head','"Head of"','Chief'] },
+  managers:  { label:'Managers and up',
+    terms:['Director','"Senior Director"','"Sr. Director"','VP','"Vice President"','SVP','EVP','Head','"Head of"','Chief',
+           'Manager','"Senior Manager"','"Sr. Manager"','Superintendent'] }
+};
+const SN_EXCLUDE = ['Assistant','Coordinator','Analyst','Intern','Junior','Trainee','Apprentice','Student',
+  '"Executive Assistant"','Freelance','Freelancer','"Business Development"','Sales'];
+/* Per sector: LinkedIn industries, the role words a buyer's title carries,
+   and titles that are buyers on their own whatever the level. */
+const SN_SECTORS = {
+  'healthcare':       { ind:[14], roles:['Facilities','Facility','"Plant Operations"','Engineering','Construction','"Capital Projects"'], direct:[],
+                        not:['"Medical Director"','Hospitalist','Physician','Nurse','Nursing','Clinical','Culinary','Nutrition','Financing'] },
+  'senior-living':    { ind:[2091], roles:['Facilities','Maintenance','Operations','Construction'], direct:['Administrator','"Executive Director"'] },
+  'education':        { ind:[67,68,69], roles:['Facilities','Maintenance','"Maintenance and Operations"','"M&O"','"Plant Operations"','"Capital Projects"','Construction'], direct:[] },
+  'industrial':       { ind:[25,23,93,92], roles:['Facilities','Facility','Plant','Engineering','Maintenance','Construction'], direct:['"Plant Manager"'] },
+  'auto':             { ind:[1292,53], roles:['"Fixed Operations"','Facilities','Operations'], direct:['"Dealer Principal"','"Dealer Operator"','"General Manager"'],
+                        not:['"Service Manager"','"Parts Manager"','Finance','"F&I"'] },
+  'qsr-petroleum':    { ind:[32,34,57,27], roles:['Construction','"Real Estate"','"Site Development"','"Store Development"','Facilities'], direct:['Franchisee','"Franchise Owner"'] },
+  'qsr':              { ind:[32,34], roles:['Construction','"Real Estate"','"Site Development"','"Store Development"','Facilities'], direct:['Franchisee','"Franchise Owner"'] },
+  'petroleum':        { ind:[57], roles:['Construction','"Real Estate"','"Site Development"','"Store Development"','Facilities'], direct:[] },
+  'retail':           { ind:[27], roles:['Construction','"Store Development"','"Store Planning"','"Real Estate"','Facilities'], direct:[] },
+  'multi-family':     { ind:[1759,44], roles:['Development','Construction','"Asset Management"','"Capital Projects"'], direct:['"Asset Manager"'] },
+  'property-manager': { ind:[44,128,1759], roles:['Property','"Property Management"','Facilities','"Asset Management"','Portfolio'], direct:['"Property Manager"','"Asset Manager"'] },
+  'municipal':        { ind:[75], roles:['"Public Works"','Facilities','"Capital Projects"','"Capital Improvement"','Engineering'], direct:['"City Engineer"','"City Manager"'] },
+  'office':           { ind:[], roles:['Facilities','Workplace','"Real Estate"','"Building Operations"'], direct:[] },
+  'mixed-commercial': { ind:[44,128], roles:['Development','Construction','"Asset Management"','"Real Estate"'], direct:[] }
+};
+
+/* LinkedIn double-encodes the title boolean, and its inner pass escapes
+   parentheses too, which encodeURIComponent leaves alone. */
+function snEnc(t){
+  return encodeURIComponent(t).replace(/[()!'*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+}
+function snExtraTerms(){
+  return String(S.snExtra||'').split(',')
+    .map(x => x.replace(/["()]/g,'').trim()).filter(Boolean)
+    .map(x => /\s/.test(x) ? `"${x}"` : x);
+}
+function snTitle(){
+  const sec = SN_SECTORS[S.snSector]; if(!sec) return '';
+  const lvl = SN_LEVELS[S.snLevel] || SN_LEVELS.directors;
+  const roles = [...new Set(sec.roles.concat(snExtraTerms()))];
+  let core = `(${lvl.terms.join(' OR ')}) AND (${roles.join(' OR ')})`;
+  if(sec.direct.length) core = `((${core}) OR (${sec.direct.join(' OR ')}))`;
+  return `${core} NOT (${SN_EXCLUDE.concat(sec.not || []).join(' OR ')})`;
+}
+function snUrl(){
+  const sec = SN_SECTORS[S.snSector];
+  const regions = [...new Set(S.snTerr.flatMap(k => (SN_TERRITORIES[k]||{}).regions || []))];
+  if(!sec || !regions.length) return '';
+  const inc = id => `(id:${id},selectionType:INCLUDED)`;
+  const parts = [];
+  if(S.snSizes.length)
+    parts.push(`(type:COMPANY_HEADCOUNT,values:List(${S.snSizes.map(k=>`(id:${k},text:${SN_SIZES[k]},selectionType:INCLUDED)`).join(',')}))`);
+  parts.push(`(type:REGION,values:List(${regions.map(inc).join(',')}))`);
+  if(sec.ind.length) parts.push(`(type:INDUSTRY,values:List(${sec.ind.map(inc).join(',')}))`);
+  parts.push(`(type:CURRENT_TITLE,values:List((text:${snEnc(snTitle())},selectionType:INCLUDED)))`);
+  return 'https://www.linkedin.com/sales/search/people?query=' + encodeURIComponent(`(filters:List(${parts.join(',')}))`);
+}
+function snDefaultName(){
+  const v = S.verticals.find(x => x.slug === S.snSector);
+  const t = S.snTerr.map(k => (SN_TERRITORIES[k]||{}).label).filter(Boolean).join(' + ');
+  const d = new Date().toLocaleDateString('en-US',{month:'short', day:'numeric'});
+  return [v ? v.name : '', t, d].filter(Boolean).join(' · ');
+}
+function snLimits(){
+  const q = S.snQuota || {};
+  return { max: q.max_leads || 100, floor: q.credit_floor || 20, credits: (q.credits==null ? null : Number(q.credits)) };
+}
+/* What the Run button says and whether it can be pressed. Kept apart from
+   render() so typing the count does not rebuild the sheet under the cursor. */
+function snRunState(){
+  const url = snUrl();
+  const n = parseInt(S.snCount, 10) || 0;
+  const L = snLimits();
+  if(!url) return { ok:false, label:'Scrape leads', hint:'Pick a sector and at least one territory.' };
+  if(S.snOpened !== url) return { ok:false, label:'Scrape leads', hint:'Open the search in Sales Navigator first. Changing a filter means looking again.' };
+  if(n < 1) return { ok:false, label:'Scrape leads', hint:'Enter the result count Sales Navigator shows above its list.' };
+  if(n > L.max) return { ok:false, label:`Scrape ${n} leads`,
+    hint:`That is over the ${L.max} lead limit per run. Narrow it: Directors and up, a company size, or fewer territories.` };
+  if(L.credits != null && L.credits - n < L.floor) return { ok:false, label:`Scrape ${n} leads`,
+    hint:`About ${n} credits needed and ${L.credits} left, with ${L.floor} kept in reserve. Top up Evaboot or narrow the search.` };
+  return { ok:true, label:`Scrape ${n} leads (about ${n} credits)`,
+    hint:'Evaboot charges one credit per person found, email included. Leads land here as a new batch in a few minutes.' };
+}
+function snPaintRun(){
+  const st = snRunState();
+  const b = document.getElementById('snRun'); const h = document.getElementById('snRunHint');
+  if(b){ b.disabled = !st.ok || S.snBusy; b.textContent = S.snBusy ? 'Starting…' : st.label; }
+  if(h) h.textContent = st.hint;
+}
+async function loadSnQuota(){
+  try{
+    const r = await fetch(QUOTA_URL); S.snQuota = await r.json();
+  }catch{ S.snQuota = { credits:null, salesnav_ok:null }; }
+  render();
+}
+
+function findSheet(){
+  const secs = S.verticals.filter(v => SN_SECTORS[v.slug]);
+  const opts = `<option value="">Pick a sector</option>` + secs.map(v=>
+    `<option value="${esc(v.slug)}" ${v.slug===S.snSector?'selected':''}>${esc(v.name)}</option>`).join('');
+  const url = snUrl();
+  const st = snRunState();
+  const q = S.snQuota;
+  const status = !q ? 'Checking Evaboot…'
+    : (q.credits==null ? 'Could not read the Evaboot balance.'
+       : `${q.credits} Evaboot credits left`) +
+      (q && q.salesnav_ok===false ? ' · Sales Navigator is disconnected: open any Sales Nav search and click Export with Evaboot to reconnect.' : '');
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Find leads on LinkedIn">
+    <div class="sheet-in">
+      <div class="sheet-head">
+        <h2>Find leads on LinkedIn</h2>
+        <button class="linkbtn" id="snClose">Close</button>
+      </div>
+      <p class="hint" style="margin-top:6px">${esc(status)}</p>
+
+      <div class="field"><label for="snSector">Sector</label>
+        <select id="snSector">${opts}</select></div>
+
+      <div class="field"><label>Territory</label>
+        <div class="fchecks">${Object.entries(SN_TERRITORIES).map(([k,t])=>
+          `<label><input type="checkbox" data-snterr="${k}" ${S.snTerr.includes(k)?'checked':''}/> ${esc(t.label)}</label>`).join('')}</div></div>
+
+      <div class="field"><label>Level</label>
+        <div class="fchecks">${Object.entries(SN_LEVELS).map(([k,l])=>
+          `<label><input type="radio" name="snLevel" data-snlevel="${k}" ${S.snLevel===k?'checked':''}/> ${esc(l.label)}</label>`).join('')}</div></div>
+
+      <div class="field"><label>Company size <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+        <div class="fchecks">${Object.entries(SN_SIZES).map(([k,t])=>
+          `<label><input type="checkbox" data-snsize="${k}" ${S.snSizes.includes(k)?'checked':''}/> ${esc(t)}</label>`).join('')}</div></div>
+
+      <div class="field"><label for="snExtra">Extra title words <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional, comma separated)</span></label>
+        <input type="text" id="snExtra" value="${esc(S.snExtra)}" placeholder="Capital Projects, Energy" autocomplete="off" /></div>
+
+      <div class="snstep">
+        <span class="eyebrow">Step 1 · Look before you spend</span>
+        ${url
+          ? `<a class="btn ghost sn-open" id="snLook" href="${esc(url)}" target="_blank" rel="noopener">Open in Sales Navigator &#8599;</a>
+             <p class="hint" style="margin-top:6px">Check the people look right and note the result count above the list.</p>`
+          : `<p class="hint">Pick a sector and at least one territory.</p>`}
+      </div>
+
+      <div class="snstep">
+        <span class="eyebrow">Step 2 · Scrape with Evaboot</span>
+        <div class="field" style="margin-top:4px"><label for="snCount">Results Sales Navigator shows</label>
+          <input type="number" class="sncount" id="snCount" min="1" step="1" value="${esc(S.snCount)}"
+                 ${S.snOpened===url && url ? '' : 'disabled'} placeholder="e.g. 42" /></div>
+        <div class="field"><label for="snName">Batch name</label>
+          <input type="text" id="snName" value="${esc(S.snName)}" placeholder="${esc(snDefaultName())}" autocomplete="off" /></div>
+        ${S.snErr?`<p class="hint err" style="margin-top:10px">${esc(S.snErr)}</p>`:''}
+        <div class="sheet-foot" style="border-top:0;padding-top:0;margin-top:14px">
+          <button class="btn" id="snRun" ${(st.ok && !S.snBusy)?'':'disabled'}>${S.snBusy?'Starting…':esc(st.label)}</button>
+          <p class="hint" id="snRunHint" style="margin-top:8px">${esc(st.hint)}</p>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wireFind(){
+  const ob = document.getElementById('snOpenBtn');
+  if(ob) ob.addEventListener('click',()=>{
+    S.snOpen=true; S.snErr='';
+    render(); loadSnQuota();
+  });
+  if(!S.snOpen) return;
+  const reset = () => { S.snErr=''; render(); };
+  const c = document.getElementById('snClose');
+  if(c) c.addEventListener('click',()=>{ S.snOpen=false; render(); });
+  const sec = document.getElementById('snSector');
+  if(sec) sec.addEventListener('change',()=>{ S.snSector = sec.value; reset(); });
+  document.querySelectorAll('[data-snterr]').forEach(el=>el.addEventListener('change',()=>{
+    const k = el.dataset.snterr;
+    S.snTerr = el.checked ? [...new Set(S.snTerr.concat(k))] : S.snTerr.filter(x=>x!==k);
+    reset(); }));
+  document.querySelectorAll('[data-snlevel]').forEach(el=>el.addEventListener('change',()=>{
+    S.snLevel = el.dataset.snlevel; reset(); }));
+  document.querySelectorAll('[data-snsize]').forEach(el=>el.addEventListener('change',()=>{
+    const k = el.dataset.snsize;
+    S.snSizes = el.checked ? [...new Set(S.snSizes.concat(k))].sort() : S.snSizes.filter(x=>x!==k);
+    reset(); }));
+  const ex = document.getElementById('snExtra');
+  if(ex){
+    ex.addEventListener('input',()=>{ S.snExtra = ex.value; snPaintRun(); });
+    ex.addEventListener('change',()=>render());   /* rebuild the link once typing stops */
+  }
+  const look = document.getElementById('snLook');
+  if(look) look.addEventListener('click',()=>{
+    S.snOpened = snUrl();
+    setTimeout(()=>{ render(); const n=document.getElementById('snCount'); if(n) n.focus(); }, 0);
+  });
+  const cnt = document.getElementById('snCount');
+  if(cnt) cnt.addEventListener('input',()=>{ S.snCount = cnt.value; snPaintRun(); });
+  const nm = document.getElementById('snName');
+  if(nm) nm.addEventListener('input',()=>{ S.snName = nm.value; });
+  const run = document.getElementById('snRun');
+  if(run) run.addEventListener('click', runFind);
+}
+
+async function runFind(){
+  const st = snRunState(); if(!st.ok || S.snBusy) return;
+  S.snBusy=true; S.snErr=''; snPaintRun();
+  let requestedBy = '';
+  try{ const { data } = await sb.auth.getUser(); requestedBy = (data && data.user && data.user.email) || ''; }catch{}
+  const n = parseInt(S.snCount,10);
+  try{
+    const res = await fetch(SCRAPE_URL,{method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({
+        linkedin_url: S.snOpened,
+        name: S.snName.trim() || snDefaultName(),
+        vertical_slug: S.snSector,
+        requested_by: requestedBy,
+        expected_count: n
+      })});
+    const out = await res.json().catch(()=>({}));
+    if(!res.ok || out.ok===false) throw new Error(out.reason || out.error || ('The scrape request came back ' + res.status));
+    const mins = n <= 25 ? 'a couple of minutes' : n <= 100 ? 'about five minutes' : 'ten minutes or more';
+    S.leadNote = `Evaboot is scraping ${n} people. Expect ${mins}, then press Refresh: the batch moves from running to ready and the leads appear here for review.`;
+    S.snOpen=false; S.snOpened=''; S.snCount=''; S.snName='';
+    if(out.batch_id) S.batchId = out.batch_id;
+    await loadBatches();
+  }catch(err){
+    S.snErr = err.message || String(err);
+  }finally{
+    S.snBusy=false; render();
+  }
+}
+
 function importSheet(){
   const opts = S.verticals.map(v=>
     `<option value="${esc(v.slug)}" ${v.slug===S.impVert?'selected':''}>${esc(v.name)}</option>`).join('');
@@ -4274,6 +4536,8 @@ function wireLeads(){
 
   const ir = document.getElementById('impRun');
   if(ir) ir.addEventListener('click', runImport);
+
+  wireFind();
 }
 
 /* ---------- CSV ---------- */
