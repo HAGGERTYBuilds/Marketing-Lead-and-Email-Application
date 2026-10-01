@@ -522,6 +522,51 @@
   input[type=number].sncount{width:100%;font-family:var(--body);font-size:14px;line-height:1.6;
     color:var(--ink);background:var(--paper);border:1px solid var(--rule);padding:6px 10px}
 
+  /* ---------- social calendar ---------- */
+  .soc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+  .soccard{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--rule);
+           display:flex;flex-direction:column}
+  .soccard.approved,.soccard.queued{border-top-color:var(--green)}
+  .soccard.sent{border-top-color:var(--orange)}
+  .soccard.skipped{opacity:.55}
+  .socthumb{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:0;padding:0;
+            cursor:pointer;display:block;overflow:hidden}
+  .socthumb img,.socthumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .socthumb .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                  color:#9AA3A8;font-size:13px}
+  .soctag{position:absolute;top:9px;left:9px;display:flex;gap:5px;flex-wrap:wrap}
+  .soctag .chip{background:var(--card)}
+  .socbody{padding:11px 13px 10px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .socbody .d{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+              font-weight:600;font-size:13.5px}
+  .socbody .t{font-family:var(--mono);font-size:11px;color:var(--slate)}
+  .socbody p{margin:0;font-size:13px;color:var(--grey);line-height:1.5;display:-webkit-box;
+             -webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .socfoot{display:flex;gap:6px;padding:0 13px 12px}
+  .socfoot .btn{flex:1}
+  .sheet-in.soc{max-width:1040px;padding:0}
+  .socgrid2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+  .socmedia{padding:16px 20px;background:var(--wash);display:flex;flex-direction:column;gap:12px;
+            max-height:76vh;overflow:auto}
+  .socitem{background:var(--card);border:1px solid var(--rule);flex:0 0 auto}
+  .socmedia > .filebtn{flex:0 0 auto}
+  .socitem img,.socitem video{width:100%;max-height:320px;object-fit:contain;background:#000;display:block}
+  .socitem .socbar{display:flex;gap:6px;align-items:center;padding:8px 10px;flex-wrap:wrap}
+  .socitem .socbar .n{font-family:var(--mono);font-size:11px;color:var(--slate);margin-right:auto}
+  .socside{padding:16px 20px 20px;border-left:1px solid var(--rule);display:flex;flex-direction:column;
+           max-height:76vh;overflow:auto}
+  .socside textarea{min-height:170px}
+  .socside input[type=date]{font:inherit;padding:8px 10px;border:1px solid var(--rule);background:var(--paper);color:var(--ink)}
+  .filebtn{position:relative;overflow:hidden;display:inline-block;cursor:pointer;text-align:center}
+  .filebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+  .socmonth{font-family:var(--display);font-weight:700;font-size:21px;text-transform:uppercase;
+            letter-spacing:.06em;min-width:190px;text-align:center}
+  @media (max-width:820px){
+    .socgrid2{grid-template-columns:1fr}
+    .socside{border-left:0;border-top:1px solid var(--rule);max-height:none}
+    .socmedia{max-height:none}
+  }
+
   /* ---------- reel ideas ---------- */
   .reel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
   .reelcard{background:var(--card);border:1px solid var(--rule);
@@ -641,7 +686,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['leads','Leads']
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -652,7 +697,7 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-09-17e';
+const BUILD = '2026-10-01a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -672,6 +717,10 @@ const S = {
   reels:null, reelView:'active', reelBrand:'all', reelQ:'', reelOpenId:null,
   reelBusy:'', reelErr:'', reelNote:'', reelNotes:'', reelAddOpen:false,
   reelSaving:false, reelForm:{ url:'', text:'', brand:'haggerty', priority:'2' },
+  /* social calendar */
+  social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null,
+  socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'' },
+  socBusy:'', socErr:'', socNote:'', socProg:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -1606,6 +1655,7 @@ async function ensure(page){
   if(OWNERS[page] && !S.loaded.tasks[OWNERS[page]]) await loadTasks(OWNERS[page]);
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
   if(page==='reels' && !S.loaded.reels) await loadReels();
+  if(page==='social' && !S.loaded.social) await loadSocial();
   if(page==='leads'){
     if(!S.loaded.verticals) await loadVerticals();
     if(!S.loaded.labels) await loadLabels();
@@ -1681,6 +1731,7 @@ function render(){
   if(S.page==='kpis')     inner = pageKpis();
   if(S.page==='approvals') inner = pageApprovals();
   if(S.page==='reels')    inner = pageReels();
+  if(S.page==='social')   inner = pageSocial();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
   if(S.page==='leads')    inner = pageLeads();
   app.innerHTML = topbar() + crmPanel() + inner;
@@ -1789,6 +1840,7 @@ function wirePage(){
   wireRequests();
   wireApprovals();
   wireReels();
+  wireSocial();
   wireBoard();
   wireLeads();
 }
@@ -5399,6 +5451,537 @@ function wireReels(){
       }, 250);
     });
   }
+}
+
+/* ================= social calendar ================= */
+/* A month of posts is built outside the dashboard (media picked from the
+   J: archive, captions written, files saved to a month folder with a
+   plan.json). Import brings that folder in: media goes to the public
+   social-media bucket and each post becomes a row here. From then on
+   everything is editable. Generate and Send only queue a row in
+   social_jobs, which the scheduled Claude task picks up. */
+const SOC_BUCKET = 'social-media';
+const SOC_BRAND  = 'haggerty';
+const SOC_STATUS = { draft:'Draft', approved:'Approved', queued:'Sending',
+                     sent:'In Metricool', skipped:'Skipped' };
+const SOC_FORMAT = { photo:'Photo', carousel:'Carousel', video:'Video' };
+const SOC_OK  = ['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'];
+const SOC_MAX = 50 * 1024 * 1024;
+
+function socUrl(path){
+  return SUPABASE_URL + '/storage/v1/object/public/' + SOC_BUCKET + '/' +
+    String(path).split('/').map(encodeURIComponent).join('/');
+}
+function socDay(d){
+  const t = new Date(String(d).slice(0,10) + 'T12:00:00');
+  return t.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function socMonthLabel(m){
+  const [y,mo] = String(m).split('-').map(Number);
+  return new Date(y, mo-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
+}
+function socShift(m, n){
+  const [y,mo] = String(m).split('-').map(Number);
+  const d = new Date(y, mo-1+n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function socThisMonth(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function socMedia(p){
+  return ((p && p.social_post_media) || []).slice().sort((a,b)=> a.position - b.position);
+}
+function socFormat(list){
+  if(list.some(m => m.kind === 'video')) return 'video';
+  return list.length > 1 ? 'carousel' : 'photo';
+}
+function socSafe(name){
+  return String(name||'file').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-+/,'').slice(-80) || 'file';
+}
+async function socWho(){
+  try{ const { data } = await sb.auth.getUser(); return (data && data.user && data.user.email) || null; }
+  catch(e){ return null; }
+}
+
+async function loadSocial(){
+  if(!S.socMonth) S.socMonth = socThisMonth();
+  const { data, error } = await sb.from('social_posts')
+    .select('*, social_post_media(*)')
+    .eq('brand', SOC_BRAND).eq('month', S.socMonth)
+    .order('post_date', { ascending:true }).order('seq', { ascending:true });
+  if(error) throw error;
+  S.social = data || [];
+  const j = await sb.from('social_jobs').select('*')
+    .eq('brand', SOC_BRAND).eq('month', S.socMonth)
+    .order('created_at', { ascending:false }).limit(8);
+  if(j.error) throw j.error;
+  S.socJobs = j.data || [];
+  S.loaded.social = true;
+}
+async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
+
+function socMediaTag(m, controls){
+  const u = esc(socUrl(m.storage_path));
+  return m.kind === 'video'
+    ? `<video src="${u}#t=0.5" preload="metadata" muted playsinline ${controls?'controls':''}></video>`
+    : `<img src="${u}" alt="" ${controls?"":"loading=\"lazy\""} />`;
+}
+
+function socCard(p){
+  const media = socMedia(p);
+  const busy = S.socBusy === p.id;
+  return `<article class="soccard ${esc(p.status)}">
+    <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit the post for ${esc(socDay(p.post_date))}">
+      ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
+      <span class="soctag">
+        <span class="chip">${esc(SOC_FORMAT[p.format] || p.format)}${media.length>1?` &middot; ${media.length}`:''}</span>
+        <span class="chip ${p.status==='approved'||p.status==='sent'||p.status==='queued'?'hot':''}">${esc(SOC_STATUS[p.status] || p.status)}</span>
+      </span>
+    </button>
+    <div class="socbody">
+      <span class="d">${esc(socDay(p.post_date))}</span>
+      ${p.topic?`<span class="t">${esc(p.topic)}</span>`:''}
+      <p>${esc(p.caption)}</p>
+    </div>
+    <div class="socfoot">
+      ${p.status === 'draft'
+        ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
+        : p.status === 'approved' || p.status === 'skipped'
+          ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`
+          : ''}
+      <button class="btn small ghost" data-soc-open="${esc(p.id)}">Edit</button>
+    </div>
+  </article>`;
+}
+
+function socSheet(){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  if(!p) return '';
+  const f = S.socForm;
+  const media = socMedia(p);
+  const busy = !!S.socBusy;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit post">
+    <div class="sheet-in soc">
+      <div class="reel-head">
+        <h2>${esc(socDay(f.post_date || p.post_date))} &middot; ${esc(SOC_FORMAT[p.format] || p.format)}</h2>
+        <button class="linkbtn" id="socClose">Close</button>
+      </div>
+      <div class="socgrid2">
+        <div class="socmedia">
+          ${media.map((m,i)=>`<div class="socitem">
+            ${socMediaTag(m, true)}
+            <div class="socbar">
+              <span class="n">${i+1} of ${media.length}</span>
+              ${media.length>1?`<button class="btn small ghost" data-soc-mv="${esc(m.id)}" data-dir="-1" ${busy||i===0?'disabled':''} aria-label="Move earlier">&uarr;</button>
+              <button class="btn small ghost" data-soc-mv="${esc(m.id)}" data-dir="1" ${busy||i===media.length-1?'disabled':''} aria-label="Move later">&darr;</button>`:''}
+              <label class="btn small ghost filebtn">Replace
+                <input type="file" accept="${SOC_OK.join(',')}" data-soc-rep="${esc(m.id)}" ${busy?'disabled':''} /></label>
+              ${media.length>1?`<button class="btn small ghost" data-soc-rm="${esc(m.id)}" ${busy?'disabled':''}>Remove</button>`:''}
+            </div>
+          </div>`).join('')}
+          <label class="btn small ghost filebtn">Add photos or video
+            <input type="file" id="socAdd" multiple accept="${SOC_OK.join(',')}" ${busy?'disabled':''} /></label>
+          <p class="hint" style="margin:0">JPG, PNG, WebP, MP4 or MOV, up to 50 MB each.
+            Instagram needs at least one photo or video on every post.</p>
+        </div>
+        <div class="socside">
+          <div class="field" style="margin-top:0"><label for="socDate">Post date</label>
+            <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>
+          <div class="field"><label for="socTopic">Topic</label>
+            <input type="text" id="socTopic" value="${esc(f.topic)}" autocomplete="off" /></div>
+          <div class="field"><label for="socCaption">Caption</label>
+            <textarea id="socCaption">${esc(f.caption)}</textarea></div>
+          <div class="field"><label for="socTags">Hashtags, Instagram and Facebook</label>
+            <input type="text" id="socTags" value="${esc(f.hashtags)}" autocomplete="off" /></div>
+          <div class="field"><label for="socTagsLi">Hashtags, LinkedIn</label>
+            <input type="text" id="socTagsLi" value="${esc(f.hashtags_li)}" autocomplete="off" /></div>
+          ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
+          ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
+          ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
+          <div class="actions" style="margin-top:auto;padding-top:14px">
+            <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
+            ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
+            ${p.status==='approved'||p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
+            ${p.status==='draft'||p.status==='approved'?`<button class="linkbtn" data-soc-set="${esc(p.id)}" data-val="skipped" ${busy?'disabled':''}>Skip this post</button>`:''}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function socJobNote(){
+  const jobs = S.socJobs || [];
+  const out = [];
+  const g = jobs.find(j => j.kind === 'generate');
+  if(g && g.status !== 'done'){
+    out.push(g.status === 'pending' ? 'Generate requested. It gets picked up within the hour on weekdays while the laptop is on.'
+      : g.status === 'running' ? 'The month is being built now.'
+      : g.status === 'ready' ? 'The month folder is ready' + (g.note ? ': ' + g.note : '') + '. Click Import folder and pick it.'
+      : 'Generate did not finish' + (g.note ? ': ' + g.note : '.'));
+  }
+  const s = jobs.find(j => j.kind === 'send');
+  if(s && s.status !== 'done'){
+    out.push(s.status === 'pending' ? 'Send requested. Approved posts go to Metricool as drafts within the hour on weekdays while the laptop is on.'
+      : s.status === 'running' ? 'Posts are going to Metricool now.'
+      : s.status === 'failed' ? 'Sending did not finish' + (s.note ? ': ' + s.note : '.')
+      : '');
+  }
+  return out.filter(Boolean);
+}
+
+function pageSocial(){
+  if(!S.loaded.social) return loading();
+  const all = S.social || [];
+  const count = k => all.filter(p => p.status === k).length;
+  const rows = all.filter(p => S.socFilter === 'all' || p.status === S.socFilter
+    || (S.socFilter === 'sent' && p.status === 'queued'));
+  const approved = count('approved');
+  const drafts = count('draft');
+  const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
+  const busy = !!S.socBusy;
+
+  const chips = [['all','All', all.length], ['draft','Drafts', drafts], ['approved','Approved', approved],
+                 ['sent','In Metricool', count('sent') + count('queued')], ['skipped','Skipped', count('skipped')]]
+    .map(([k,label,n])=>`<button class="fchip ${S.socFilter===k?'on':''}" data-socfilter="${k}">${label} <b>${n}</b></button>`).join('');
+  const notes = socJobNote();
+
+  return `<main class="page wide">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
+      <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
+      <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
+      <span style="flex:1"></span>
+      <button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
+              title="${all.length?'This month already has posts.':'Ask for a month of posts built from the J: archive.'}">Generate month</button>
+      <label class="btn small ghost filebtn" title="Pick a month folder that contains plan.json">Import folder
+        <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
+      ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}>Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}
+      <button class="btn small" id="socSend" ${busy||!approved?'disabled':''}>Send ${approved||''} approved to Metricool</button>
+    </div>
+
+    <div class="fchips" style="margin:0 0 14px">${chips}</div>
+
+    ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
+    ${S.socNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.socNote)}</p></div>`:''}
+    ${S.socProg && !S.socOpenId?`<p class="hint" style="margin-bottom:14px">${esc(S.socProg)}</p>`:''}
+    ${S.socErr && !S.socOpenId?`<p class="hint err" style="margin-bottom:14px">${esc(S.socErr)}</p>`:''}
+
+    ${rows.length
+      ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
+      : `<div class="empty" style="padding:44px 0">
+           <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
+           <p>${all.length?'Pick another filter above.'
+             :'Generate month asks for a new set built from the J: archive. Import folder brings in a month folder that is already built.'}</p>
+         </div>`}
+
+    <p class="hint" style="margin-top:18px">Instagram and Facebook go out at 10:00 AM and LinkedIn at 11:00 AM,
+      the peak hours on the Metricool heatmap. Sending creates drafts in Metricool, so nothing publishes until it is approved there.</p>
+  </main>${socSheet()}`;
+}
+
+function socOpen(id){
+  const p = (S.social||[]).find(x => x.id === id);
+  if(!p) return;
+  S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
+  S.socForm = { post_date: String(p.post_date||'').slice(0,10), topic: p.topic || '',
+                caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '' };
+  render();
+}
+
+async function saveSocial(status){
+  const id = S.socOpenId;
+  if(!id || S.socBusy) return;
+  const f = S.socForm;
+  if(!f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const patch = { post_date: f.post_date, month: f.post_date.slice(0,7),
+                    topic: String(f.topic||'').trim() || null,
+                    caption: String(f.caption||'').trim(),
+                    hashtags: String(f.hashtags||'').trim() || null,
+                    hashtags_li: String(f.hashtags_li||'').trim() || null };
+    if(status) patch.status = status;
+    const { error } = await sb.from('social_posts').update(patch).eq('id', id);
+    if(error) throw error;
+    S.socNote = status === 'approved' ? 'Saved and approved.' : 'Saved.';
+    S.socOpenId = null;
+    await reloadSocial();
+  }catch(err){ S.socErr = 'That did not save: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
+async function setSocialStatus(id, status){
+  if(S.socBusy) return;
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_posts').update({ status }).eq('id', id);
+    if(error) throw error;
+    S.socNote = status === 'approved' ? 'Approved.' : status === 'skipped' ? 'Skipped.' : 'Back to draft.';
+    S.socOpenId = null;
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+async function approveAllSocial(){
+  if(S.socBusy) return;
+  S.socBusy = 'all'; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_posts').update({ status:'approved' })
+      .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'draft');
+    if(error) throw error;
+    S.socNote = 'All drafts approved.';
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+function socCheckFile(file){
+  if(!SOC_OK.includes(file.type)) return file.name + ' is not a JPG, PNG, WebP, MP4 or MOV.';
+  if(file.size > SOC_MAX) return file.name + ' is over 50 MB.';
+  return '';
+}
+async function socPut(path, file, upsert){
+  const { error } = await sb.storage.from(SOC_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: !!upsert, cacheControl: '3600' });
+  if(error) throw error;
+  return path;
+}
+async function socSyncFormat(postId){
+  const { data, error } = await sb.from('social_post_media').select('kind').eq('post_id', postId);
+  if(error) throw error;
+  const r = await sb.from('social_posts').update({ format: socFormat(data || []) }).eq('id', postId);
+  if(r.error) throw r.error;
+}
+
+async function socReplace(mediaId, file){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  const m = socMedia(p).find(x => x.id === mediaId);
+  if(!p || !m || !file || S.socBusy) return;
+  const bad = socCheckFile(file);
+  if(bad){ S.socErr = bad; return render(); }
+  S.socBusy = p.id; S.socErr = ''; S.socProg = 'Uploading ' + file.name; render();
+  try{
+    const path = p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
+    await socPut(path, file, false);
+    const { error } = await sb.from('social_post_media').update({
+      storage_path: path, kind: file.type.startsWith('video') ? 'video' : 'image',
+      file_name: file.name, bytes: file.size, source_path: null }).eq('id', mediaId);
+    if(error) throw error;
+    /* The old file is no longer referenced. Removing it is tidy-up, so a
+       failure here is not worth stopping for. */
+    try{ await sb.storage.from(SOC_BUCKET).remove([m.storage_path]); }catch(e){}
+    await socSyncFormat(p.id);
+    await reloadSocial();
+  }catch(err){ S.socErr = 'The swap did not go through: ' + (err.message || err); }
+  S.socBusy = ''; S.socProg = ''; render();
+}
+
+async function socAddMedia(files){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  const list = Array.from(files || []);
+  if(!p || !list.length || S.socBusy) return;
+  const bad = list.map(socCheckFile).find(Boolean);
+  if(bad){ S.socErr = bad; return render(); }
+  S.socBusy = p.id; S.socErr = ''; render();
+  try{
+    let pos = socMedia(p).reduce((n,m)=> Math.max(n, m.position), 0);
+    for(const file of list){
+      S.socProg = 'Uploading ' + file.name; render();
+      const path = p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
+      await socPut(path, file, false);
+      pos += 1;
+      const { error } = await sb.from('social_post_media').insert({
+        post_id: p.id, position: pos, kind: file.type.startsWith('video') ? 'video' : 'image',
+        storage_path: path, file_name: file.name, bytes: file.size });
+      if(error) throw error;
+    }
+    await socSyncFormat(p.id);
+    await reloadSocial();
+  }catch(err){ S.socErr = 'The upload did not go through: ' + (err.message || err); }
+  S.socBusy = ''; S.socProg = ''; render();
+}
+
+async function socRemoveMedia(mediaId){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  const media = socMedia(p);
+  const m = media.find(x => x.id === mediaId);
+  if(!p || !m || media.length < 2 || S.socBusy) return;
+  S.socBusy = p.id; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_post_media').delete().eq('id', mediaId);
+    if(error) throw error;
+    try{ await sb.storage.from(SOC_BUCKET).remove([m.storage_path]); }catch(e){}
+    await socSyncFormat(p.id);
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+async function socMoveMedia(mediaId, dir){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  const media = socMedia(p);
+  const i = media.findIndex(x => x.id === mediaId);
+  const j = i + dir;
+  if(!p || i < 0 || j < 0 || j >= media.length || S.socBusy) return;
+  S.socBusy = p.id; S.socErr = ''; render();
+  try{
+    /* Renumber the whole strip rather than swapping two values, so a
+       pair of rows that somehow share a position sorts itself out. */
+    const order = media.slice();
+    order.splice(j, 0, order.splice(i, 1)[0]);
+    for(let k = 0; k < order.length; k++){
+      if(order[k].position === k + 1) continue;
+      const { error } = await sb.from('social_post_media').update({ position: k + 1 }).eq('id', order[k].id);
+      if(error) throw error;
+    }
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+async function requestSocialJob(kind){
+  if(S.socBusy) return;
+  S.socBusy = 'job'; S.socErr = ''; S.socNote = ''; render();
+  try{
+    const who = await socWho();
+    if(kind === 'send'){
+      const { error } = await sb.from('social_posts').update({ status:'queued' })
+        .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'approved');
+      if(error) throw error;
+    }
+    const open = (S.socJobs||[]).find(j => j.kind === kind && j.status === 'pending');
+    if(!open){
+      const { error } = await sb.from('social_jobs').insert({
+        kind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who });
+      if(error) throw error;
+    }
+    await reloadSocial();
+  }catch(err){ S.socErr = 'The request did not go through: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
+/* Reads plan.json from the picked folder, then for each post it does not
+   already have: creates the row, uploads its files, records the media.
+   A post that fails part way is removed again, so a second import picks
+   it up cleanly instead of leaving half a carousel behind. */
+async function importSocialFolder(fileList){
+  const files = Array.from(fileList || []);
+  if(!files.length || S.socBusy) return;
+  const planFile = files.find(f => f.name === 'plan.json');
+  if(!planFile){ S.socErr = 'That folder has no plan.json. Pick the month folder itself, for example 2026-10.'; return render(); }
+  S.socBusy = 'import'; S.socErr = ''; S.socNote = ''; S.socProg = 'Reading the plan'; render();
+  let made = 0, skipped = 0, month = '';
+  try{
+    const plan = JSON.parse(await planFile.text());
+    if(!Array.isArray(plan) || !plan.length) throw new Error('plan.json is empty.');
+    const byRel = {};
+    files.forEach(f => {
+      const parts = String(f.webkitRelativePath || f.name).split('/');
+      byRel[parts.slice(-2).join('/')] = f;
+    });
+    const months = Array.from(new Set(plan.map(p => String(p.date).slice(0,7))));
+    month = months[0];
+    const have = await sb.from('social_posts').select('month, source_key')
+      .eq('brand', SOC_BRAND).in('month', months);
+    if(have.error) throw have.error;
+    const seen = new Set((have.data||[]).map(r => r.month + '|' + r.source_key));
+
+    for(let i = 0; i < plan.length; i++){
+      const p = plan[i];
+      const m = String(p.date).slice(0,7);
+      if(seen.has(m + '|' + p.folder)){ skipped++; continue; }
+      const picks = (p.files || []).map(name => ({ name, file: byRel[p.folder + '/' + name] }));
+      const missing = picks.find(x => !x.file);
+      if(missing) throw new Error('Missing ' + p.folder + '/' + missing.name + ' in the folder.');
+      const bad = picks.map(x => socCheckFile(x.file)).find(Boolean);
+      if(bad) throw new Error(bad);
+
+      const kinds = picks.map(x => ({ kind: x.file.type.startsWith('video') ? 'video' : 'image' }));
+      const ins = await sb.from('social_posts').insert({
+        brand: SOC_BRAND, month: m, post_date: p.date, seq: Number(p.n) || i + 1,
+        format: socFormat(kinds), topic: p.topic || null, caption: p.caption || '',
+        hashtags: p.tags_ig_fb || null, hashtags_li: p.tags_li || null,
+        status: 'draft', source_key: p.folder }).select('id').single();
+      if(ins.error) throw ins.error;
+      const postId = ins.data.id;
+      try{
+        for(let k = 0; k < picks.length; k++){
+          S.socProg = `Post ${i+1} of ${plan.length}: uploading ${picks[k].name}`; render();
+          const path = m + '/' + p.folder + '/' + picks[k].name;
+          await socPut(path, picks[k].file, true);
+          const r = await sb.from('social_post_media').insert({
+            post_id: postId, position: k + 1, kind: kinds[k].kind, storage_path: path,
+            file_name: picks[k].name, bytes: picks[k].file.size,
+            source_path: p.folder + '/' + picks[k].name });
+          if(r.error) throw r.error;
+        }
+      }catch(inner){
+        await sb.from('social_posts').delete().eq('id', postId);
+        throw inner;
+      }
+      made++;
+    }
+    await sb.from('social_jobs').update({ status:'done', finished_at: new Date().toISOString() })
+      .eq('brand', SOC_BRAND).in('month', months).eq('kind', 'generate').eq('status', 'ready');
+    S.socNote = `Imported ${made} post${made===1?'':'s'}` + (skipped ? `, ${skipped} already here.` : '.');
+  }catch(err){
+    S.socErr = 'The import stopped: ' + (err.message || err) +
+      (made ? ` ${made} post${made===1?'':'s'} came in before that. Import the same folder again to finish.` : '');
+  }
+  if(month) S.socMonth = month;
+  try{ await reloadSocial(); }catch(e){}
+  S.socBusy = ''; S.socProg = ''; render();
+}
+
+function wireSocial(){
+  document.querySelectorAll('[data-socmonth]').forEach(el=>
+    el.addEventListener('click', async ()=>{
+      S.socMonth = socShift(S.socMonth, Number(el.dataset.socmonth));
+      S.socNote = ''; S.socErr = ''; S.socFilter = 'all'; S.loaded.social = false; render();
+      try{ await loadSocial(); }
+      catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
+      render();
+    }));
+  document.querySelectorAll('[data-socfilter]').forEach(el=>
+    el.addEventListener('click',()=>{ S.socFilter = el.dataset.socfilter; render(); }));
+  document.querySelectorAll('[data-soc-open]').forEach(el=>
+    el.addEventListener('click',()=> socOpen(el.dataset.socOpen)));
+  document.querySelectorAll('[data-soc-set]').forEach(el=>
+    el.addEventListener('click',()=> setSocialStatus(el.dataset.socSet, el.dataset.val)));
+  document.querySelectorAll('[data-soc-mv]').forEach(el=>
+    el.addEventListener('click',()=> socMoveMedia(el.dataset.socMv, Number(el.dataset.dir))));
+  document.querySelectorAll('[data-soc-rm]').forEach(el=>
+    el.addEventListener('click',()=> socRemoveMedia(el.dataset.socRm)));
+  document.querySelectorAll('[data-soc-rep]').forEach(el=>
+    el.addEventListener('change',()=> socReplace(el.dataset.socRep, el.files && el.files[0])));
+
+  const bind = (id, key) => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input',()=>{ S.socForm[key] = el.value; });
+  };
+  bind('socDate','post_date'); bind('socTopic','topic'); bind('socCaption','caption');
+  bind('socTags','hashtags'); bind('socTagsLi','hashtags_li');
+
+  const cl = document.getElementById('socClose');
+  if(cl) cl.addEventListener('click',()=>{ S.socOpenId = null; S.socErr = ''; render(); });
+  const sv = document.getElementById('socSave');
+  if(sv) sv.addEventListener('click',()=> saveSocial());
+  const ap = document.getElementById('socApprove');
+  if(ap) ap.addEventListener('click',()=> saveSocial('approved'));
+  const ad = document.getElementById('socAdd');
+  if(ad) ad.addEventListener('change',()=> socAddMedia(ad.files));
+
+  const ge = document.getElementById('socGenerate');
+  if(ge) ge.addEventListener('click',()=> requestSocialJob('generate'));
+  const se = document.getElementById('socSend');
+  if(se) se.addEventListener('click',()=> requestSocialJob('send'));
+  const aa = document.getElementById('socApproveAll');
+  if(aa) aa.addEventListener('click', approveAllSocial);
+  const im = document.getElementById('socImport');
+  if(im) im.addEventListener('change',()=> importSocialFolder(im.files));
 }
 
 /* ================= boot ================= */
