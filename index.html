@@ -956,11 +956,24 @@ async function saveInviteDate(){
   if(!a || a.busy) return;
   if(!a.date){ a.err = 'A date is needed. Cancel if the email does not say.'; return render(); }
 
+  /* A date with no time is stored at midnight Pacific and flagged
+     is_all_day. It used to be stored at midnight UTC, which is the
+     afternoon before, and every such event showed a day early. */
   const [y,m,d] = a.date.split('-').map(Number);
-  const [hh,mm] = String(a.time || '17:00').split(':').map(Number);
-  const start = new Date(y, m-1, d, hh||0, mm||0, 0, 0);
-  if(isNaN(start)){ a.err = 'That date did not parse.'; return render(); }
-  const end = new Date(start.getTime() + Number(a.hours || 2)*3600*1000);
+  let start, end;
+  if(a.allDay){
+    start = new Date(y, m-1, d, 0, 0, 0, 0);
+    end = null;
+    if(a.endDate && a.endDate > a.date){
+      const [ey,em,ed] = a.endDate.split('-').map(Number);
+      end = new Date(ey, em-1, ed, 0, 0, 0, 0);
+    }
+  }else{
+    const [hh,mm] = String(a.time || '17:00').split(':').map(Number);
+    start = new Date(y, m-1, d, hh||0, mm||0, 0, 0);
+    end = new Date(start.getTime() + Number(a.hours || 2)*3600*1000);
+  }
+  if(isNaN(start) || (end && isNaN(end))){ a.err = 'That date did not parse.'; return render(); }
 
   a.busy = true; a.err = ''; render();
   let who = null;
@@ -969,12 +982,17 @@ async function saveInviteDate(){
 
   try{
     const patch = {
-      starts_at: start.toISOString(),
-      ends_at:   end.toISOString(),
-      decision:  'going',
-      decided_at: new Date().toISOString(),
-      decided_by: who
+      starts_at:  start.toISOString(),
+      ends_at:    end ? end.toISOString() : null,
+      is_all_day: !!a.allDay
     };
+    /* Correcting a date is not a decision. Only the first-time prompt,
+       reached by pressing Going on an undated invite, records one. */
+    if(a.mode !== 'edit'){
+      patch.decision   = 'going';
+      patch.decided_at = new Date().toISOString();
+      patch.decided_by = who;
+    }
     if(String(a.location||'').trim()) patch.location = a.location.trim();
     const { error } = await sb.from('event_invites').update(patch).eq('id', a.id);
     if(error) throw error;
@@ -1009,6 +1027,33 @@ async function goingWithoutDate(){
   S.inviteBusy=''; render();
 }
 
+/* The scanner reads dates out of email previews and gets some wrong.
+   Any invite can have its date corrected here. Saving flags the row, and
+   the calendar workflow moves the Outlook entry on its next hourly pass. */
+function editInviteDate(id){
+  const v = (S.invites||[]).find(x => x.id === id);
+  if(!v) return;
+  const p2 = n => String(n).padStart(2,'0');
+  const ymd = dt => dt.getFullYear() + '-' + p2(dt.getMonth()+1) + '-' + p2(dt.getDate());
+  const a = { id, mode:'edit', date:'', time:'17:00', hours:'2', allDay:false,
+              endDate:'', location: v.location || '', busy:false, err:'' };
+  const st = v.starts_at ? new Date(v.starts_at) : null;
+  if(st && !isNaN(st)){
+    a.date = ymd(st);
+    a.allDay = !!v.is_all_day;
+    if(!a.allDay) a.time = p2(st.getHours()) + ':' + p2(st.getMinutes());
+    const en = v.ends_at ? new Date(v.ends_at) : null;
+    if(en && !isNaN(en) && en > st){
+      if(a.allDay){ a.endDate = ymd(en); }
+      else{
+        const h = Math.round((en - st)/3600000);
+        a.hours = ['1','2','3','4','8'].includes(String(h)) ? String(h) : '2';
+      }
+    }
+  }
+  S.dateAsk = a; S.inviteErr = ''; render();
+}
+
 function dateAskSheet(){
   const a = S.dateAsk;
   if(!a) return '';
@@ -1017,17 +1062,21 @@ function dateAskSheet(){
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="When is it">
     <div class="sheet-in">
       <div class="sheet-head">
-        <h2>When is it?</h2>
+        <h2>${a.mode==='edit' ? 'Edit the date' : 'When is it?'}</h2>
         <button class="linkbtn" id="daClose">Cancel</button>
       </div>
 
       <p class="hint" style="margin-top:8px"><b>${esc(v.event_name || 'This invitation')}</b>
-        has no date, so it cannot reach Pat's calendar without one.</p>
+        ${a.mode==='edit'
+          ? (v.calendar_event_id || v.decision==='going'
+              ? "Fix the date or time here. Pat's calendar updates within the hour."
+              : 'Fix the date or time here.')
+          : "has no date, so it cannot reach Pat's calendar without one."}</p>
 
       ${v.web_link ? `<div class="apv-file" style="margin-top:12px">
         <a class="chip hot" href="${esc(v.web_link)}" target="_blank" rel="noopener">
           Open the original email</a>
-        <span class="hint">The date is usually in there.</span></div>` : ''}
+        <span class="hint">${a.mode==='edit' ? 'Check it against the invitation.' : 'The date is usually in there.'}</span></div>` : ''}
 
       ${v.summary ? `<div class="apv-mine" style="margin-top:12px">
         <span class="eyebrow">What the scanner read</span>
@@ -1036,13 +1085,21 @@ function dateAskSheet(){
       <div class="field"><label for="daDate">Date</label>
         <input type="date" id="daDate" value="${esc(a.date)}" /></div>
 
+      <div class="field"><label for="daAllDay" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="daAllDay" style="width:auto" ${a.allDay?'checked':''} />
+        Date only, no set time</label></div>
+
+      ${a.allDay ? `
+      <div class="field"><label for="daEnd">Last day</label>
+        <input type="date" id="daEnd" value="${esc(a.endDate||'')}" min="${esc(a.date||'')}" />
+        <span class="hint">Leave blank for a one-day event.</span></div>` : `
       <div class="field"><label for="daTime">Start time</label>
         <input type="time" id="daTime" value="${esc(a.time)}" /></div>
 
       <div class="field"><label for="daHours">How long</label>
         <select id="daHours">${[['1','1 hour'],['2','2 hours'],['3','3 hours'],
-          ['4','4 hours'],['8','All day']].map(([k,l])=>
-          `<option value="${k}" ${a.hours===k?'selected':''}>${l}</option>`).join('')}</select></div>
+          ['4','4 hours'],['8','8 hours']].map(([k,l])=>
+          `<option value="${k}" ${a.hours===k?'selected':''}>${l}</option>`).join('')}</select></div>`}
 
       <div class="field"><label for="daLoc">Where</label>
         <input type="text" id="daLoc" value="${esc(a.location)}"
@@ -1052,10 +1109,10 @@ function dateAskSheet(){
 
       <div class="sheet-foot">
         <button class="btn" id="daSave" ${a.busy?'disabled':''}>${
-          a.busy?'Saving&hellip;':'Save and mark going'}</button>
-        <p class="hint" style="margin-top:10px">
+          a.busy?'Saving&hellip;':(a.mode==='edit'?'Save':'Save and mark going')}</button>
+        ${a.mode==='edit' ? '' : `<p class="hint" style="margin-top:10px">
           <button class="linkbtn" id="daSkip" style="padding-left:0" ${a.busy?'disabled':''}>Mark going without a date</button>
-          &mdash; the decision is recorded, but nothing reaches the calendar until a date exists.</p>
+          &mdash; the decision is recorded, but nothing reaches the calendar until a date exists.</p>`}
       </div>
     </div>
   </div>`;
@@ -1324,7 +1381,8 @@ async function decideInvite(id, decision){
   if(decision === 'going'){
     const v = (S.invites||[]).find(x => x.id === id);
     if(v && !v.starts_at){
-      S.dateAsk = { id, date:'', time:'17:00', hours:'2',
+      S.dateAsk = { id, mode:'new', date:'', time:'17:00', hours:'2',
+                    allDay:false, endDate:'',
                     location: v.location || '', busy:false, err:'' };
       S.inviteErr = ''; return render();
     }
@@ -2355,6 +2413,8 @@ function inviteRow(v){
             k==='going'?'Going':k==='passed'?'Passed':'Maybe'}</button>`).join('')}
         ${done?`<button class="btn small ghost" data-decide="${v.id}"
           data-val="undecided" ${busy?'disabled':''}>Clear</button>`:''}
+        <button class="btn small ghost" data-editdate="${v.id}" ${busy?'disabled':''}>${
+          v.starts_at ? 'Edit date' : 'Add date'}</button>
       </div>
       <div class="inv-links">
         ${v.registration_url?`<a class="chip" href="${esc(v.registration_url)}"
@@ -3300,7 +3360,11 @@ function wireBoard(){
   if(das) das.addEventListener('click', saveInviteDate);
   const dsk = document.getElementById('daSkip');
   if(dsk) dsk.addEventListener('click', goingWithoutDate);
-  [['daDate','date'],['daTime','time'],['daLoc','location']].forEach(([id,key])=>{
+  const dad = document.getElementById('daAllDay');
+  if(dad) dad.addEventListener('change',()=>{ if(S.dateAsk){ S.dateAsk.allDay = dad.checked; render(); } });
+  document.querySelectorAll('[data-editdate]').forEach(el=>
+    el.addEventListener('click',()=>editInviteDate(el.dataset.editdate)));
+  [['daDate','date'],['daTime','time'],['daLoc','location'],['daEnd','endDate']].forEach(([id,key])=>{
     const el = document.getElementById(id);
     if(el) el.addEventListener('input',()=>{ if(S.dateAsk) S.dateAsk[key] = el.value; });
   });
