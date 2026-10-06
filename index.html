@@ -12,7 +12,7 @@
     --ink:#1C1B1A; --paper:#FAF9F7; --card:#FFFFFF;
     --rule:#DFDBD4; --rule-soft:#EDEAE5; --wash:#F6F4F1;
     --grey:#4D4D4D; --slate:#6E7477;
-    --orange:#F68922; --orange-tint:#FEF3E7;
+    --orange:#F68922; --orange-tint:#FEF3E7; --orange-ink:#B85C00;
     --green:#3F7D5C; --red:#A6402C;
     --display:"Barlow Condensed",system-ui,sans-serif;
     --body:"IBM Plex Sans",system-ui,sans-serif;
@@ -82,7 +82,7 @@
            font-size:12px;color:var(--slate);font-weight:600}
   .stat .v{font-family:var(--display);font-size:31px;font-weight:700;line-height:1.15;margin-top:2px}
   .stat .v small{font-size:15px;color:var(--slate);font-weight:600}
-  .stat.accent .v{color:var(--orange)}
+  .stat.accent .v{color:var(--orange-ink)}
 
   /* ---------- board ---------- */
   .split{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 54px)}
@@ -99,7 +99,7 @@
      rule already means "this row is open". */
   .row.gold{background:var(--orange-tint)}
   .row.gold .name::after{content:'GOLD';font-family:var(--mono);font-size:9px;
-      letter-spacing:.08em;color:var(--orange);margin-left:7px;vertical-align:1px}
+      letter-spacing:.08em;color:var(--orange-ink);margin-left:7px;vertical-align:1px}
   .row.gold.active{background:#FBE3C9}
   .row-top{display:flex;align-items:baseline;gap:8px}
   .idx{font-family:var(--mono);font-size:11px;color:var(--slate);min-width:18px}
@@ -111,7 +111,7 @@
      place on the board until it is dealt with, so the tag has to name the
      day it came from or it reads as new work. */
   .carry{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;
-       color:var(--orange);margin-left:26px;display:block;margin-top:3px}
+       color:var(--orange-ink);margin-left:26px;display:block;margin-top:3px}
   /* Skipped today. Collapsed by default so a heavily skipped morning does
      not bury the work, but never further away than one click. */
   .skipgroup{border-top:1px solid var(--rule);margin-top:6px}
@@ -160,6 +160,7 @@
     color:var(--ink);background:var(--paper);border:1px solid var(--rule);
     border-radius:0;padding:9px 11px;resize:vertical}
   input:focus,textarea:focus,select:focus{outline:2px solid var(--orange);outline-offset:-1px}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   textarea{min-height:180px}
   .actions{display:flex;align-items:center;gap:12px;margin-top:13px;flex-wrap:wrap}
   .btn{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
@@ -198,7 +199,7 @@
   .day-head .d{font-family:var(--display);text-transform:uppercase;
                letter-spacing:.08em;font-weight:700;font-size:13px}
   .day-head .n{font-family:var(--mono);font-size:11px;color:var(--slate)}
-  .day-head.today .d{color:var(--orange)}
+  .day-head.today .d{color:var(--orange-ink)}
   .ev{display:flex;align-items:baseline;gap:12px;padding:9px 14px;
       border-bottom:1px solid var(--rule-soft)}
   .ev:last-child{border-bottom:0}
@@ -421,7 +422,7 @@
   .inv-org{color:var(--slate);font-size:12px;margin-top:2px}
   .ebadge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;
       border:1px solid var(--line);padding:3px 7px;white-space:nowrap;color:var(--slate)}
-  .ebadge.soon{border-color:var(--orange);color:var(--orange)}
+  .ebadge.soon{border-color:var(--orange);color:var(--orange-ink)}
   .ebadge.past{border-color:var(--line);color:var(--slate)}
   .inv-facts{font-family:var(--mono);font-size:11px;color:var(--slate);margin-top:8px}
   .inv-sum{margin:8px 0 0;font-size:13px;line-height:1.5}
@@ -484,7 +485,7 @@
   .lhead .headline{font-size:12.5px;color:var(--grey);font-style:italic;margin-top:3px;
                    overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
                    -webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .fit{font-family:var(--display);font-size:23px;font-weight:700;color:var(--orange);
+  .fit{font-family:var(--display);font-size:23px;font-weight:700;color:var(--orange-ink);
        margin-left:auto;line-height:1;flex-shrink:0}
   .facts{display:flex;flex-wrap:wrap;gap:0 22px;margin:11px 0 0}
   .facts dt{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;
@@ -693,11 +694,32 @@ const PAGES = [
    written before this was 'liam', so no backfill is needed. */
 const OWNERS = { myday:'liam', iyanna:'iyanna' };
 const WHOAMI = { 'liam@haggertybuilds.com':'liam',
-                 'iyanna@haggertybuilds.com':'iyanna' };
+                 'iyanna@haggertybuilds.com':'iyanna',
+                 'p.dobson@haggertybuilds.com':'pat' };
+
+/* Pat works the board, the calendar and the pipeline. The two task lists
+   belong to Liam and Iyanna, so they stay off his bar. */
+const visiblePages = () => S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES;
+
+/* Every n8n call carries the signed-in session, so the workflows can
+   refuse anyone who is not logged in to this dashboard. */
+async function authHeaders(){
+  const h = { 'content-type':'application/json' };
+  try{
+    const { data } = await sb.auth.getSession();
+    const t = data && data.session && data.session.access_token;
+    if(t) h.authorization = 'Bearer ' + t;
+  }catch(e){}
+  return h;
+}
+
+/* How long an unworked first contact stays on the board before it drops
+   off and returns to the pool. */
+const CARRY_DAYS = 7;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-01a';
+const BUILD = '2026-10-06a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -809,7 +831,7 @@ function renderLogin(msg){
   app.innerHTML = `<div class="center"><form class="loginbox" id="lf">
     <span class="wordmark">HAGGERT<span>Y</span></span>
     <span class="eyebrow">Marketing hub</span>
-    <div class="field"><label for="em">Email</label><input type="text" id="em" autocomplete="username"/></div>
+    <div class="field"><label for="em">Email</label><input type="email" id="em" autocomplete="username"/></div>
     <div class="field"><label for="pw">Password</label><input type="password" id="pw" autocomplete="current-password"/></div>
     ${msg?`<p class="hint err" style="margin-top:14px">${esc(msg)}</p>`:''}
     <button class="btn" type="submit">Sign in</button></form></div>`;
@@ -830,15 +852,26 @@ function renderLogin(msg){
    them forward on read costs nothing extra and heals a gap of any length. */
 async function loadBoard(){
   const t = today();
+  /* A first contact Pat did not get to used to leave the board at midnight
+     while its contact stayed locked for 90 days: 376 people were drafted
+     for and never written to. Drafted, unsent first contacts now stay for
+     CARRY_DAYS, the same way follow-ups already did. */
+  const fd = new Date(t + 'T12:00:00Z'); fd.setUTCDate(fd.getUTCDate() - CARRY_DAYS);
+  const from = fd.toISOString().slice(0,10);
   const { data, error } = await sb.from('v_today_board').select('*')
-    .or(`queue_date.eq.${t},and(queue_date.lt.${t},touch.gt.1,handled.is.false,status.neq.skipped)`)
+    .or(`queue_date.eq.${t},and(queue_date.lt.${t},touch.gt.1,handled.is.false,status.neq.skipped),and(queue_date.lt.${t},queue_date.gte.${from},touch.eq.1,status.eq.drafted,handled.is.false)`)
     .order('vertical_order').order('slot');
   if(error) throw error;
   const rows = data || [];
-  for(const r of rows) r.carried = r.queue_date !== t;
-  // Stable sort, so carried rows lead and everything else keeps its
-  // vertical-then-slot order. Overdue work should not need scrolling to.
-  rows.sort((a,b)=> (a.carried===b.carried) ? 0 : (a.carried ? -1 : 1));
+  for(const r of rows){
+    r.carried = r.queue_date !== t;
+    r.carriedFirst = r.carried && Number(r.touch) === 1;
+  }
+  // Overdue follow-ups lead, then today, then first contacts still open
+  // from earlier in the week, oldest last.
+  const rank = r => !r.carried ? 1 : (r.carriedFirst ? 2 : 0);
+  rows.sort((a,b)=> (rank(a)-rank(b)) ||
+    (rank(a)===2 ? String(b.queue_date).localeCompare(String(a.queue_date)) : 0));
   S.board = rows;
   S.drafts = {};
   if(S.board.length){
@@ -1696,12 +1729,16 @@ async function loadLeadRows(){
 
 async function ensure(page){
   if(page==='today'){
-    if(!S.loaded.board) await loadBoard();
-    if(!S.loaded.tiles) await loadTiles();
-    if(!S.loaded.week) await loadWeek();
-    if(!S.loaded.tasks[S.me]) await loadTasks(S.me);
-    if(!S.loaded.seq) await loadSequences();
-    if(!S.loaded.assets) await loadAssets();
+    // Six independent reads. One after another they were the slowest
+    // part of opening the page.
+    await Promise.all([
+      !S.loaded.board && loadBoard(),
+      !S.loaded.tiles && loadTiles(),
+      !S.loaded.week && loadWeek(),
+      !S.loaded.tasks[S.me] && loadTasks(S.me),
+      !S.loaded.seq && loadSequences(),
+      !S.loaded.assets && loadAssets()
+    ].filter(Boolean));
   }
   if(page==='calendar' && !S.loaded.week) await loadWeek();
   if(page==='calendar' && !S.loaded.invites) await loadInvites();
@@ -1730,7 +1767,7 @@ function topbar(){
   return `<header class="topbar">
     <span class="wordmark">HAGGERT<span>Y</span></span>
     <nav class="tabs">
-      ${PAGES.map(([k,l])=>{
+      ${visiblePages().map(([k,l])=>{
         /* A count on the tab is what makes a pending item hard to walk
            past. Only shown once approvals have loaded, so it never
            flashes a wrong number on the way in. */
@@ -1779,7 +1816,7 @@ function wireChrome(){
   });
 
   const b = document.getElementById('signout');
-  if(b) b.addEventListener('click', async ()=>{ await sb.auth.signOut(); renderLogin(); });
+  if(b) b.addEventListener('click', async ()=>{ S.day = null; await sb.auth.signOut(); renderLogin(); });
 }
 
 function render(){
@@ -1792,9 +1829,19 @@ function render(){
   if(S.page==='social')   inner = pageSocial();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
   if(S.page==='leads')    inner = pageLeads();
+  const samePage = S._lastPage === S.page;
+  const sy = window.scrollY;
+  const ob = document.querySelector('.board');
+  const by = ob ? ob.scrollTop : 0;
   app.innerHTML = topbar() + crmPanel() + inner;
   wireChrome();
   wirePage();
+  if(samePage){
+    const nb = document.querySelector('.board');
+    if(nb && by) nb.scrollTop = by;
+    if(sy) window.scrollTo(0, sy);
+  }
+  S._lastPage = S.page;
 }
 
 function wirePage(){
@@ -1945,7 +1992,8 @@ function pageToday(){
   // if he dealt with everything he meant to deal with.
   const live = S.board.filter(r=>r.status !== 'skipped');
   const done = live.filter(r=>r.handled).length;
-  const carried = live.filter(r=>r.carried).length;
+  const carried = live.filter(r=>r.carried && !r.carriedFirst).length;
+  const stillOpen = live.filter(r=>r.carriedFirst && !r.handled).length;
   // Carried follow-ups survive the Gold filter. Hiding overdue work behind
   // a view toggle is the same disappearing act this fix is meant to end.
   const shownRows = S.goldOnly ? live.filter(r=>r.is_gold || r.carried) : live;
@@ -1954,8 +2002,10 @@ function pageToday(){
     <nav class="board">
       <div class="board-head"><span class="eyebrow">${done} of ${live.length} cleared${
         S.goldOnly?` &middot; showing Pat's Gold only`:''}</span>${
-        carried?`<span class="eyebrow" style="color:var(--orange);display:block;margin-top:3px">${
-          carried} follow-up${carried===1?'':'s'} carried over</span>`:''}</div>
+        carried?`<span class="eyebrow" style="color:var(--orange-ink);display:block;margin-top:3px">${
+          carried} follow-up${carried===1?'':'s'} carried over</span>`:''}${
+        stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
+          stillOpen} still open from earlier</span>`:''}</div>
       ${shownRows.map(rowHtml).join('')}
       ${skipped.length?`<div class="skipgroup">
         <button class="skiphead" id="skipToggle" aria-expanded="${S.skipOpen?'true':'false'}">
@@ -1999,8 +2049,8 @@ function seqPanel(){
         <span style="font-family:var(--display);font-size:26px;font-weight:700">${num(rows.length)}</span>
         <span class="eyebrow">waiting on a reply</span>
       </div>
-      ${due?`<p class="mono" style="color:var(--orange)">${due} due now</p>`:''}
-      ${waiting?`<p class="mono" style="color:var(--orange)">${waiting} drafted, not sent</p>`:''}
+      ${due?`<p class="mono" style="color:var(--orange-ink)">${due} due now</p>`:''}
+      ${waiting?`<p class="mono" style="color:var(--orange-ink)">${waiting} drafted, not sent</p>`:''}
     </div>
     <div style="border:1px solid var(--rule)">
       ${shown.map(r=>{
@@ -2018,7 +2068,7 @@ function seqPanel(){
           : d === 1 ? 'tomorrow' : `in ${d}d`;
         const hot = queued || d <= 0;
         return `<div class="ev">
-          <span class="t" style="color:${hot?'var(--orange)':'var(--slate)'}">${esc(when)}</span>
+          <span class="t" style="color:${hot?'var(--orange-ink)':'var(--slate)'}">${esc(when)}</span>
           <span class="s">${esc(r.full_name||'')}
             ${r.company_name?`<em>${esc(r.company_name)}</em>`:''}</span>
           <span class="kind">${inOutlook?'In Outlook':queued?'On the board':'Touch '+esc(r.next_touch)}</span>
@@ -2031,7 +2081,7 @@ function seqPanel(){
 function rowHtml(r,i){
   const ago = r.carried ? daysAgoFrom(r.queue_date) : null;
   const carryTag = r.carried
-    ? `<span class="carry">FOLLOW-UP ${esc(r.touch)} &middot; QUEUED ${
+    ? `<span class="carry">${r.carriedFirst ? 'STILL OPEN' : 'FOLLOW-UP ' + esc(r.touch)} &middot; QUEUED ${
         esc(dateOnly(r.queue_date)).toUpperCase()}${
         ago ? ` &middot; ${ago}D WAITING` : ''}</span>`
     : '';
@@ -2143,8 +2193,11 @@ async function stopFollowUp(contactId, stop){
   finally{ S.busy = false; render(); }
 }
 
-/* Off today's board, nothing more. The contact keeps its next_eligible_at,
-   so the queue builder can pick it up again whenever it next comes round.
+/* Off the board. For a first contact this is also where the 90 day
+   cooldown is set: sending and skipping are the two decisions that lock a
+   contact, and leaving one unworked is not a decision. Undo puts the
+   short lock back. Follow-ups are left alone, since their contact is
+   already locked by the first send.
    Undo restores the status the row had, inferred from whether drafts exist,
    which avoids carrying a second status column just for this. */
 async function skipToday(queueId, skip){
@@ -2157,6 +2210,14 @@ async function skipToday(queueId, skip){
       updated_at: new Date().toISOString()
     }).eq('id', queueId);
     if(error) throw error;
+    const row = S.board.find(x => x.queue_id === queueId);
+    if(row && row.contact_id && Number(row.touch) === 1 && !row.handled){
+      const until = new Date(Date.now() + (skip ? 90 : CARRY_DAYS) * 86400000).toISOString();
+      const { error:lockErr } = await sb.from('contacts')
+        .update({ next_eligible_at: until, updated_at: new Date().toISOString() })
+        .eq('id', row.contact_id);
+      if(lockErr) throw lockErr;
+    }
     if(skip && S.activeId === queueId) S.activeId = null;
     if(!skip) S.activeId = queueId;
     await loadBoard();
@@ -3238,7 +3299,7 @@ async function moveDeal(stageId, status){
     if(stageId) body.stage_id = Number(stageId);
     if(status)  body.status = status;
     const res = await fetch(MOVE_URL, { method:'POST',
-      headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+      headers:await authHeaders(), body: JSON.stringify(body) });
     const out = await res.json().catch(()=>({}));
     if(!res.ok || out.ok===false) throw new Error(out.message || out.error || 'Pipedrive returned ' + res.status);
     S.kpiNote = status
@@ -3258,7 +3319,7 @@ async function createDeal(){
   S.dealBusy=true; S.dealErr=''; S.kpiNote=''; render();
   try{
     const res = await fetch(ADDDEAL_URL, { method:'POST',
-      headers:{'content-type':'application/json'},
+      headers:await authHeaders(),
       body: JSON.stringify({
         title: String(f.title).trim(),
         stage_id: Number(f.stage_id),
@@ -3605,7 +3666,7 @@ function taskHtml(t){
         ${esc(t.category)}
         ${t.priority==1?' &middot; <span class="pri1">high</span>':''}
         ${t.status==='doing'?' &middot; in progress':''}
-        ${carried?` &middot; <span style="color:var(--orange)">carried ${days}d</span>`:''}
+        ${carried?` &middot; <span style="color:var(--orange-ink)">carried ${days}d</span>`:''}
         ${subs.length?` &middot; ${sdone} of ${subs.length}`:''}
       </span>
       ${subs.length?`<span class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></span>`:''}
@@ -3983,7 +4044,7 @@ function batchRow(b){
   return `<button class="row ${S.batchId===b.id?'active':''}" data-batch="${esc(b.id)}">
     <span class="row-top">
       <span class="name">${esc(b.name||'Untitled batch')}</span>
-      <span class="tick" style="color:${awaiting?'var(--orange)':'var(--slate)'}">${awaiting||'clear'}</span>
+      <span class="tick" style="color:${awaiting?'var(--orange-ink)':'var(--slate)'}">${awaiting||'clear'}</span>
     </span>
     <span class="org" style="margin-left:0">${esc(shortDate(b.created_at))}${total?` &middot; ${total} leads`:''}${
       unconf?` &middot; <span style="color:var(--red)">${unconf} unconfirmed</span>`:''}${
@@ -4401,7 +4462,7 @@ function snPaintRun(){
 }
 async function loadSnQuota(){
   try{
-    const r = await fetch(QUOTA_URL); S.snQuota = await r.json();
+    const r = await fetch(QUOTA_URL, { headers: await authHeaders() }); S.snQuota = await r.json();
   }catch{ S.snQuota = { credits:null, salesnav_ok:null }; }
   render();
 }
@@ -4515,7 +4576,7 @@ async function runFind(){
   try{ const { data } = await sb.auth.getUser(); requestedBy = (data && data.user && data.user.email) || ''; }catch{}
   const n = parseInt(S.snCount,10);
   try{
-    const res = await fetch(SCRAPE_URL,{method:'POST', headers:{'content-type':'application/json'},
+    const res = await fetch(SCRAPE_URL,{method:'POST', headers:await authHeaders(),
       body: JSON.stringify({
         linkedin_url: S.snOpened,
         name: S.snName.trim() || snDefaultName(),
@@ -4733,7 +4794,7 @@ function readCsvFile(input){
 /* ---------- lead actions ---------- */
 async function postIds(url, ids){
   const res = await fetch(url,{method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:await authHeaders(),
     body:JSON.stringify({contact_ids:ids})});
   if(!res.ok) throw new Error('The request came back ' + res.status);
   return res.json().catch(()=>({}));
@@ -4794,7 +4855,7 @@ async function runImport(){
 
   try{
     const res = await fetch(IMPORT_URL,{method:'POST',
-      headers:{'content-type':'application/json'},
+      headers:await authHeaders(),
       body:JSON.stringify({
         name: S.impName.trim() || S.impFile.replace(/\.csv$/i,'') || 'Evaboot import',
         vertical_slug: S.impVert,
@@ -4854,13 +4915,19 @@ async function useDraft(draftId){
     if(upErr) throw upErr;
 
     const res = await fetch(ACTION_URL,{method:'POST',
-      headers:{'content-type':'application/json'},
+      headers:await authHeaders(),
       body:JSON.stringify({queue_id:r.queue_id, draft_id:draftId})});
     const out = await res.json().catch(()=>({}));
-    if(!res.ok||!out.ok) throw new Error(out.error||'Could not create the draft. It may already have been handled.');
+    if(res.status === 409) throw new Error('This one was already handled. Reload the page to refresh the board.');
+    if(!res.ok||!out.ok) throw new Error(out.error
+      || `Nothing was sent. The mail connection returned an error (${res.status}). Liam gets an alert when this happens; try again in a few minutes.`);
 
+    // Clearing the selection lets loadBoard move to the next open contact.
+    S.activeId = null;
     await loadBoard();
     S.loaded.metrics=false; S.loaded.tiles=false;
+    if(out.sent === false) S.err = 'Saved to Pat\u2019s Outlook drafts but not sent'
+      + (out.error ? ': ' + out.error : '.') + ' Send it from Outlook.';
   }catch(err){ S.err = err.message||String(err); }
   finally{ S.busy=false; render(); }
 }
@@ -4871,7 +4938,7 @@ async function generate(verticalId, count, gold){
   try{
     const body = gold ? {gold:true, count:count} : {vertical_id:verticalId, count:count};
     const res = await fetch(GENERATE_URL,{method:'POST',
-      headers:{'content-type':'application/json'},
+      headers:await authHeaders(),
       body:JSON.stringify(body)});
     const out = await res.json().catch(()=>({}));
     S.gen = out.ok ? `Queued ${out.queued}. Open the Today tab to work through them.`
@@ -4891,7 +4958,7 @@ async function generateAcross(){
   try{
     for(const t of live){
       const res = await fetch(GENERATE_URL,{method:'POST',
-        headers:{'content-type':'application/json'},
+        headers:await authHeaders(),
         body:JSON.stringify({vertical_id:t.vertical_id, count:2})});
       const out = await res.json().catch(()=>({}));
       if(out.ok) total += Number(out.queued||0);
@@ -6056,6 +6123,7 @@ async function boot(){
      unknown account looking at a list rather than at an error. */
   S.me = WHOAMI[(session.user && session.user.email || '').toLowerCase()] || 'liam';
   S.dayOwner = S.me;
+  S.day = today();
   try{
     await ensure('today');
     render();
@@ -6066,6 +6134,18 @@ async function boot(){
     wireChrome();
   }
 }
+/* The board is loaded once per session, so a tab left open overnight kept
+   showing yesterday. Coming back to it on a new date reloads everything. */
+document.addEventListener('visibilitychange', async ()=>{
+  if(document.hidden || !S.day || S.day === today() || S.busy) return;
+  S.day = today();
+  S.loaded = { tasks:{} };
+  S.activeId = null; S.lastApproval = null;
+  try{ await ensure(S.page); }
+  catch(err){ S.err = 'Could not refresh for the new day. Reload the page. ' + (err.message || err); }
+  render();
+});
+
 boot();
 </script>
 </body>

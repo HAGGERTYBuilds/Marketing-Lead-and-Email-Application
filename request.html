@@ -209,13 +209,13 @@ function render(){
 
     <div class="field">
       <label for="nm">Your name <span class="req">*</span></label>
-      <input type="text" id="nm" value="${esc(F.name)}" autocomplete="name"
+      <input type="text" id="nm" maxlength="120" value="${esc(F.name)}" autocomplete="name"
              placeholder="Dana Whitfield" />
     </div>
 
     <div class="field">
       <label for="em">Your email <span class="req">*</span></label>
-      <input type="email" id="em" value="${esc(F.email)}" autocomplete="email"
+      <input type="email" id="em" maxlength="200" value="${esc(F.email)}" autocomplete="email"
              inputmode="email" placeholder="dana@haggertybuilds.com" />
       <p class="hint">So I can come back to you with questions.</p>
     </div>
@@ -238,13 +238,13 @@ function render(){
 
     <div class="field">
       <label for="ti">In one line <span class="req">*</span></label>
-      <input type="text" id="ti" value="${esc(F.title)}"
+      <input type="text" id="ti" maxlength="200" value="${esc(F.title)}"
              placeholder="New photos on the Industrial page" />
     </div>
 
     <div class="field">
       <label for="de">Tell me more</label>
-      <textarea id="de" placeholder="What you want, and anything I should know. If it is going out publicly, say what it should say.">${esc(F.details)}</textarea>
+      <textarea id="de" maxlength="5000" placeholder="What you want, and anything I should know. If it is going out publicly, say what it should say.">${esc(F.details)}</textarea>
     </div>
 
     <div class="field">
