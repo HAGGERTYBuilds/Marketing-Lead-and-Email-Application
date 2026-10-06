@@ -126,6 +126,12 @@
   .row.skipped:hover{background:var(--wash);opacity:1}
   .row.skipped .undo{margin-left:auto;font-size:11px}
   .carry.back{color:var(--slate)}
+  /* Emailed today. Same collapsed group as the skips: the ticks are kept,
+     one click away, and the open list only holds what is left to do. */
+  .skiphead.sent{color:var(--green)}
+  .row.sentrow .name{font-weight:500}
+  .carry.gone{color:var(--slate)}
+  .linkbtn.danger:hover{color:#A8321E}
 
   .who h1{font-family:var(--display);font-size:32px;font-weight:700;margin:0 0 2px;line-height:1.1}
   .who .role{color:var(--grey);font-size:15px}
@@ -719,13 +725,13 @@ const CARRY_DAYS = 7;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-06a';
+const BUILD = '2026-10-06b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
-  tasks:{}, seq:null, seqErr:'', skipOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
+  tasks:{}, seq:null, seqErr:'', skipOpen:false, sentOpen:false, dncOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
@@ -874,6 +880,21 @@ async function loadBoard(){
     (rank(a)===2 ? String(b.queue_date).localeCompare(String(a.queue_date)) : 0));
   S.board = rows;
   S.drafts = {};
+  /* "Not a fit" rides on the skipped status with a reason beside it, and the
+     board view does not carry the reason, so it is read here. The reason
+     also holds the contact's earlier status, which is what Undo restores. */
+  const skippedIds = rows.filter(r=>r.status==='skipped').map(r=>r.queue_id);
+  if(skippedIds.length){
+    const { data:sr } = await sb.from('email_queue').select('id,skipped_reason')
+      .in('id', skippedIds);
+    const why = {};
+    for(const x of (sr||[])) why[x.id] = x.skipped_reason || '';
+    for(const r of rows){
+      const w = why[r.queue_id] || '';
+      r.dnc = w.startsWith('not_a_fit');
+      r.dncPrev = r.dnc ? (w.split('|')[1] || 'approved') : null;
+    }
+  }
   if(S.board.length){
     const { data:d } = await sb.from('email_drafts').select('*')
       .in('queue_id', S.board.map(r=>r.queue_id)).order('variant_number');
@@ -1863,6 +1884,14 @@ function wirePage(){
     el.addEventListener('click',()=>skipToday(el.dataset.skip, true)));
   document.querySelectorAll('[data-unskip]').forEach(el=>
     el.addEventListener('click',e=>{ e.stopPropagation(); skipToday(el.dataset.unskip, false); }));
+  document.querySelectorAll('[data-dnc]').forEach(el=>
+    el.addEventListener('click',()=>notAFit(el.dataset.dnc, true)));
+  document.querySelectorAll('[data-undnc]').forEach(el=>
+    el.addEventListener('click',e=>{ e.stopPropagation(); notAFit(el.dataset.undnc, false); }));
+  const sn = document.getElementById('sentToggle');
+  if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
+  const dt = document.getElementById('dncToggle');
+  if(dt) dt.addEventListener('click',()=>{ S.dncOpen=!S.dncOpen; render(); });
   const st = document.getElementById('skipToggle');
   if(st) st.addEventListener('click',()=>{ S.skipOpen=!S.skipOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
@@ -1996,8 +2025,13 @@ function pageToday(){
   const stillOpen = live.filter(r=>r.carriedFirst && !r.handled).length;
   // Carried follow-ups survive the Gold filter. Hiding overdue work behind
   // a view toggle is the same disappearing act this fix is meant to end.
-  const shownRows = S.goldOnly ? live.filter(r=>r.is_gold || r.carried) : live;
-  const skipped = S.board.filter(r=>r.status === 'skipped');
+  const shownRows = (S.goldOnly ? live.filter(r=>r.is_gold || r.carried) : live)
+    .filter(r=>!r.handled);
+  // Emailed rows leave the open list and keep their tick in a group below,
+  // so the list Pat is looking at is only ever what is left.
+  const sentRows = live.filter(r=>r.handled);
+  const skipped = S.board.filter(r=>r.status === 'skipped' && !r.dnc);
+  const gone = S.board.filter(r=>r.status === 'skipped' && r.dnc);
   return sectorBar() + `<div class="split">
     <nav class="board">
       <div class="board-head"><span class="eyebrow">${done} of ${live.length} cleared${
@@ -2007,6 +2041,20 @@ function pageToday(){
         stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
           stillOpen} still open from earlier</span>`:''}</div>
       ${shownRows.map(rowHtml).join('')}
+      ${!shownRows.length && sentRows.length?`<p class="hint" style="padding:14px 17px">${
+        S.goldOnly?'Nothing open on the Gold list.':'Board cleared. Nothing left to send.'}</p>`:''}
+      ${sentRows.length?`<div class="skipgroup">
+        <button class="skiphead sent" id="sentToggle" aria-expanded="${S.sentOpen?'true':'false'}">
+          <span>&#10003; Emailed today (${sentRows.length})</span>
+          <span class="caret">${S.sentOpen?'&#9662;':'&#9656;'}</span></button>
+        ${S.sentOpen ? sentRows.map(sentRowHtml).join('') : ''}
+      </div>`:''}
+      ${gone.length?`<div class="skipgroup">
+        <button class="skiphead" id="dncToggle" aria-expanded="${S.dncOpen?'true':'false'}">
+          <span>Not a fit (${gone.length})</span>
+          <span class="caret">${S.dncOpen?'&#9662;':'&#9656;'}</span></button>
+        ${S.dncOpen ? gone.map(skipRowHtml).join('') : ''}
+      </div>`:''}
       ${skipped.length?`<div class="skipgroup">
         <button class="skiphead" id="skipToggle" aria-expanded="${S.skipOpen?'true':'false'}">
           <span>Skipped today (${skipped.length})</span>
@@ -2093,6 +2141,13 @@ function rowHtml(r,i){
     ${carryTag}</button>`;
 }
 
+function sentRowHtml(r){
+  return `<button class="row done sentrow ${r.queue_id===S.activeId?'active':''} ${r.is_gold?'gold':''}" data-row="${r.queue_id}">
+    <span class="row-top"><span class="name">${esc(r.full_name||r.email)}</span>
+    <span class="tick">&#10003;</span></span>
+    <span class="org" style="margin-left:0">${esc(r.company_name||r.vertical)}</span></button>`;
+}
+
 /* A div, not a button, because the Undo inside it is itself a button and
    nesting the two is invalid markup that Safari renders unpredictably.
 
@@ -2105,9 +2160,9 @@ function skipRowHtml(r){
   const future = back && !isNaN(back) && back > new Date();
   return `<div class="row skipped" data-row="${r.queue_id}">
     <span class="row-top"><span class="name">${esc(r.full_name||r.email)}</span>
-      <button class="linkbtn undo" data-unskip="${esc(r.queue_id)}">Undo</button></span>
+      <button class="linkbtn undo" ${r.dnc?'data-undnc':'data-unskip'}="${esc(r.queue_id)}">Undo</button></span>
     <span class="org">${esc(r.company_name||r.vertical)}</span>
-    ${future?`<span class="carry back">ELIGIBLE AGAIN ${
+    ${r.dnc?`<span class="carry gone">OUT OF OUTREACH FOR GOOD</span>`:future?`<span class="carry back">ELIGIBLE AGAIN ${
       esc(shortDate(r.next_eligible_at)).toUpperCase()}</span>`:''}</div>`;
 }
 
@@ -2225,6 +2280,63 @@ async function skipToday(queueId, skip){
   finally{ S.busy = false; render(); }
 }
 
+/* Not a fit, or someone Pat does not want written to. Unlike "Not today",
+   which only sits a contact out for 90 days, this takes them out of the pool:
+   both queue builders only draw status = approved, and the follow-up builder
+   honours follow_up_stopped_at. The record itself stays in the CRM.
+   The earlier status is kept beside the skip so Undo puts back exactly what
+   was there. */
+async function notAFit(queueId, on){
+  const row = S.board.find(x => x.queue_id === queueId);
+  if(!row || !row.contact_id) return;
+  let reason = '';
+  if(on){
+    const ans = prompt('Take ' + (row.full_name || row.email) +
+      ' out of outreach for good?\n\nThey will not be queued or followed up with again. ' +
+      'A reason is optional, but useful in a month.', '');
+    if(ans === null) return;
+    reason = ans.trim();
+  }
+  S.busy = true; S.err = ''; render();
+  try{
+    const now = new Date().toISOString();
+    if(on){
+      const { data:cur, error:readErr } = await sb.from('contacts')
+        .select('status').eq('id', row.contact_id).single();
+      if(readErr) throw readErr;
+      const prev = cur.status === 'do_not_contact' ? 'approved' : (cur.status || 'approved');
+      const { error:cErr } = await sb.from('contacts').update({
+        status: 'do_not_contact',
+        excluded_reason: 'Not a fit (board)' + (reason ? ': ' + reason : ''),
+        follow_up_stopped_at: row.follow_up_stopped_at || now,
+        follow_up_stopped_reason: row.follow_up_stopped_at
+          ? (row.follow_up_stopped_reason || null) : 'Marked not a fit',
+        updated_at: now
+      }).eq('id', row.contact_id);
+      if(cErr) throw cErr;
+      const { error } = await sb.from('email_queue').update({
+        status: 'skipped', skipped_reason: 'not_a_fit|' + prev, updated_at: now
+      }).eq('id', queueId);
+      if(error) throw error;
+      if(S.activeId === queueId) S.activeId = null;
+    }else{
+      const mine = row.follow_up_stopped_reason === 'Marked not a fit';
+      const patch = { status: row.dncPrev || 'approved', excluded_reason: null, updated_at: now };
+      if(mine){ patch.follow_up_stopped_at = null; patch.follow_up_stopped_reason = null; }
+      const { error:cErr } = await sb.from('contacts').update(patch).eq('id', row.contact_id);
+      if(cErr) throw cErr;
+      const back = (S.drafts[queueId] || []).length ? 'drafted' : 'queued';
+      const { error } = await sb.from('email_queue').update({
+        status: back, skipped_reason: null, updated_at: now
+      }).eq('id', queueId);
+      if(error) throw error;
+      S.activeId = queueId;
+    }
+    await loadBoard();
+  }catch(err){ S.err = err.message || String(err); }
+  finally{ S.busy = false; render(); }
+}
+
 function detailHtml(){
   const r = S.board.find(x=>x.queue_id===S.activeId);
   if(!r) return '';
@@ -2258,9 +2370,17 @@ function detailHtml(){
       ${r.draft_web_link?`<p style="margin-top:9px"><a href="${esc(r.draft_web_link)}" target="_blank" rel="noopener"><b>Open it in Outlook</b></a></p>`:''}
       </div>`;
   }
-  const skipBtn = r.status === 'skipped'
+  const skipBtn = r.dnc
+    ? `<button class="linkbtn" data-undnc="${esc(r.queue_id)}">Undo, put back in outreach</button>`
+    : r.status === 'skipped'
     ? `<button class="linkbtn" data-unskip="${esc(r.queue_id)}">Put back on the board</button>`
-    : `<button class="linkbtn" data-skip="${esc(r.queue_id)}">Not today</button>`;
+    : `<button class="linkbtn" data-skip="${esc(r.queue_id)}">Not today</button>
+       <button class="linkbtn danger" data-dnc="${esc(r.queue_id)}"
+         title="Takes this contact out of outreach for good">Not a fit</button>`;
+  if(r.dnc) return head + `<div class="panelbox"><span class="eyebrow">Not a fit</span>
+      <p>Out of outreach for good. No new emails or follow-ups will be queued for this contact.</p>
+      <p style="margin-top:10px">${skipBtn}</p></div>
+    ${S.err?`<p class="hint err">${esc(S.err)}</p>`:''}`;
   if(!drafts.length) return head + `<div class="panelbox">
       <p class="none">No drafts generated for this contact yet.</p>
       <p style="margin-top:10px">${skipBtn}</p></div>
@@ -2269,8 +2389,8 @@ function detailHtml(){
       <h2 class="sec" style="flex:1;min-width:180px">${
         isFollow ? 'The nudge' : 'Five approaches'}</h2>
       ${skipBtn}
-      <button class="linkbtn" data-stop="${esc(r.contact_id)}" data-stopnow="${r.follow_up_stopped_at?'0':'1'}">
-        ${r.follow_up_stopped_at ? 'Resume follow-ups' : 'Stop following up'}</button>
+      ${r.dnc ? '' : `<button class="linkbtn" data-stop="${esc(r.contact_id)}" data-stopnow="${r.follow_up_stopped_at?'0':'1'}">
+        ${r.follow_up_stopped_at ? 'Resume follow-ups' : 'Stop following up'}</button>`}
     </div>
     ${drafts.map(optHtml).join('')}
     ${S.err?`<p class="hint err">${esc(S.err)}</p>`:''}`;
