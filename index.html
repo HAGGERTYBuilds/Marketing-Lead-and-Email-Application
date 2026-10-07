@@ -530,6 +530,10 @@
   .soccard.approved,.soccard.queued{border-top-color:var(--green)}
   .soccard.sent{border-top-color:var(--orange)}
   .soccard.skipped{opacity:.55}
+  .soccard.extra{border-top-color:var(--slate);border-top-style:dashed}
+  .socbody .why{font-size:12px;color:var(--slate);font-style:italic}
+  .socfoot select{font-size:12.5px;padding:5px 7px;max-width:150px}
+  .socopen{font-size:13px;color:var(--grey);margin:0 0 14px}
   .socthumb{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:0;padding:0;
             cursor:pointer;display:block;overflow:hidden}
   .socthumb img,.socthumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
@@ -740,7 +744,7 @@ const S = {
   reelBusy:'', reelErr:'', reelNote:'', reelNotes:'', reelAddOpen:false,
   reelSaving:false, reelForm:{ url:'', text:'', brand:'haggerty', priority:'2' },
   /* social calendar */
-  social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null,
+  social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* leads */
@@ -5633,7 +5637,7 @@ function wireReels(){
 const SOC_BUCKET = 'social-media';
 const SOC_BRAND  = 'haggerty';
 const SOC_STATUS = { draft:'Draft', approved:'Approved', queued:'Sending',
-                     sent:'In Metricool', skipped:'Skipped' };
+                     sent:'In Metricool', skipped:'Cleared', extra:'Extra option' };
 const SOC_FORMAT = { photo:'Photo', carousel:'Carousel', video:'Video' };
 const SOC_OK  = ['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'];
 const SOC_MAX = 50 * 1024 * 1024;
@@ -5658,6 +5662,21 @@ function socShift(m, n){
 function socThisMonth(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+/* A slot is a weekday of the month. It is open when no live post sits on
+   it: cleared posts and extras do not hold a date. */
+function socLive(p){ return p.status !== 'skipped' && p.status !== 'extra'; }
+function socOpenDates(){
+  const [y,mo] = String(S.socMonth).split('-').map(Number);
+  const taken = new Set((S.social||[]).filter(socLive).map(p => String(p.post_date).slice(0,10)));
+  const out = [];
+  for(let d = new Date(y, mo-1, 1); d.getMonth() === mo-1; d.setDate(d.getDate()+1)){
+    const wd = d.getDay();
+    if(wd === 0 || wd === 6) continue;
+    const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    if(!taken.has(iso)) out.push(iso);
+  }
+  return out;
 }
 function socMedia(p){
   return ((p && p.social_post_media) || []).slice().sort((a,b)=> a.position - b.position);
@@ -5702,7 +5721,7 @@ function socCard(p){
   const media = socMedia(p);
   const busy = S.socBusy === p.id;
   return `<article class="soccard ${esc(p.status)}">
-    <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit the post for ${esc(socDay(p.post_date))}">
+    <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit ${p.status==='extra'?'this extra option':'the post for ' + esc(socDay(p.post_date))}">
       ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
       <span class="soctag">
         <span class="chip">${esc(SOC_FORMAT[p.format] || p.format)}${media.length>1?` &middot; ${media.length}`:''}</span>
@@ -5710,17 +5729,29 @@ function socCard(p){
       </span>
     </button>
     <div class="socbody">
-      <span class="d">${esc(socDay(p.post_date))}</span>
+      <span class="d">${p.status==='extra' ? 'Not scheduled' : esc(socDay(p.post_date))}</span>
       ${p.topic?`<span class="t">${esc(p.topic)}</span>`:''}
       <p>${esc(p.caption)}</p>
+      ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
     </div>
     <div class="socfoot">
       ${p.status === 'draft'
         ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
-        : p.status === 'approved' || p.status === 'skipped'
+        : p.status === 'approved'
           ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`
+        : p.status === 'skipped'
+          ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`
+        : p.status === 'extra'
+          ? (socOpenDates().length
+              ? `<select data-soc-use="${esc(p.id)}" ${busy?'disabled':''} aria-label="Use this option on a date">
+                   <option value="">Use on&hellip;</option>
+                   ${socOpenDates().map(d=>`<option value="${d}">${esc(socDay(d))}</option>`).join('')}
+                 </select>`
+              : `<span class="hint" style="margin:0">No open dates</span>`)
           : ''}
       <button class="btn small ghost" data-soc-open="${esc(p.id)}">Edit</button>
+      ${p.status==='draft'||p.status==='approved'||p.status==='extra'
+        ? `<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear</button>` : ''}
     </div>
   </article>`;
 }
@@ -5734,7 +5765,7 @@ function socSheet(){
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit post">
     <div class="sheet-in soc">
       <div class="reel-head">
-        <h2>${esc(socDay(f.post_date || p.post_date))} &middot; ${esc(SOC_FORMAT[p.format] || p.format)}</h2>
+        <h2>${p.status==='extra' ? 'Extra option' : esc(socDay(f.post_date || p.post_date))} &middot; ${esc(SOC_FORMAT[p.format] || p.format)}</h2>
         <button class="linkbtn" id="socClose">Close</button>
       </div>
       <div class="socgrid2">
@@ -5756,8 +5787,14 @@ function socSheet(){
             Instagram needs at least one photo or video on every post.</p>
         </div>
         <div class="socside">
-          <div class="field" style="margin-top:0"><label for="socDate">Post date</label>
-            <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>
+          ${p.status==='extra'
+            ? `<div class="field" style="margin-top:0"><label for="socUseDate">Use on</label>
+                 <select id="socUseDate">
+                   <option value="">Not scheduled yet</option>
+                   ${socOpenDates().map(d=>`<option value="${d}" ${f.use_date===d?'selected':''}>${esc(socDay(d))}</option>`).join('')}
+                 </select></div>`
+            : `<div class="field" style="margin-top:0"><label for="socDate">Post date</label>
+                 <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>`}
           <div class="field"><label for="socTopic">Topic</label>
             <input type="text" id="socTopic" value="${esc(f.topic)}" autocomplete="off" /></div>
           <div class="field"><label for="socCaption">Caption</label>
@@ -5766,16 +5803,42 @@ function socSheet(){
             <input type="text" id="socTags" value="${esc(f.hashtags)}" autocomplete="off" /></div>
           <div class="field"><label for="socTagsLi">Hashtags, LinkedIn</label>
             <input type="text" id="socTagsLi" value="${esc(f.hashtags_li)}" autocomplete="off" /></div>
+          ${p.status==='skipped' && p.notes?`<p class="hint" style="margin-top:10px">Cleared: ${esc(p.notes)}</p>`:''}
           ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
           ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
           ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
           <div class="actions" style="margin-top:auto;padding-top:14px">
             <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
             ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
-            ${p.status==='approved'||p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
-            ${p.status==='draft'||p.status==='approved'?`<button class="linkbtn" data-soc-set="${esc(p.id)}" data-val="skipped" ${busy?'disabled':''}>Skip this post</button>`:''}
+            ${p.status==='approved'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
+            ${p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`:''}
+            ${p.status==='draft'||p.status==='approved'||p.status==='extra'?`<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear this post</button>`:''}
           </div>
         </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Clearing hides a post without deleting it. The optional reason is kept
+   on the post and read when more options are built, so the next batch
+   steers away from whatever was wrong. */
+function socClearSheet(){
+  const p = (S.social||[]).find(x => x.id === S.socClearId);
+  if(!p) return '';
+  const busy = !!S.socBusy;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Clear post">
+    <div class="sheet-in">
+      <h2 style="margin-top:0">Clear this post?</h2>
+      <p class="hint">${esc(p.status==='extra' ? 'Extra option' : socDay(p.post_date))}${p.topic?' &middot; ' + esc(p.topic):''}.
+        It moves to Cleared and can be brought back.${p.status==='extra'?'':' Its date opens up for an extra option.'}</p>
+      <div class="field"><label for="socWhy">Why? (optional)</label>
+        <input type="text" id="socWhy" maxlength="200" autocomplete="off"
+               placeholder="For example: person no longer with us, too much tilt-up" value="${esc(S.socWhy||'')}" /></div>
+      ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
+      <div class="actions" style="margin-top:16px">
+        <button class="btn" id="socClearGo" ${busy?'disabled':''}>Clear post</button>
+        <button class="linkbtn" id="socClearNo">Keep it</button>
       </div>
     </div>
   </div>`;
@@ -5791,6 +5854,13 @@ function socJobNote(){
       : g.status === 'ready' ? 'The month folder is ready' + (g.note ? ': ' + g.note : '') + '. Click Import folder and pick it.'
       : 'Generate did not finish' + (g.note ? ': ' + g.note : '.'));
   }
+  const x = jobs.find(j => j.kind === 'extras');
+  if(x && x.status !== 'done'){
+    out.push(x.status === 'pending' ? 'More options requested. They get built within the hour on weekdays while the laptop is on.'
+      : x.status === 'running' ? 'More options are being built now.'
+      : x.status === 'ready' ? 'More options are ready' + (x.note ? ': ' + x.note : '') + '. Click Import folder and pick that folder.'
+      : 'More options did not finish' + (x.note ? ': ' + x.note : '.'));
+  }
   const s = jobs.find(j => j.kind === 'send');
   if(s && s.status !== 'done'){
     out.push(s.status === 'pending' ? 'Send requested. Approved posts go to Metricool as drafts within the hour on weekdays while the laptop is on.'
@@ -5805,15 +5875,20 @@ function pageSocial(){
   if(!S.loaded.social) return loading();
   const all = S.social || [];
   const count = k => all.filter(p => p.status === k).length;
-  const rows = all.filter(p => S.socFilter === 'all' || p.status === S.socFilter
-    || (S.socFilter === 'sent' && p.status === 'queued'));
+  const live = all.filter(socLive);
+  const rows = all.filter(p => S.socFilter === 'all' ? socLive(p) : (p.status === S.socFilter
+    || (S.socFilter === 'sent' && p.status === 'queued')));
+  const openDates = socOpenDates();
+  const extras = count('extra');
+  const xOpen = (S.socJobs||[]).some(j => j.kind==='extras' && ['pending','running','ready'].includes(j.status));
   const approved = count('approved');
   const drafts = count('draft');
   const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
   const busy = !!S.socBusy;
 
-  const chips = [['all','All', all.length], ['draft','Drafts', drafts], ['approved','Approved', approved],
-                 ['sent','In Metricool', count('sent') + count('queued')], ['skipped','Skipped', count('skipped')]]
+  const chips = [['all','Calendar', live.length], ['draft','Drafts', drafts], ['approved','Approved', approved],
+                 ['sent','In Metricool', count('sent') + count('queued')], ['extra','Extra options', extras],
+                 ['skipped','Cleared', count('skipped')]]
     .map(([k,label,n])=>`<button class="fchip ${S.socFilter===k?'on':''}" data-socfilter="${k}">${label} <b>${n}</b></button>`).join('');
   const notes = socJobNote();
 
@@ -5825,7 +5900,9 @@ function pageSocial(){
       <span style="flex:1"></span>
       <button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
               title="${all.length?'This month already has posts.':'Ask for a month of posts built from the J: archive.'}">Generate month</button>
-      <label class="btn small ghost filebtn" title="Pick a month folder that contains plan.json">Import folder
+      ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
+              title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
+      <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
       ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}>Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}
       <button class="btn small" id="socSend" ${busy||!approved?'disabled':''}>Send ${approved||''} approved to Metricool</button>
@@ -5838,24 +5915,28 @@ function pageSocial(){
     ${S.socProg && !S.socOpenId?`<p class="hint" style="margin-bottom:14px">${esc(S.socProg)}</p>`:''}
     ${S.socErr && !S.socOpenId?`<p class="hint err" style="margin-bottom:14px">${esc(S.socErr)}</p>`:''}
 
+    ${all.length && openDates.length ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
+        ${openDates.map(d=>esc(socDay(d))).join(', ')}. ${extras
+          ? 'Pick an extra option and choose Use on.'
+          : 'Click Get more options to have spare posts built, then assign one to each date.'}</p>` : ''}
     ${rows.length
       ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
       : `<div class="empty" style="padding:44px 0">
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
-           <p>${all.length?'Pick another filter above.'
+           <p>${all.length?(S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
              :'Generate month asks for a new set built from the J: archive. Import folder brings in a month folder that is already built.'}</p>
          </div>`}
 
     <p class="hint" style="margin-top:18px">Instagram and Facebook go out at 10:00 AM and LinkedIn at 11:00 AM,
       the peak hours on the Metricool heatmap. Sending creates drafts in Metricool, so nothing publishes until it is approved there.</p>
-  </main>${socSheet()}`;
+  </main>${socSheet()}${socClearSheet()}`;
 }
 
 function socOpen(id){
   const p = (S.social||[]).find(x => x.id === id);
   if(!p) return;
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
-  S.socForm = { post_date: String(p.post_date||'').slice(0,10), topic: p.topic || '',
+  S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '' };
   render();
 }
@@ -5864,18 +5945,25 @@ async function saveSocial(status){
   const id = S.socOpenId;
   if(!id || S.socBusy) return;
   const f = S.socForm;
-  if(!f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
+  const cur = (S.social||[]).find(x => x.id === id);
+  const isExtra = cur && cur.status === 'extra';
+  if(!isExtra && !f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
   S.socBusy = id; S.socErr = ''; render();
   try{
-    const patch = { post_date: f.post_date, month: f.post_date.slice(0,7),
-                    topic: String(f.topic||'').trim() || null,
+    /* An extra keeps its placeholder date until it is given a slot. Picking
+       a date in the editor schedules it as a draft. */
+    const when = isExtra ? (f.use_date || '') : f.post_date;
+    const patch = { topic: String(f.topic||'').trim() || null,
                     caption: String(f.caption||'').trim(),
                     hashtags: String(f.hashtags||'').trim() || null,
                     hashtags_li: String(f.hashtags_li||'').trim() || null };
+    if(when){ patch.post_date = when; patch.month = when.slice(0,7); }
+    if(isExtra && when) patch.status = 'draft';
     if(status) patch.status = status;
     const { error } = await sb.from('social_posts').update(patch).eq('id', id);
     if(error) throw error;
-    S.socNote = status === 'approved' ? 'Saved and approved.' : 'Saved.';
+    S.socNote = isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
+      : status === 'approved' ? 'Saved and approved.' : 'Saved.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = 'That did not save: ' + (err.message || err); }
@@ -5888,10 +5976,55 @@ async function setSocialStatus(id, status){
   try{
     const { error } = await sb.from('social_posts').update({ status }).eq('id', id);
     if(error) throw error;
-    S.socNote = status === 'approved' ? 'Approved.' : status === 'skipped' ? 'Skipped.' : 'Back to draft.';
+    S.socNote = status === 'approved' ? 'Approved.' : status === 'skipped' ? 'Cleared.' : 'Back to draft.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+/* Bringing a cleared post back only works while its date is still free.
+   If an extra took the slot, it returns as an extra instead. */
+async function socBringBack(id){
+  const p = (S.social||[]).find(x => x.id === id);
+  if(!p || S.socBusy) return;
+  const day = String(p.post_date).slice(0,10);
+  const taken = (S.social||[]).some(x => x.id !== id && socLive(x) && String(x.post_date).slice(0,10) === day);
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_posts').update({ status: taken ? 'extra' : 'draft' }).eq('id', id);
+    if(error) throw error;
+    S.socNote = taken ? 'Its date is taken now, so it came back as an extra option.' : 'Back to draft.';
+    S.socOpenId = null;
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
+  S.socBusy = ''; render();
+}
+
+async function socClearPost(){
+  const id = S.socClearId;
+  if(!id || S.socBusy) return;
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const why = String(S.socWhy||'').trim();
+    const { error } = await sb.from('social_posts').update({ status:'skipped', notes: why || null }).eq('id', id);
+    if(error) throw error;
+    S.socNote = 'Cleared.'; S.socClearId = null; S.socWhy = ''; S.socOpenId = null;
+    await reloadSocial();
+  }catch(err){ S.socErr = 'That did not clear: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
+async function socUseExtra(id, date){
+  if(!id || !date || S.socBusy) return;
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_posts')
+      .update({ post_date: date, month: date.slice(0,7), status:'draft' }).eq('id', id);
+    if(error) throw error;
+    S.socNote = 'Scheduled for ' + socDay(date) + '.';
+    await reloadSocial();
+  }catch(err){ S.socErr = 'That did not schedule: ' + (err.message || err); }
   S.socBusy = ''; render();
 }
 
@@ -6040,19 +6173,28 @@ async function requestSocialJob(kind){
 async function importSocialFolder(fileList){
   const files = Array.from(fileList || []);
   if(!files.length || S.socBusy) return;
-  const planFile = files.find(f => f.name === 'plan.json');
-  if(!planFile){ S.socErr = 'That folder has no plan.json. Pick the month folder itself, for example 2026-10.'; return render(); }
+  const planFiles = files.filter(f => f.name === 'plan.json');
+  if(!planFiles.length){ S.socErr = 'That folder has no plan.json. Pick the month folder itself, for example 2026-10.'; return render(); }
   S.socBusy = 'import'; S.socErr = ''; S.socNote = ''; S.socProg = 'Reading the plan'; render();
   let made = 0, skipped = 0, month = '';
   try{
-    const plan = JSON.parse(await planFile.text());
-    if(!Array.isArray(plan) || !plan.length) throw new Error('plan.json is empty.');
+    /* A month folder can hold extras folders, each with its own plan.json.
+       Picking the month folder brings in all of them; picking one extras
+       folder brings in just that batch. */
+    let plan = [];
+    for(const pf of planFiles){
+      const part = JSON.parse(await pf.text());
+      if(Array.isArray(part)) plan = plan.concat(part);
+    }
+    if(!plan.length) throw new Error('plan.json is empty.');
+    const pMonth = p => p.extra ? String(p.month) : String(p.date).slice(0,7);
     const byRel = {};
     files.forEach(f => {
       const parts = String(f.webkitRelativePath || f.name).split('/');
       byRel[parts.slice(-2).join('/')] = f;
     });
-    const months = Array.from(new Set(plan.map(p => String(p.date).slice(0,7))));
+    const months = Array.from(new Set(plan.map(pMonth)));
+    if(months.some(m => !/^\d{4}-\d{2}$/.test(m))) throw new Error('A post in plan.json has no date or month.');
     month = months[0];
     const have = await sb.from('social_posts').select('month, source_key')
       .eq('brand', SOC_BRAND).in('month', months);
@@ -6061,7 +6203,7 @@ async function importSocialFolder(fileList){
 
     for(let i = 0; i < plan.length; i++){
       const p = plan[i];
-      const m = String(p.date).slice(0,7);
+      const m = pMonth(p);
       if(seen.has(m + '|' + p.folder)){ skipped++; continue; }
       const picks = (p.files || []).map(name => ({ name, file: byRel[p.folder + '/' + name] }));
       const missing = picks.find(x => !x.file);
@@ -6071,10 +6213,10 @@ async function importSocialFolder(fileList){
 
       const kinds = picks.map(x => ({ kind: x.file.type.startsWith('video') ? 'video' : 'image' }));
       const ins = await sb.from('social_posts').insert({
-        brand: SOC_BRAND, month: m, post_date: p.date, seq: Number(p.n) || i + 1,
+        brand: SOC_BRAND, month: m, post_date: p.extra ? m + '-01' : p.date, seq: Number(p.n) || i + 1,
         format: socFormat(kinds), topic: p.topic || null, caption: p.caption || '',
         hashtags: p.tags_ig_fb || null, hashtags_li: p.tags_li || null,
-        status: 'draft', source_key: p.folder }).select('id').single();
+        status: p.extra ? 'extra' : 'draft', source_key: p.folder }).select('id').single();
       if(ins.error) throw ins.error;
       const postId = ins.data.id;
       try{
@@ -6094,8 +6236,12 @@ async function importSocialFolder(fileList){
       }
       made++;
     }
+    const kindsIn = [];
+    if(plan.some(p => !p.extra)) kindsIn.push('generate');
+    if(plan.some(p => p.extra)) kindsIn.push('extras');
     await sb.from('social_jobs').update({ status:'done', finished_at: new Date().toISOString() })
-      .eq('brand', SOC_BRAND).in('month', months).eq('kind', 'generate').eq('status', 'ready');
+      .eq('brand', SOC_BRAND).in('month', months).in('kind', kindsIn).eq('status', 'ready');
+    if(plan.every(p => p.extra) && made) S.socFilter = 'extra';
     S.socNote = `Imported ${made} post${made===1?'':'s'}` + (skipped ? `, ${skipped} already here.` : '.');
   }catch(err){
     S.socErr = 'The import stopped: ' + (err.message || err) +
@@ -6120,7 +6266,29 @@ function wireSocial(){
   document.querySelectorAll('[data-soc-open]').forEach(el=>
     el.addEventListener('click',()=> socOpen(el.dataset.socOpen)));
   document.querySelectorAll('[data-soc-set]').forEach(el=>
-    el.addEventListener('click',()=> setSocialStatus(el.dataset.socSet, el.dataset.val)));
+    el.addEventListener('click',()=>{
+      const p = (S.social||[]).find(x => x.id === el.dataset.socSet);
+      if(p && p.status === 'skipped' && el.dataset.val === 'draft') return socBringBack(p.id);
+      setSocialStatus(el.dataset.socSet, el.dataset.val);
+    }));
+  document.querySelectorAll('[data-soc-clear]').forEach(el=>
+    el.addEventListener('click',()=>{ S.socClearId = el.dataset.socClear; S.socWhy = ''; S.socErr = ''; render();
+      const w = document.getElementById('socWhy'); if(w) w.focus(); }));
+  document.querySelectorAll('[data-soc-use]').forEach(el=>
+    el.addEventListener('change',()=> socUseExtra(el.dataset.socUse, el.value)));
+  const why = document.getElementById('socWhy');
+  if(why){
+    why.addEventListener('input',()=>{ S.socWhy = why.value; });
+    why.addEventListener('keydown',e=>{ if(e.key === 'Enter') socClearPost(); });
+  }
+  const cg = document.getElementById('socClearGo');
+  if(cg) cg.addEventListener('click', socClearPost);
+  const cn = document.getElementById('socClearNo');
+  if(cn) cn.addEventListener('click',()=>{ S.socClearId = null; S.socWhy = ''; S.socErr = ''; render(); });
+  const ud = document.getElementById('socUseDate');
+  if(ud) ud.addEventListener('change',()=>{ S.socForm.use_date = ud.value; });
+  const xb = document.getElementById('socExtras');
+  if(xb) xb.addEventListener('click',()=> requestSocialJob('extras'));
   document.querySelectorAll('[data-soc-mv]').forEach(el=>
     el.addEventListener('click',()=> socMoveMedia(el.dataset.socMv, Number(el.dataset.dir))));
   document.querySelectorAll('[data-soc-rm]').forEach(el=>
