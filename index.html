@@ -534,6 +534,40 @@
   .sheet-head h2{font-family:var(--display);font-size:23px;font-weight:700;margin:0}
   .sheet-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule)}
   .sheet-foot .btn{width:100%}
+  .sheet-in.wide{max-width:580px}
+
+  /* ---------- event invitations ---------- */
+  .evx{margin-top:10px;padding:9px 12px;background:var(--wash);border-left:3px solid var(--slate);
+       font-size:13px}
+  .evx.failed{border-left-color:var(--red)}
+  .evx + .evx{margin-top:6px}
+  .evx .eyebrow{display:block;margin-bottom:3px}
+  .evx-list{margin:7px 0 0;padding:0;list-style:none}
+  .evx-list li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;
+               border-top:1px solid var(--rule-soft);font-size:12.5px}
+  .evx-list .r{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+               letter-spacing:.05em;color:var(--slate);white-space:nowrap}
+  .evx-list .r.accepted{color:var(--green)}
+  .evx-list .r.declined{color:var(--red)}
+  .evp{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .evp:empty{display:none}
+  .evp .p{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);
+          background:var(--wash);padding:3px 4px 3px 9px;font-size:12.5px}
+  .evp .p.out{border-color:var(--orange);background:var(--orange-tint)}
+  .evp .p button{border:0;background:none;cursor:pointer;color:var(--slate);
+                 font-size:15px;line-height:1;padding:0 4px}
+  .evp .p button:hover{color:var(--red)}
+  .evhits{border:1px solid var(--rule);border-top:0;max-height:230px;overflow:auto}
+  .evhits:empty{display:none}
+  .evhits button{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;
+                 border:0;border-bottom:1px solid var(--rule-soft);background:var(--card);
+                 padding:7px 10px;font-size:13px;cursor:pointer;font-family:var(--body);color:var(--ink)}
+  .evhits button:last-child{border-bottom:0}
+  .evhits button:hover,.evhits button:focus{background:var(--wash)}
+  .evhits .k{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+             letter-spacing:.05em;color:var(--slate);white-space:nowrap}
+  .evhits .none{padding:7px 10px;font-size:12.5px;color:var(--slate)}
+  .evwhen{margin-top:10px;padding:9px 12px;background:var(--wash);font-size:13px;line-height:1.5}
   .fchecks{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13.5px}
   .fchecks label{display:flex;align-items:center;gap:6px;text-transform:none;
                  letter-spacing:0;font-family:var(--body);font-size:13.5px;
@@ -687,6 +721,7 @@ const IMPORT_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead
 const SCRAPE_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-evaboot-scrape';
 const QUOTA_URL    = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-evaboot-quota';
 const APPROVE_URL  = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-approve';
+const EVINVITE_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-event-invite-send';
 const REJECT_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-reject';
 const MOVE_URL     = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-deal-move';
 const ADDDEAL_URL  = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-deal-add';
@@ -790,6 +825,8 @@ const S = {
   kpiView:'scorecard', boardPipe:null, dealId:null, dealBusy:false, dealErr:'',
   calView:'schedule', invites:null, conflicts:{}, inviteFilter:'open',
   inviteShowAll:false, inviteBusy:'', inviteErr:'', dateAsk:null,
+  /* event invitations sent from the dashboard */
+  evx:[], staff:[], evSend:null, evNew:null, evOpen:{}, evNote:'',
   taskDraft:{ title:'', category:'outreach', priority:'2' },
   assets:null,
   labels:null, labelOpen:null, labelBusy:'', labelErr:'',
@@ -1030,12 +1067,16 @@ function insertAsset(draftId, slug){
 }
 
 async function loadInvites(){
-  const [{ data, error }, { data:conf }] = await Promise.all([
+  const [{ data, error }, { data:conf }, { data:evx }, { data:staff }] = await Promise.all([
     sb.from('v_event_invites').select('*'),
-    sb.from('v_invite_conflicts').select('*')
+    sb.from('v_invite_conflicts').select('*'),
+    sb.from('event_invitations').select('*').order('created_at', { ascending:false }),
+    sb.from('staff_directory').select('email,name,brand').eq('active', true).order('name')
   ]);
   if(error) S.inviteErr = error.message;
   S.invites = data || [];
+  S.evx = evx || [];
+  S.staff = staff || [];
 
   /* Keyed by invite id so the card can warn before the decision rather
      than after. Pat double-booked the R21 Social against two things
@@ -1242,6 +1283,529 @@ function conflictStrip(v){
     <b>${ov ? `Clashes with ${ov} thing${ov===1?'':'s'} already booked.`
             : `Pat already has ${n} thing${n===1?'':'s'} that day.`}</b>
     <span class="when">${esc(shown)}${more}</span></div>`;
+}
+
+/* ================= event invitations ================= */
+/* Inviting people to an event we are going to. The dashboard writes the
+   invitation to event_invitations, then Haggerty Event Invite Sender
+   creates an Outlook calendar event with those people on it from Pat's or
+   Liam's mailbox. Outlook sends the invite, so everyone gets Accept and
+   Decline, and the workflow reads the answers back every hour. */
+
+const EV_SENDERS = { pat:{ label:'Pat Dobson', first:'Pat', email:'p.dobson@haggertybuilds.com' },
+                     liam:{ label:'Liam McGinn', first:'Liam', email:'liam@haggertybuilds.com' } };
+/* The Outlook node in the workflow has 50 attendee slots. */
+const EV_MAX = 50;
+const EV_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const EV_INSIDE = /@(haggertybuilds|rhinorestores)\.com$/i;
+
+function evWhen(v){
+  if(!v || !v.starts_at) return '';
+  const bits = [fmtDay(v.starts_at)];
+  if(!v.is_all_day) bits.push(fmtTime(v.starts_at));
+  return bits.join(' at ');
+}
+
+function evWhere(v){ return v.is_virtual ? 'Virtual' : String(v.location || '').trim(); }
+
+/* A starting point, not a template to send as is. Kept plain so it is
+   quick to rewrite. */
+function evDraft(v, sender){
+  const who = EV_SENDERS[sender] || EV_SENDERS.pat;
+  const host = v.org_name ? `, hosted by ${v.org_name},` : '';
+  const where = evWhere(v);
+  const place = !where ? '' : (v.is_virtual ? ' (virtual)' : ` at ${where}`);
+  const when = v.is_all_day ? `on ${fmtDay(v.starts_at)}` : `on ${fmtDay(v.starts_at)} at ${fmtTime(v.starts_at)}`;
+  return `Hi,\n\nHAGGERTY has seats at ${v.event_name || 'this event'}${host} ${when}${place}. We would like you to join us.\n\n` +
+    `Accept this invite to hold your spot. If you can't make it, decline so we can offer the seat to someone else.\n\n${who.first}`;
+}
+
+function openEvSend(id){
+  const v = (S.invites||[]).find(x => x.id === id);
+  if(!v || !v.starts_at) return;
+  const sender = S.me === 'liam' ? 'liam' : 'pat';
+  S.evSend = { inviteId:id, sender, subject: v.event_name || v.subject || '',
+               message: evDraft(v, sender), touched:false,
+               people:[], q:'', crm:[], seq:0, hide:null, busy:false, err:'' };
+  S.evNote = ''; render();
+}
+
+/* Guests only see themselves by default as soon as anyone outside the two
+   companies is on the list, so one client's address is never shown to
+   another. Ticking or unticking the box overrides it either way. */
+function evHide(){
+  const a = S.evSend;
+  if(!a) return false;
+  if(a.hide !== null) return a.hide;
+  return a.people.some(p => !EV_INSIDE.test(p.email));
+}
+
+function evAddPerson(p){
+  const a = S.evSend;
+  if(!a) return false;
+  const email = String(p.email || '').trim().toLowerCase();
+  if(!EV_EMAIL.test(email)) return false;
+  if(a.people.some(x => x.email === email)) return false;
+  /* The sender is the organiser, so they are on it already. */
+  if(email === EV_SENDERS[a.sender].email) return false;
+  if(a.people.length >= EV_MAX){ a.err = `One invite holds ${EV_MAX} people. Send a second one for the rest.`; return false; }
+  a.people.push({ email, name: String(p.name || '').trim(), kind: p.kind || 'typed',
+                  contact_id: p.contact_id || null });
+  a.err = '';
+  return true;
+}
+
+function evHits(){
+  const a = S.evSend;
+  const q = String(a && a.q || '').trim().toLowerCase();
+  if(!a || q.length < 2) return [];
+  const have = new Set(a.people.map(p => p.email));
+  const out = [];
+  for(const s of (S.staff||[])){
+    if(out.length >= 6) break;
+    if(have.has(s.email) || s.email === EV_SENDERS[a.sender].email) continue;
+    if(String(s.name).toLowerCase().includes(q) || s.email.includes(q)){
+      out.push({ email:s.email, name:s.name, kind:'staff', sub: s.brand === 'rhino' ? 'RHINO' : 'HAGGERTY' });
+    }
+  }
+  for(const c of (a.crm||[])){
+    const email = String(c.email || '').toLowerCase();
+    if(!email || have.has(email) || out.some(o => o.email === email)) continue;
+    out.push({ email, name:c.label || email, kind:'contact', contact_id:c.id, sub:c.sub || 'Contact' });
+    if(out.length >= 14) break;
+  }
+  if(EV_EMAIL.test(q) && !have.has(q) && !out.some(o => o.email === q)){
+    out.push({ email:q, name:'', kind:'typed', sub:'Add this address' });
+  }
+  return out;
+}
+
+function evPeopleHtml(){
+  const a = S.evSend;
+  return a.people.map((p,i)=>`<span class="p ${EV_INSIDE.test(p.email)?'':'out'}" title="${esc(p.email)}">${
+    esc(p.name || p.email)}<button type="button" data-evrm="${i}" aria-label="Remove ${esc(p.name || p.email)}">&times;</button></span>`).join('');
+}
+
+function evHitsHtml(){
+  const a = S.evSend;
+  const hits = evHits();
+  if(hits.length){
+    return hits.map((h,i)=>`<button type="button" data-evhit="${i}">
+      <span>${h.name ? esc(h.name) + ' <span class="muted">' + esc(h.email) + '</span>' : esc(h.email)}</span>
+      <span class="k">${esc(h.sub)}</span></button>`).join('');
+  }
+  return String(a.q||'').trim().length >= 2
+    ? `<div class="none">Nobody by that name yet. Type a full email address to add someone new.</div>` : '';
+}
+
+function evSendLabel(){
+  const a = S.evSend;
+  const n = a.people.length;
+  if(a.busy) return 'Sending&hellip;';
+  return n ? `Send to ${n} ${n===1?'person':'people'} from ${EV_SENDERS[a.sender].first}'s Outlook`
+           : 'Add someone to send';
+}
+
+/* The people list, the search results and the button are repainted in
+   place. A full render() would rebuild the search box on every keystroke
+   and drop the cursor. */
+function evPaint(){
+  const a = S.evSend;
+  if(!a) return;
+  const pe = document.getElementById('evPeople');
+  if(pe) pe.innerHTML = evPeopleHtml();
+  const hi = document.getElementById('evHits');
+  if(hi) hi.innerHTML = evHitsHtml();
+  const bt = document.getElementById('evGo');
+  if(bt){ bt.innerHTML = evSendLabel(); bt.disabled = a.busy || !a.people.length; }
+  const hd = document.getElementById('evHide');
+  if(hd) hd.checked = evHide();
+  const er = document.getElementById('evErr');
+  if(er){ er.textContent = a.err || ''; er.style.display = a.err ? '' : 'none'; }
+  const ct = document.getElementById('evCount');
+  if(ct) ct.textContent = a.people.length ? `${a.people.length} of ${EV_MAX}` : '';
+
+  document.querySelectorAll('[data-evrm]').forEach(el=>
+    el.addEventListener('click',()=>{ a.people.splice(Number(el.dataset.evrm), 1); a.err=''; evPaint(); }));
+  document.querySelectorAll('[data-evhit]').forEach(el=>
+    el.addEventListener('click',()=>{
+      const h = evHits()[Number(el.dataset.evhit)];
+      if(h && evAddPerson(h)){
+        a.q = ''; a.crm = [];
+        const box = document.getElementById('evQ');
+        if(box){ box.value = ''; box.focus(); }
+      }
+      evPaint();
+    }));
+}
+
+let evTimer = null;
+function evSearch(){
+  const a = S.evSend;
+  if(!a) return;
+  evPaint();
+  clearTimeout(evTimer);
+  const term = String(a.q||'').trim();
+  if(term.length < 2){ a.crm = []; return; }
+  const seq = ++a.seq;
+  evTimer = setTimeout(async ()=>{
+    try{
+      const { data } = await sb.rpc('crm_search', { q: term, lim: 20 });
+      if(!S.evSend || S.evSend.seq !== seq) return;
+      S.evSend.crm = (data||[]).filter(r => r.kind === 'contact' && r.email);
+      evPaint();
+    }catch(e){ /* staff matches still show */ }
+  }, 220);
+}
+
+/* Enter adds everything typed or pasted: one address, or several split
+   by commas, semicolons or spaces, the way they come out of an email. */
+function evAddTyped(){
+  const a = S.evSend;
+  if(!a) return;
+  const raw = String(a.q||'');
+  const parts = raw.split(/[,;\s<>]+/).map(x => x.trim()).filter(x => EV_EMAIL.test(x));
+  if(!parts.length){
+    const hits = evHits();
+    if(hits.length === 1) evAddPerson(hits[0]);
+    else return;
+  }else{
+    for(const email of parts){
+      const st = (S.staff||[]).find(x => x.email === email.toLowerCase());
+      evAddPerson(st ? { email:st.email, name:st.name, kind:'staff' } : { email, kind:'typed' });
+    }
+  }
+  a.q = ''; a.crm = [];
+  const box = document.getElementById('evQ');
+  if(box) box.value = '';
+  evPaint();
+}
+
+async function sendEvInvite(){
+  const a = S.evSend;
+  if(!a || a.busy) return;
+  const v = (S.invites||[]).find(x => x.id === a.inviteId);
+  if(!v || !v.starts_at){ a.err = 'This event needs a date before anyone can be invited.'; return evPaint(); }
+  if(!a.people.length){ a.err = 'Add at least one person.'; return evPaint(); }
+  if(!String(a.subject).trim()){ a.err = 'It needs a subject.'; return evPaint(); }
+  if(!String(a.message).trim()){ a.err = 'Write a short message so people know what they are being invited to.'; return evPaint(); }
+
+  a.busy = true; a.err = ''; evPaint();
+  let who = null;
+  try{ const { data } = await sb.auth.getUser(); who = data && data.user ? data.user.email : null; }
+  catch(e){ who = null; }
+
+  const n = a.people.length;
+  let saved = false;
+  try{
+    const { data:row, error } = await sb.from('event_invitations').insert({
+      invite_id:  v.id,
+      event_name: v.event_name || v.subject || 'Event',
+      org_name:   v.org_name || null,
+      starts_at:  v.starts_at,
+      ends_at:    v.ends_at || null,
+      is_all_day: !!v.is_all_day,
+      location:   evWhere(v) || null,
+      subject:    String(a.subject).trim(),
+      message:    String(a.message).trim(),
+      sender:     a.sender,
+      hide_guests: evHide(),
+      recipients: a.people,
+      created_by: who
+    }).select('id').single();
+    if(error) throw error;
+    saved = true;
+
+    const res = await fetch(EVINVITE_URL, { method:'POST', headers: await authHeaders(),
+      body: JSON.stringify({ invitation_id: row.id }) });
+    const out = await res.json().catch(()=>({}));
+    if(!res.ok || !out.ok) throw new Error(out.error || ('The request came back ' + res.status));
+
+    S.evSend = null;
+    S.evNote = `Invite sent to ${n} ${n===1?'person':'people'} from ${EV_SENDERS[a.sender].first}'s Outlook. Replies show on the event within the hour.`;
+    S.evOpen[v.id] = true;
+    S.loaded.invites = false;
+    await loadInvites();
+    return render();
+  }catch(err){
+    a.busy = false;
+    a.err = (saved ? 'It was saved but Outlook did not send it: ' : 'That did not go through: ')
+          + (err.message || String(err));
+    if(saved){ S.loaded.invites = false; try{ await loadInvites(); }catch(e){} }
+    evPaint();
+  }
+}
+
+const EV_REPLY = { accepted:'Accepted', tentativelyAccepted:'Maybe', declined:'Declined' };
+
+/* Each person on an invitation with what Outlook says they answered.
+   Anything Outlook has not reported yet reads as no reply. */
+function evGuests(x){
+  const by = {};
+  for(const r of (Array.isArray(x.responses) ? x.responses : [])) by[String(r.email||'').toLowerCase()] = r.response;
+  return (Array.isArray(x.recipients) ? x.recipients : []).map(p=>{
+    const r = by[String(p.email||'').toLowerCase()];
+    const key = r === 'accepted' ? 'accepted' : r === 'declined' ? 'declined'
+              : r === 'tentativelyAccepted' ? 'maybe' : 'none';
+    return { name:p.name || p.email, email:p.email, key, word: EV_REPLY[r] || 'No reply' };
+  });
+}
+
+function evInvitedStrip(v){
+  const list = (S.evx||[]).filter(x => x.invite_id === v.id);
+  if(!list.length) return '';
+  const open = !!S.evOpen[v.id];
+
+  return list.map(x=>{
+    const who = (EV_SENDERS[x.sender] || {}).first || x.sender;
+    const n = Array.isArray(x.recipients) ? x.recipients.length : 0;
+
+    if(x.status !== 'sent'){
+      /* A row still marked queued or sending a few minutes on never
+         reached Outlook. Say so instead of showing it as in flight. */
+      const stale = (Date.now() - new Date(x.created_at).getTime()) > 3*60*1000;
+      const failed = x.status === 'failed' || stale;
+      return `<div class="evx ${failed?'failed':''}">
+        <span class="eyebrow">${failed ? 'Invite did not send' : 'Sending invite'}</span>
+        ${n} ${n===1?'person':'people'} from ${esc(who)} &middot; ${esc(shortDate(x.created_at))}
+        ${failed ? `<div class="hint err" style="margin-top:4px">${esc(x.error || 'It never reached Outlook. Nobody was invited, so it is safe to send again.')}</div>` : ''}
+      </div>`;
+    }
+
+    const g = evGuests(x);
+    const count = k => g.filter(p => p.key === k).length;
+    const tally = [[count('accepted'),'accepted'],[count('maybe'),'maybe'],
+                   [count('declined'),'declined'],[count('none'),'no reply']]
+      .filter(([c])=>c).map(([c,w])=>`${c} ${w}`).join(' &middot; ');
+
+    return `<div class="evx">
+      <span class="eyebrow">Invited by ${esc(who)} &middot; ${esc(shortDate(x.sent_at || x.created_at))}</span>
+      ${n} ${n===1?'person':'people'}${tally ? ' &middot; ' + tally : ''}
+      ${x.responses_checked_at ? '' : ' <span class="muted">(replies not checked yet)</span>'}
+      ${open ? `<ul class="evx-list">${g.map(p=>`<li><span>${esc(p.name)}${
+        p.name !== p.email ? ` <span class="muted">${esc(p.email)}</span>` : ''}</span>
+        <span class="r ${p.key}">${p.word}</span></li>`).join('')}</ul>
+        <div class="hint" style="margin-top:6px">${esc(x.subject)}${
+          x.web_link ? ` &middot; <a href="${esc(x.web_link)}" target="_blank" rel="noopener">Open in Outlook</a>` : ''}</div>` : ''}
+    </div>`;
+  }).join('') + `<button class="linkbtn" data-evopen="${v.id}" style="padding-left:0;margin-top:4px">${
+    open ? 'Hide who was invited' : 'Show who was invited'}</button>`;
+}
+
+function evSendSheet(){
+  const a = S.evSend;
+  if(!a) return '';
+  const v = (S.invites||[]).find(x => x.id === a.inviteId) || {};
+  const where = evWhere(v);
+  const before = (S.evx||[]).filter(x => x.invite_id === v.id && x.status === 'sent').length;
+
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Invite people">
+    <div class="sheet-in wide">
+      <div class="sheet-head">
+        <h2>Invite people</h2>
+        <button class="linkbtn" id="evClose">Cancel</button>
+      </div>
+
+      <div class="evwhen"><b>${esc(v.event_name || v.subject || 'Event')}</b>${v.org_name ? ' &middot; ' + esc(v.org_name) : ''}<br>
+        ${esc(evWhen(v))}${where ? ' &middot; ' + esc(where) : ''}
+        ${v.is_all_day ? '<br><span class="hint">No start time is set, so the invite holds 8am to 5pm that day. Use Edit date on the event to set one first.</span>' : ''}</div>
+      ${before ? `<p class="hint" style="margin-top:8px">${before} invite${before===1?' has':'s have'} already gone out for this event. This sends a separate one, so leave off anyone already invited.</p>` : ''}
+
+      <div class="field"><label for="evFrom">From</label>
+        <select id="evFrom">${Object.entries(EV_SENDERS).map(([k,o])=>
+          `<option value="${k}" ${a.sender===k?'selected':''}>${esc(o.label)} (${esc(o.email)})</option>`).join('')}</select></div>
+
+      <div class="field"><label for="evQ">Who to invite <span id="evCount" class="muted" style="font-weight:400;letter-spacing:0"></span></label>
+        <input type="text" id="evQ" value="${esc(a.q)}" autocomplete="off"
+               placeholder="Search staff and contacts, or paste email addresses" />
+        <div class="evhits" id="evHits"></div>
+        <div class="evp" id="evPeople"></div></div>
+
+      <div class="field"><label for="evSubj">Subject</label>
+        <input type="text" id="evSubj" value="${esc(a.subject)}" autocomplete="off" /></div>
+
+      <div class="field"><label for="evMsg">Message</label>
+        <textarea id="evMsg" style="min-height:190px">${esc(a.message)}</textarea></div>
+
+      <div class="field"><label for="evHide" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="evHide" style="width:auto" ${evHide()?'checked':''} />
+        Guests only see themselves</label>
+        <span class="hint">Turns on by itself when anyone outside HAGGERTY or RHINO is on the list.</span></div>
+
+      <p class="hint err" id="evErr" style="${a.err?'':'display:none'}">${esc(a.err)}</p>
+
+      <div class="sheet-foot">
+        <button class="btn" id="evGo" ${a.busy || !a.people.length ? 'disabled' : ''}>${evSendLabel()}</button>
+        <p class="hint" style="margin-top:8px">This goes out straight away as an Outlook calendar invite, with Accept and Decline.
+          It also sits on the sender's own calendar as the meeting they organised.</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---- an event that never came in by email ----
+   Saved to the same list as scanned invitations and marked going, so it
+   reaches Pat's calendar like any other and can have people invited. */
+function openEvNew(){
+  S.evNew = { name:'', org:'', date:'', time:'17:00', hours:'2', allDay:false,
+              location:'', busy:false, err:'' };
+  S.evNote = ''; render();
+}
+
+async function saveEvNew(){
+  const a = S.evNew;
+  if(!a || a.busy) return;
+  if(!String(a.name).trim()){ a.err = 'It needs a name.'; return render(); }
+  if(!a.date){ a.err = 'It needs a date.'; return render(); }
+
+  const [y,m,d] = a.date.split('-').map(Number);
+  let start, end = null;
+  if(a.allDay){ start = new Date(y, m-1, d, 0, 0, 0, 0); }
+  else{
+    const [hh,mm] = String(a.time || '17:00').split(':').map(Number);
+    start = new Date(y, m-1, d, hh||0, mm||0, 0, 0);
+    end = new Date(start.getTime() + Number(a.hours || 2)*3600*1000);
+  }
+  if(isNaN(start)){ a.err = 'That date did not parse.'; return render(); }
+
+  a.busy = true; a.err = ''; render();
+  let who = null;
+  try{ const { data } = await sb.auth.getUser(); who = data && data.user ? data.user.email : null; }
+  catch(e){ who = null; }
+
+  try{
+    const name = String(a.name).trim();
+    const { error } = await sb.from('event_invites').insert({
+      mailbox: 'dashboard', subject: name, event_name: name,
+      org_name: String(a.org).trim() || null,
+      starts_at: start.toISOString(), ends_at: end ? end.toISOString() : null,
+      is_all_day: !!a.allDay,
+      location: String(a.location).trim() || null,
+      decision: 'going', decided_at: new Date().toISOString(), decided_by: who,
+      from_name: who, confidence: 100, reason: 'Added by hand on the dashboard'
+    });
+    if(error) throw error;
+    S.evNew = null;
+    S.inviteFilter = 'going';
+    S.evNote = `${name} added and marked going. It reaches Pat's calendar within the hour.`;
+    S.loaded.invites = false;
+    await loadInvites();
+  }catch(err){
+    a.busy = false;
+    a.err = /event_key|duplicate/i.test(err.message || '')
+      ? 'An event with that name, host and date is already on the list.'
+      : (err.message || String(err));
+  }
+  render();
+}
+
+function evNewSheet(){
+  const a = S.evNew;
+  if(!a) return '';
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Add an event">
+    <div class="sheet-in">
+      <div class="sheet-head">
+        <h2>Add an event</h2>
+        <button class="linkbtn" id="enClose">Cancel</button>
+      </div>
+      <p class="hint" style="margin-top:8px">For anything we signed up for that never came through as an email invitation.</p>
+
+      <div class="field"><label for="enName">Event</label>
+        <input type="text" id="enName" value="${esc(a.name)}" autocomplete="off"
+               placeholder="Chamber awards dinner" /></div>
+      <div class="field"><label for="enOrg">Hosted by</label>
+        <input type="text" id="enOrg" value="${esc(a.org)}" autocomplete="off" placeholder="Optional" /></div>
+      <div class="field"><label for="enDate">Date</label>
+        <input type="date" id="enDate" value="${esc(a.date)}" /></div>
+      <div class="field"><label for="enAllDay" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="enAllDay" style="width:auto" ${a.allDay?'checked':''} />
+        Date only, no set time</label></div>
+      ${a.allDay ? '' : `
+      <div class="field"><label for="enTime">Start time</label>
+        <input type="time" id="enTime" value="${esc(a.time)}" /></div>
+      <div class="field"><label for="enHours">How long</label>
+        <select id="enHours">${[['1','1 hour'],['2','2 hours'],['3','3 hours'],
+          ['4','4 hours'],['8','8 hours']].map(([k,l])=>
+          `<option value="${k}" ${a.hours===k?'selected':''}>${l}</option>`).join('')}</select></div>`}
+      <div class="field"><label for="enLoc">Where</label>
+        <input type="text" id="enLoc" value="${esc(a.location)}" autocomplete="off" placeholder="Optional" /></div>
+
+      ${a.err?`<p class="hint err">${esc(a.err)}</p>`:''}
+      <div class="sheet-foot">
+        <button class="btn" id="enSave" ${a.busy?'disabled':''}>${a.busy?'Saving&hellip;':'Add and mark going'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wireEvents(){
+  document.querySelectorAll('[data-evsend]').forEach(el=>
+    el.addEventListener('click',()=>openEvSend(el.dataset.evsend)));
+  document.querySelectorAll('[data-evopen]').forEach(el=>
+    el.addEventListener('click',()=>{
+      const id = el.dataset.evopen; S.evOpen[id] = !S.evOpen[id]; render();
+    }));
+  const add = document.getElementById('evAdd');
+  if(add) add.addEventListener('click', openEvNew);
+
+  /* compose sheet */
+  const a = S.evSend;
+  if(a){
+    const cl = document.getElementById('evClose');
+    if(cl) cl.addEventListener('click',()=>{ S.evSend = null; render(); });
+    const fr = document.getElementById('evFrom');
+    if(fr) fr.addEventListener('change',()=>{
+      a.sender = fr.value;
+      /* The sign-off follows the sender for as long as the message is
+         still the starting draft. Once it has been edited it is left alone. */
+      if(!a.touched){
+        const v = (S.invites||[]).find(x => x.id === a.inviteId);
+        if(v){
+          a.message = evDraft(v, a.sender);
+          const box = document.getElementById('evMsg');
+          if(box) box.value = a.message;
+        }
+      }
+      /* The sender is the organiser, so they cannot also be a guest. */
+      a.people = a.people.filter(p => p.email !== EV_SENDERS[a.sender].email);
+      evPaint();
+    });
+    const q = document.getElementById('evQ');
+    if(q){
+      q.addEventListener('input',()=>{ a.q = q.value; evSearch(); });
+      q.addEventListener('keydown',e=>{ if(e.key === 'Enter'){ e.preventDefault(); evAddTyped(); } });
+      q.addEventListener('paste',()=> setTimeout(()=>{
+        a.q = q.value;
+        if(/[,;]|\S@\S+\s+\S+@/.test(a.q)) evAddTyped(); else evSearch();
+      }, 0));
+    }
+    const sj = document.getElementById('evSubj');
+    if(sj) sj.addEventListener('input',()=>{ a.subject = sj.value; });
+    const mg = document.getElementById('evMsg');
+    if(mg) mg.addEventListener('input',()=>{ a.message = mg.value; a.touched = true; });
+    const hd = document.getElementById('evHide');
+    if(hd) hd.addEventListener('change',()=>{ a.hide = hd.checked; });
+    const go = document.getElementById('evGo');
+    if(go) go.addEventListener('click', sendEvInvite);
+    evPaint();
+  }
+
+  /* add-an-event sheet */
+  const n = S.evNew;
+  if(n){
+    const cl = document.getElementById('enClose');
+    if(cl) cl.addEventListener('click',()=>{ S.evNew = null; render(); });
+    [['enName','name'],['enOrg','org'],['enDate','date'],['enTime','time'],['enLoc','location']].forEach(([id,key])=>{
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('input',()=>{ n[key] = el.value; });
+    });
+    const ad = document.getElementById('enAllDay');
+    if(ad) ad.addEventListener('change',()=>{ n.allDay = ad.checked; render(); });
+    const hr = document.getElementById('enHours');
+    if(hr) hr.addEventListener('change',()=>{ n.hours = hr.value; });
+    const sv = document.getElementById('enSave');
+    if(sv) sv.addEventListener('click', saveEvNew);
+  }
 }
 
 /* ================= approvals ================= */
@@ -2688,6 +3252,7 @@ function inviteRow(v){
       esc(String(v.sponsorship_levels).slice(0,220))}</div>`:''}
 
     ${conflictStrip(v)}
+    ${evInvitedStrip(v)}
 
     <div class="inv-foot">
       <div class="inv-acts">
@@ -2699,6 +3264,10 @@ function inviteRow(v){
           data-val="undecided" ${busy?'disabled':''}>Clear</button>`:''}
         <button class="btn small ghost" data-editdate="${v.id}" ${busy?'disabled':''}>${
           v.starts_at ? 'Edit date' : 'Add date'}</button>
+        ${v.decision === 'going' && !v.is_past && v.starts_at
+          ? `<button class="btn small accent" data-evsend="${v.id}" ${busy?'disabled':''}>${
+              (S.evx||[]).some(x => x.invite_id === v.id && x.status === 'sent') ? 'Invite more people' : 'Invite people'}</button>`
+          : ''}
       </div>
       <div class="inv-links">
         ${v.registration_url?`<a class="chip" href="${esc(v.registration_url)}"
@@ -2767,17 +3336,22 @@ function pageInvites(){
         <p>The scanner reads Pat's and Liam's inboxes every fifteen minutes and
            files anything that looks like an event or a sponsorship offer.
            Nothing has come through so far.</p>
-      </div></main>`;
+        <p><button class="btn small" id="evAdd">Add an event</button></p>
+      </div></main>${evNewSheet()}`;
   }
 
   return `<main class="page">
     ${calSwitch()}
-    <div class="fchips">${tabs}</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="fchips" style="flex:1">${tabs}</div>
+      <button class="btn small" id="evAdd">Add an event</button>
+    </div>
+    ${S.evNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.evNote)}</p></div>`:''}
     ${S.inviteErr?`<div class="warn">${esc(S.inviteErr)}</div>`:''}
     ${rows.length
       ? `<div class="inv-list">${rows.map(inviteRow).join('')}</div>`
       : `<div class="empty"><h2>Nothing here</h2><p>No invitations in this list.</p></div>`}
-  </main>${dateAskSheet()}`;
+  </main>${dateAskSheet()}${evSendSheet()}${evNewSheet()}`;
 }
 
 function evRow(e){
@@ -3698,6 +4272,7 @@ function wireBoard(){
 
   document.querySelectorAll('[data-decide]').forEach(el=>
     el.addEventListener('click',()=>decideInvite(el.dataset.decide, el.dataset.val)));
+  wireEvents();
 
   // Distinct names on purpose: this function is long and already uses
   // av, ao and ax further down for the deal form.
