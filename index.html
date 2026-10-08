@@ -728,7 +728,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-08a';
+const BUILD = '2026-10-08b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2034,8 +2034,8 @@ function pageToday(){
   if(!S.board.length){
     return sectorBar() + `<div class="page cols3"><div>
       <div class="empty" style="padding:34px 0">
-        <h2>Nothing queued for today</h2>
-        <p>The board fills at 6:15am on weekdays. Pull a sector from the strip above to start now.</p>
+        <h2>Nothing on the list</h2>
+        <p>The list fills when you ask it to. Click Generate 5 on a sector above and five contacts from it land here with drafts ready.</p>
       </div></div><div>${side}</div></div>`;
   }
 
@@ -2072,7 +2072,7 @@ function pageToday(){
         stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
           stillOpen} still open from earlier</span>`:''}</div>
       ${capped.map(rowHtml).join('')}
-      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Pull a sector from the strip above for more.</p>` : ''}
+      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Click Generate 5 on a sector above for five more.</p>` : ''}
       ${waiting > 0 ? `<p class="hint" style="padding:11px 17px;margin:0">${waiting} more waiting. The next one comes up as you clear these.</p>` : ''}
       ${sentRows.length?`<div class="skipgroup">
         <button class="skiphead" id="sentToggle" aria-expanded="${S.sentOpen?'true':'false'}">
@@ -2419,7 +2419,6 @@ function sectorBar(){
     <div class="sec-tile all">
       <h4>Every sector</h4>
       <div class="n">${num(tiles.reduce((a,t)=>a+Number(t.pool||0),0))}<small> ready</small></div>
-      <button class="btn small ghost" id="genAll" ${S.busy?'disabled':''}>Two from each</button>
     </div>
     ${(()=>{
       // Gold is a filter, not a sector. Somebody can be an architect in
@@ -5030,7 +5029,7 @@ async function generate(verticalId, count, gold){
       headers:await authHeaders(),
       body:JSON.stringify(body)});
     const out = await res.json().catch(()=>({}));
-    S.gen = out.ok ? `Queued ${out.queued}. Open the Today tab to work through them.`
+    S.gen = out.ok ? `${out.queued} added to the list with drafts ready.`
                    : (out.error || 'Nothing eligible in that sector right now.');
     S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
     await loadTiles(); await loadBoard();
