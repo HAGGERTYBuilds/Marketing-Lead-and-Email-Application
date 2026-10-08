@@ -721,15 +721,20 @@ async function authHeaders(){
    off and returns to the pool. */
 const CARRY_DAYS = 7;
 
+/* How many open contacts the Outreach list shows at once. The rest wait
+   their turn and slide in as these are sent or skipped, so Pat works a
+   short list instead of scrolling a long one. */
+const BOARD_CAP = 5;
+
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-06b';
+const BUILD = '2026-10-08a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
-  tasks:{}, seq:null, seqErr:'', skipOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
+  tasks:{}, seq:null, seqErr:'', skipOpen:false, sentOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
@@ -885,7 +890,8 @@ async function loadBoard(){
   }
   if(!S.activeId || !S.board.some(r=>r.queue_id===S.activeId)){
     const next = S.board.find(r=>!r.handled && r.status!=='skipped')
-      || S.board.find(r=>r.status!=='skipped') || S.board[0];
+      || S.board.find(r=>r.status!=='skipped')
+      || S.board.find(r=>!/^board reset/i.test(r.skipped_reason || '')) || null;
     S.activeId = next ? next.queue_id : null;
     S.open = {};
     const f = S.activeId && S.drafts[S.activeId]?.[0];
@@ -1904,6 +1910,8 @@ function wirePage(){
     el.addEventListener('click',e=>{ e.stopPropagation(); skipToday(el.dataset.unskip, false); }));
   const st = document.getElementById('skipToggle');
   if(st) st.addEventListener('click',()=>{ S.skipOpen=!S.skipOpen; render(); });
+  const sn = document.getElementById('sentToggle');
+  if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
     el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
   const all = document.getElementById('genAll');
@@ -2040,7 +2048,21 @@ function pageToday(){
   // Carried follow-ups survive the Gold filter. Hiding overdue work behind
   // a view toggle is the same disappearing act this fix is meant to end.
   const shownRows = S.goldOnly ? live.filter(r=>r.is_gold || r.carried) : live;
-  const skipped = S.board.filter(r=>r.status === 'skipped');
+  /* Rows cleared in a board reset are not something Pat skipped, so they
+     stay out of the Skipped group. */
+  const skipped = S.board.filter(r=>r.status === 'skipped'
+    && !/^board reset/i.test(r.skipped_reason || ''));
+  /* The open list is capped. Emailed contacts keep their check mark but
+     move to their own group underneath, and anything past the cap waits
+     and comes up as the list is worked. If the contact on screen sits
+     past the cap (an Undo, say), it takes the last place so the list and
+     the detail pane never disagree. */
+  const openRows = shownRows.filter(r=>!r.handled);
+  const sentRows = shownRows.filter(r=>r.handled);
+  let capped = openRows.slice(0, BOARD_CAP);
+  const act = openRows.find(r=>r.queue_id === S.activeId);
+  if(act && !capped.includes(act)) capped = capped.slice(0, BOARD_CAP - 1).concat(act);
+  const waiting = openRows.length - capped.length;
   return sectorBar() + `<div class="split">
     <nav class="board">
       <div class="board-head"><span class="eyebrow">${done} of ${live.length} cleared${
@@ -2049,7 +2071,15 @@ function pageToday(){
           carried} follow-up${carried===1?'':'s'} carried over</span>`:''}${
         stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
           stillOpen} still open from earlier</span>`:''}</div>
-      ${shownRows.map(rowHtml).join('')}
+      ${capped.map(rowHtml).join('')}
+      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Pull a sector from the strip above for more.</p>` : ''}
+      ${waiting > 0 ? `<p class="hint" style="padding:11px 17px;margin:0">${waiting} more waiting. The next one comes up as you clear these.</p>` : ''}
+      ${sentRows.length?`<div class="skipgroup">
+        <button class="skiphead" id="sentToggle" aria-expanded="${S.sentOpen?'true':'false'}">
+          <span>Emailed (${sentRows.length})</span>
+          <span class="caret">${S.sentOpen?'&#9662;':'&#9656;'}</span></button>
+        ${S.sentOpen ? sentRows.map(rowHtml).join('') : ''}
+      </div>`:''}
       ${skipped.length?`<div class="skipgroup">
         <button class="skiphead" id="skipToggle" aria-expanded="${S.skipOpen?'true':'false'}">
           <span>Skipped today (${skipped.length})</span>
@@ -2268,12 +2298,28 @@ async function skipToday(queueId, skip){
   finally{ S.busy = false; render(); }
 }
 
+/* The contact's Pipedrive tags and relationship, minus anything that only
+   repeats the sector chip. These are what the draft generator reads to
+   pitch the email at this kind of client. */
+function tagList(r){
+  const seen = new Set([String(r.vertical||'').toLowerCase()]);
+  const out = [];
+  const all = (r.tag_names || []).concat(String(r.relationship||'').split(','));
+  for(const t of all){
+    const v = String(t||'').trim(), k = v.toLowerCase();
+    if(!v || seen.has(k)) continue;
+    seen.add(k); out.push(v);
+  }
+  return out;
+}
+
 function detailHtml(){
   const r = S.board.find(x=>x.queue_id===S.activeId);
   if(!r) return '';
   const drafts = S.drafts[r.queue_id]||[];
   const chips = [
     r.vertical && `<span class="chip">${esc(r.vertical)}</span>`,
+    ...tagList(r).map(t => `<span class="chip">${esc(t)}</span>`),
     r.territory && `<span class="chip">${esc(r.territory)}</span>`,
     r.company_city && `<span class="chip">${esc(r.company_city)}${r.company_state?', '+esc(r.company_state):''}</span>`,
     r.employee_count && `<span class="chip">${esc(r.employee_count)} staff</span>`,
