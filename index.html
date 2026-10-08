@@ -3309,7 +3309,10 @@ function pageInvites(){
   const open = all.filter(v=>v.decision==='undecided' && !v.is_past);
   const sets = {
     open: open,
-    going: all.filter(v=>v.decision==='going'),
+    /* Upcoming first. Events that have already happened stay in the list
+       as a record, but underneath the ones that can still be acted on. */
+    going: all.filter(v=>v.decision==='going' && !v.is_past)
+      .concat(all.filter(v=>v.decision==='going' && v.is_past)),
     all: all.filter(v=>!v.is_past),
     past: all.filter(v=>v.is_past)
   };
