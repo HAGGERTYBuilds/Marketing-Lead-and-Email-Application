@@ -462,6 +462,27 @@
   .apv-hist{margin-top:11px;border-top:1px solid var(--rule-soft);padding-top:10px}
   .apv-hist .ver{padding:7px 0;border-bottom:1px solid var(--rule-soft);font-size:13px}
   .apv-hist .ver:last-child{border-bottom:0}
+  /* Quantity and cost sit on the card itself and save as they are
+     changed. The item total and the page total are worked out from
+     them and are never typed in. */
+  .apv-cost{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:13px;
+            padding-top:11px;border-top:1px solid var(--rule-soft)}
+  .apv-cost label{display:block;font-family:var(--display);text-transform:uppercase;
+                  letter-spacing:.08em;font-size:11px;color:var(--slate);font-weight:600}
+  .apv-cost input[type=text]{display:block;margin-top:3px;padding:6px 9px;font-size:14px;
+                  font-variant-numeric:tabular-nums}
+  .apv-cost .q input[type=text]{width:84px}
+  .apv-cost .c input[type=text]{width:128px}
+  .apv-cost input.bad{outline:2px solid var(--red);outline-offset:-1px}
+  .apv-cost .x{padding-bottom:8px;color:var(--slate)}
+  .apv-line{margin-left:auto;text-align:right}
+  .apv-line b{display:block;font-size:16px;font-variant-numeric:tabular-nums;margin-top:3px}
+  .apv-total{display:flex;justify-content:space-between;align-items:center;gap:14px;
+             flex-wrap:wrap;margin-top:16px;padding:14px 16px;background:var(--wash);
+             border:1px solid var(--rule);border-top:3px solid var(--ink)}
+  .apv-total b{font-size:22px;font-variant-numeric:tabular-nums}
+  .apv-pair{display:flex;gap:12px}
+  .apv-pair .field{flex:1}
   .apv-thumb{max-width:100%;max-height:340px;display:block;margin-top:11px;
              border:1px solid var(--rule)}
   .tab .badge{display:inline-block;min-width:16px;padding:0 4px;margin-left:5px;
@@ -739,7 +760,7 @@ const S = {
   /* approvals */
   approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
   apvNote:'', apvHist:{}, apvOpen:false, apvSaving:false, apvFile:null,
-  apvForm:{ title:'', kind:'design', description:'', link_url:'', due_by:'' },
+  apvForm:{ title:'', kind:'design', description:'', link_url:'', due_by:'', quantity:'1', unit_cost:'' },
   apvReplyTo:null, apvReply:'',
   /* inbound requests, shown as a section on Liam's day rather than a tab */
   requests:null, reqUrls:{}, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
@@ -1344,6 +1365,110 @@ function apvPendingCount(){
   return apvCurrent().filter(a => a.status === 'pending').length;
 }
 
+/* ---- quantity, cost per item, totals ----
+   Only quantity and cost per item are stored. The item total and the
+   page total are always worked out from them, so there is no total
+   anyone can type over and no way for the two to disagree. */
+const apvMoney = n => '$' + Number(n||0).toLocaleString('en-US',
+  { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+/* What someone typed, as a number. Blank is null, "$1,250.50" is fine,
+   anything else (or a negative) is NaN so the caller can refuse it. */
+function apvNum(v){
+  const s = String(v == null ? '' : v).replace(/[$,\s]/g, '');
+  if(s === '') return null;
+  const n = Number(s);
+  return (isFinite(n) && n >= 0) ? n : NaN;
+}
+
+function apvQtyText(a){ return a.quantity == null ? '1' : String(Number(a.quantity)); }
+function apvCostText(a){ return a.unit_cost == null ? '' : Number(a.unit_cost).toFixed(2); }
+
+/* null until a cost has been entered, so an unpriced item reads as
+   "not priced" rather than as free. */
+function apvLine(a){
+  if(a.unit_cost == null) return null;
+  const q = a.quantity == null ? 1 : Number(a.quantity);
+  return Math.round(q * Number(a.unit_cost) * 100) / 100;
+}
+
+function apvShown(){
+  const cur = apvCurrent();
+  if(S.apvFilter === 'all') return cur;
+  const want = ['pending','changes','approved'].includes(S.apvFilter) ? S.apvFilter : 'pending';
+  return cur.filter(a => a.status === want);
+}
+
+/* Declined items are left out: the total is money that is being asked
+   for or has been agreed, and a declined item is neither. */
+function apvTotals(rows){
+  const live = rows.filter(a => a.status !== 'declined');
+  let cents = 0, priced = 0;
+  for(const a of live){
+    const t = apvLine(a);
+    if(t === null) continue;
+    priced++; cents += Math.round(t * 100);
+  }
+  return { sum: cents / 100, priced, count: live.length, declined: rows.length - live.length };
+}
+
+function apvTotalHint(t){
+  const bits = [];
+  if(!t.count) bits.push('Nothing to add up in this list.');
+  else if(t.priced === t.count) bits.push(`${t.count} item${t.count===1?'':'s'}.`);
+  else bits.push(`${t.priced} of ${t.count} items have a cost. The rest are not counted yet.`);
+  if(t.declined) bits.push(`${t.declined} declined left out.`);
+  return bits.join(' ');
+}
+
+/* Repaints the two worked-out figures in place. A full render() here
+   would rebuild the inputs and drop the cursor between quantity and
+   cost, which is exactly when it is being used. */
+function apvPaintTotals(id){
+  const row = (S.approvals||[]).find(a => a.id === id);
+  const cell = document.querySelector(`[data-apv-line="${id}"]`);
+  if(row && cell){
+    const t = apvLine(row);
+    cell.textContent = t === null ? 'Not priced' : apvMoney(t);
+  }
+  const tot = apvTotals(apvShown());
+  const sum = document.getElementById('apvTotal');
+  if(sum) sum.textContent = apvMoney(tot.sum);
+  const hint = document.getElementById('apvTotalHint');
+  if(hint) hint.textContent = apvTotalHint(tot);
+}
+
+async function saveApvCost(id, field, el){
+  const row = (S.approvals||[]).find(a => a.id === id);
+  if(!row) return;
+  const show = () => { el.value = field === 'quantity' ? apvQtyText(row) : apvCostText(row); };
+
+  let n = apvNum(el.value);
+  /* A blank cost clears the price. A blank quantity has no meaning, so
+     it goes back to what it was, the same as anything unreadable. */
+  if(Number.isNaN(n) || (field === 'quantity' && n === null)){
+    show(); el.classList.add('bad');
+    setTimeout(()=> el.classList.remove('bad'), 1200);
+    return;
+  }
+  if(field === 'unit_cost' && n !== null) n = Math.round(n * 100) / 100;
+
+  const before = row[field];
+  const same = (before == null && n === null) || (before != null && n !== null && Number(before) === n);
+  el.classList.remove('bad');
+  if(same){ show(); return; }
+
+  row[field] = n; show(); apvPaintTotals(id);
+  try{
+    const { error } = await sb.from('approvals').update({ [field]: n }).eq('id', id);
+    if(error) throw error;
+  }catch(err){
+    row[field] = before;
+    S.apvErr = 'That did not save: ' + (err.message || String(err));
+    render();
+  }
+}
+
 async function decideApproval(id, status){
   if(S.apvBusy) return;
   const row = (S.approvals||[]).find(a => a.id === id);
@@ -1398,6 +1523,15 @@ async function submitApproval(){
     S.apvErr = 'Attach a file or paste a link.'; return render();
   }
 
+  /* A new version keeps the quantity and cost of the one it replaces.
+     Both stay editable on the card if the price moved with the change. */
+  let qty = parent ? (parent.quantity == null ? 1 : Number(parent.quantity)) : apvNum(f.quantity);
+  let cost = parent ? (parent.unit_cost == null ? null : Number(parent.unit_cost)) : apvNum(f.unit_cost);
+  if(qty === null) qty = 1;
+  if(Number.isNaN(qty)){ S.apvErr = 'Quantity needs to be a number.'; return render(); }
+  if(Number.isNaN(cost)){ S.apvErr = 'Cost per item needs to be a number, like 125 or 125.50.'; return render(); }
+  if(cost !== null) cost = Math.round(cost * 100) / 100;
+
   S.apvSaving = true; S.apvErr = ''; render();
   let who = '';
   try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }
@@ -1423,7 +1557,8 @@ async function submitApproval(){
       link_url:    String(f.link_url||'').trim() || null,
       file_path:   filePath, file_name: fileName, file_type: fileType,
       requested_by: who, status:'pending',
-      due_by:      String(f.due_by||'').trim() || null
+      due_by:      String(f.due_by||'').trim() || null,
+      quantity:    qty, unit_cost: cost
     };
     if(parent){
       row.parent_id  = parent.id;
@@ -1438,7 +1573,7 @@ async function submitApproval(){
       ? `Version ${row.version} sent to Pat.`
       : `${row.title} sent to Pat.`;
     S.apvOpen = false; S.apvReplyTo = null; S.apvReply = ''; S.apvFile = null;
-    S.apvForm = { title:'', kind:'design', description:'', link_url:'', due_by:'' };
+    S.apvForm = { title:'', kind:'design', description:'', link_url:'', due_by:'', quantity:'1', unit_cost:'' };
     S.loaded.approvals = false;
     await loadApprovals();
   }catch(err){
@@ -2822,6 +2957,7 @@ function approvalCard(a){
      kept and shown behind the toggle rather than deleted, because the
      point of versioning is the record of what changed and why. */
   const older = chain.slice(1);
+  const line = apvLine(a);
 
   return `<article class="apv ${esc(a.status)} ${busy?'busy':''}">
     <div class="apv-head">
@@ -2861,6 +2997,18 @@ function approvalCard(a){
           : (v.file_name?`<span class="chip">${esc(v.file_name)}</span>`:'')}
       </div>`).join('') : ''}
     </div>` : ''}
+
+    <div class="apv-cost">
+      <label class="q">Quantity
+        <input type="text" inputmode="decimal" autocomplete="off" data-apv-qty="${a.id}"
+               value="${esc(apvQtyText(a))}" /></label>
+      <span class="x">&times;</span>
+      <label class="c">Cost per item
+        <input type="text" inputmode="decimal" autocomplete="off" data-apv-cost="${a.id}"
+               value="${esc(apvCostText(a))}" placeholder="0.00" /></label>
+      <div class="apv-line"><span class="eyebrow">Item total</span>
+        <b data-apv-line="${a.id}">${line === null ? 'Not priced' : esc(apvMoney(line))}</b></div>
+    </div>
 
     <div class="apv-foot">
       <div class="apv-acts">
@@ -2914,6 +3062,15 @@ function approvalForm(){
           <textarea id="apvDesc" style="min-height:90px"
             placeholder="Optional. What to look at, what you are unsure about.">${esc(f.description)}</textarea></div>
 
+        <div class="apv-pair">
+          <div class="field"><label for="apvQty">Quantity</label>
+            <input type="text" inputmode="decimal" id="apvQty" value="${esc(f.quantity)}" autocomplete="off" /></div>
+          <div class="field"><label for="apvCost">Cost per item</label>
+            <input type="text" inputmode="decimal" id="apvCost" value="${esc(f.unit_cost)}"
+                   placeholder="0.00" autocomplete="off" /></div>
+        </div>
+        <p class="hint">Optional. Both can be changed on the card later. The total is worked out for you.</p>
+
         <div class="field"><label for="apvDue">Needed by</label>
           <input type="date" id="apvDue" value="${esc(f.due_by)}" /></div>
       `}
@@ -2949,7 +3106,10 @@ function pageApprovals(){
     approved: cur.filter(a => a.status === 'approved'),
     all:      cur
   };
-  const rows = sets[S.apvFilter] || sets.pending;
+  const rows = apvShown();
+  const tot = apvTotals(rows);
+  const totLabel = { pending:'Total waiting on Pat', changes:'Total with changes asked for',
+                     approved:'Total approved', all:'Total' }[S.apvFilter] || 'Total waiting on Pat';
 
   const chips = [
     ['pending','Waiting on Pat', sets.pending.length],
@@ -2976,6 +3136,12 @@ function pageApprovals(){
                 ? 'Nothing is waiting on Pat right now.'
                 : 'Nothing in this list yet.'}</p>
          </div>`}
+
+    ${rows.length ? `<div class="apv-total">
+      <div><span class="eyebrow">${totLabel}</span>
+        <div class="hint" id="apvTotalHint">${esc(apvTotalHint(tot))}</div></div>
+      <b id="apvTotal">${esc(apvMoney(tot.sum))}</b>
+    </div>` : ''}
   </main>${approvalForm()}`;
 }
 
@@ -3011,7 +3177,8 @@ function wireApprovals(){
   /* Mirrored into state on input, because render() rebuilds the DOM and
      an unbound field loses whatever was half-typed. */
   [['apvTitle','title'],['apvDesc','description'],
-   ['apvLink','link_url'],['apvDue','due_by']].forEach(([id,key])=>{
+   ['apvLink','link_url'],['apvDue','due_by'],
+   ['apvQty','quantity'],['apvCost','unit_cost']].forEach(([id,key])=>{
     const el = document.getElementById(id);
     if(el) el.addEventListener('input',()=>{ S.apvForm[key] = el.value; });
   });
@@ -3023,6 +3190,15 @@ function wireApprovals(){
   const fl = document.getElementById('apvFile');
   if(fl) fl.addEventListener('change',()=>{
     S.apvFile = (fl.files && fl.files[0]) || null; S.apvErr=''; render();
+  });
+
+  /* Saved when the field is left or Enter is pressed, not on every
+     keystroke: "12" should not be saved as 1 and then as 12. */
+  [['data-apv-qty','apvQty','quantity'],['data-apv-cost','apvCost','unit_cost']].forEach(([attr,key,field])=>{
+    document.querySelectorAll(`[${attr}]`).forEach(el=>{
+      el.addEventListener('change',()=> saveApvCost(el.dataset[key], field, el));
+      el.addEventListener('keydown',e=>{ if(e.key === 'Enter'){ e.preventDefault(); el.blur(); } });
+    });
   });
 
   const sv = document.getElementById('apvSave');
