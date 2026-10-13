@@ -705,6 +705,33 @@
     body{background:#fff}
     .page{max-width:none;padding:0}
   }
+
+  /* ---------- budget ---------- */
+  .bud-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .bud-year{display:flex;align-items:center;gap:2px}
+  .bud-year h2{font-family:var(--display);font-size:28px;font-weight:700;margin:0 4px;
+               font-variant-numeric:tabular-nums}
+  .bud-year .linkbtn{font-size:24px;text-decoration:none;line-height:1;padding:2px 8px}
+  .bud-scroll{overflow-x:auto}
+  .bud-scroll table{min-width:620px}
+  .bud-bar{display:block;height:8px;background:var(--rule-soft);position:relative;min-width:80px}
+  .bud-bar i,.bud-bar u{position:absolute;top:0;bottom:0;left:0;background:var(--green)}
+  .bud-bar u{opacity:.38}
+  .bud-bar.near i,.bud-bar.near u{background:var(--orange)}
+  .bud-bar.over i,.bud-bar.over u{background:var(--red)}
+  .bud-log td{vertical-align:top}
+  .bud-log select{padding:5px 8px;font-size:13px}
+  .bud-log tr.busy{opacity:.55;pointer-events:none}
+  .bud-log .linkbtn{margin-left:4px}
+  .bud-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .bud-tag{font-family:var(--mono);font-size:10.5px;color:var(--slate);border:1px solid var(--rule);
+           padding:0 5px;text-decoration:none;white-space:nowrap}
+  a.bud-tag{color:var(--ink)}
+  .bud-st{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:12px;
+          font-weight:600;color:var(--orange-ink)}
+  .bud-st.paid{color:var(--green)}
+  .bud-tot td{font-weight:600;background:var(--wash)}
+  td input[type=text]{padding:5px 8px;font-size:13px}
 </style>
 </head>
 <body>
@@ -746,7 +773,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 
 const PAGES = [
   ['today','Outreach'], ['calendar',"Pat's Calendar"],
-  ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['myday',"Liam's Day"],
+  ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads']
 ];
 
@@ -759,7 +786,8 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
-const visiblePages = () => S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES;
+const visiblePages = () => (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
+  .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me));
 
 /* Every n8n call carries the signed-in session, so the workflows can
    refuse anyone who is not logged in to this dashboard. */
@@ -784,7 +812,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-08b';
+const BUILD = '2026-10-13a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2487,6 +2515,7 @@ async function ensure(page){
   if(page==='calendar' && !S.loaded.week) await loadWeek();
   if(page==='calendar' && !S.loaded.invites) await loadInvites();
   if(page==='approvals' && !S.loaded.approvals) await loadApprovals();
+  if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='kpis'){
     if(!S.loaded.kpis) await loadKpis();
     if(!S.loaded.metrics) await loadMetrics();
@@ -2569,6 +2598,7 @@ function render(){
   if(S.page==='calendar') inner = pageCalendar();
   if(S.page==='kpis')     inner = pageKpis();
   if(S.page==='approvals') inner = pageApprovals();
+  if(S.page==='budget')   inner = pageBudget();
   if(S.page==='reels')    inner = pageReels();
   if(S.page==='social')   inner = pageSocial();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
@@ -2690,6 +2720,7 @@ function wirePage(){
   if(ks) ks.addEventListener('click', saveKpiTargets);
   wireRequests();
   wireApprovals();
+  wireBudget();
   wireReels();
   wireSocial();
   wireBoard();
@@ -7119,6 +7150,548 @@ function wireSocial(){
   if(aa) aa.addEventListener('click', approveAllSocial);
   const im = document.getElementById('socImport');
   if(im) im.addEventListener('change',()=> importSocialFolder(im.files));
+}
+
+/* ================= budget ================= */
+/* Liam and Pat only. The tables refuse anyone else too (sql/budget.sql),
+   so hiding the tab is a convenience, not the lock.
+
+   Approved items with a cost, and events marked going with an amount
+   spent, are written into expenses by database triggers as committed.
+   The amount follows the approval or event until the row is marked paid,
+   and an approval sent back takes its committed row with it. */
+const BUDGET_USERS = ['liam','pat'];
+const BUD_SRC = { approval:'From approvals', event:'From events' };
+const BUD_PAY = { card:'Company card', ach:'ACH', check:'Check', invoice:'Invoice',
+                  reimb:'Reimbursement', other:'Other' };
+
+S.bud = { year:new Date().getFullYear(), cats:[], lines:[], exps:[], urls:{},
+          filter:'all', cat:'', edit:false, plan:{}, gl:{}, form:null, file:null,
+          saving:false, busy:'', err:'', note:'', loadErr:'' };
+
+function budBlankForm(over){
+  return Object.assign({ id:null, source:'manual', spent_on:today(), vendor:'',
+    description:'', category:'', amount:'', status:'paid', paid_on:today(),
+    payment_method:'card', reference:'', notes:'', receipt_name:null }, over || {});
+}
+
+async function loadBudget(){
+  const B = S.bud;
+  const [c, l, e] = await Promise.all([
+    sb.from('budget_categories').select('*').order('sort_order'),
+    sb.from('budget_plan').select('*'),
+    sb.from('expenses').select('*')
+      .order('spent_on', { ascending:false }).order('created_at', { ascending:false })
+  ]);
+  const bad = [c, l, e].find(r => r.error);
+  if(bad){
+    const m = bad.error.message || String(bad.error);
+    /* Before sql/budget.sql has been run the tables simply are not there.
+       Say that, rather than a raw PostgREST message. */
+    B.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (bad.error.code||''))
+      ? 'The budget tables have not been created yet. Run sql/budget.sql in the Supabase SQL editor, then reload.'
+      : 'Could not load the budget. ' + m;
+    S.loaded.budget = true;
+    return;
+  }
+  B.loadErr = '';
+  /* Categories are keyed by id everywhere below, as strings, because
+     that is what a <select> hands back. */
+  B.cats = (c.data || []).map(r => Object.assign({}, r, { key:String(r.id), label:r.name }));
+  B.lines = (l.data || []).map(r => ({ year:r.year, category:String(r.category_id), planned:r.amount }));
+  B.exps = (e.data || []).map(r => Object.assign({}, r, {
+    category:r.category_id == null ? null : String(r.category_id), reference:r.invoice_ref }));
+
+  B.urls = {};
+  const paths = [...new Set(B.exps.map(x => x.receipt_path).filter(Boolean))];
+  if(paths.length){
+    try{
+      const { data:urls } = await sb.storage.from('receipts').createSignedUrls(paths, 3600);
+      for(const u of (urls||[])) if(u && u.path && u.signedUrl) B.urls[u.path] = u.signedUrl;
+    }catch(err){ /* the row just shows no receipt link */ }
+  }
+  S.loaded.budget = true;
+}
+
+const budYearOf = d => d ? Number(String(d).slice(0, 4)) : null;
+const budCatLabel = k => { const c = S.bud.cats.find(c => c.key === k); return c ? c.label : (k || ''); };
+
+/* Everything that counts against one year, newest first. */
+function budItems(year){
+  return S.bud.exps.filter(x => budYearOf(x.spent_on) === year)
+    .map(x => Object.assign({}, x, { src:'exp', amount:Number(x.amount || 0) }))
+    .sort((a, b) => String(b.spent_on).localeCompare(String(a.spent_on)));
+}
+
+function budSummary(year, items){
+  const B = S.bud;
+  const blank = (key, label) => ({ key, label, planned:0, paid:0, committed:0 });
+  const rows = B.cats.filter(c => c.active !== false).map(c => blank(c.key, c.label));
+  const by = new Map(rows.map(r => [r.key, r]));
+  for(const l of B.lines){
+    if(l.year === year && by.has(l.category)) by.get(l.category).planned = Number(l.planned || 0);
+  }
+  const none = blank('', 'Needs a category');
+  for(const it of items){
+    let r = it.category ? by.get(it.category) : none;
+    if(!r){ r = blank(it.category, budCatLabel(it.category)); by.set(r.key, r); rows.push(r); }
+    r[it.status === 'paid' ? 'paid' : 'committed'] += it.amount;
+  }
+  if(none.paid || none.committed) rows.push(none);
+  const t = rows.reduce((s, r) => ({ planned:s.planned + r.planned, paid:s.paid + r.paid,
+    committed:s.committed + r.committed }), { planned:0, paid:0, committed:0 });
+  return { rows, t };
+}
+
+/* How far through the year we are. A past year is all gone, a future one
+   has not started. */
+function budPace(year){
+  const now = new Date(), y = now.getFullYear();
+  if(year < y) return 1;
+  if(year > y) return 0;
+  return (now - new Date(y, 0, 1)) / (new Date(y + 1, 0, 1) - new Date(y, 0, 1));
+}
+
+/* Solid is paid, pale is committed. Orange from 85% of the line, red
+   once it is over. */
+function budBar(r){
+  const used = r.paid + r.committed;
+  if(!r.planned) return used ? `<span class="hint err">No budget set</span>` : '';
+  const p = used / r.planned;
+  const cls = p > 1 ? 'over' : p >= .85 ? 'near' : '';
+  const paidW = Math.min(100, r.paid / r.planned * 100);
+  const comW = Math.min(100 - paidW, r.committed / r.planned * 100);
+  return `<span class="bud-bar ${cls}" title="${Math.round(p * 100)}% used"><i style="width:${
+    paidW.toFixed(1)}%"></i><u style="left:${paidW.toFixed(1)}%;width:${comW.toFixed(1)}%"></u></span>`;
+}
+
+function budCatOptions(sel, blankLabel){
+  return `<option value="">${esc(blankLabel)}</option>` + S.bud.cats
+    .filter(c => c.active !== false || c.key === sel)
+    .map(c => `<option value="${esc(c.key)}" ${c.key === sel ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
+}
+
+function pageBudget(){
+  const B = S.bud;
+  if(!S.loaded.budget) return loading();
+  if(B.loadErr) return `<main class="page"><div class="empty"><h2>Budget is not set up yet</h2>
+    <p>${esc(B.loadErr)}</p></div></main>`;
+
+  const y = B.year;
+  const items = budItems(y);
+  const { rows, t } = budSummary(y, items);
+  const used = t.paid + t.committed;
+  const left = t.planned - used;
+  const pace = budPace(y);
+  const usedPct = t.planned ? used / t.planned : 0;
+  const thisYear = new Date().getFullYear();
+
+  let paceLine = '';
+  if(!t.planned) paceLine = `No budget is set for ${y} yet. Use Edit budget to add one.`;
+  else if(y === thisYear){
+    paceLine = `${Math.round(pace * 100)}% of ${y} has gone by, and ${Math.round(usedPct * 100)}% of the budget is spent or committed.`;
+    if(usedPct > pace + .05) paceLine += ' That is ahead of pace.';
+  }
+  else paceLine = `${Math.round(usedPct * 100)}% of the ${y} budget is spent or committed.`;
+
+  const stats = `<div class="stat-grid" style="margin-bottom:10px">
+    <div class="stat"><div class="k">${y} budget</div><div class="v">${money(t.planned)}</div></div>
+    <div class="stat"><div class="k">Spent</div><div class="v">${money(t.paid)}</div></div>
+    <div class="stat"><div class="k">Committed</div><div class="v">${money(t.committed)}</div></div>
+    <div class="stat accent"><div class="k">Left</div><div class="v" ${left < 0 ? 'style="color:var(--red)"' : ''}>${
+      left < 0 ? '&minus;' + money(-left) : money(left)}</div></div>
+  </div>
+  <p class="hint" style="margin:0 0 24px">${esc(paceLine)}</p>`;
+
+  const catTable = B.edit ? `
+    <div class="bud-scroll"><table><thead><tr><th>Category</th><th class="num" style="width:170px">${y} budget</th>
+      <th style="width:190px">Sage Intacct GL account</th></tr></thead><tbody>
+      ${B.cats.filter(c => c.active !== false).map(c => `<tr><td>${esc(c.label)}</td>
+        <td class="num"><input type="text" inputmode="decimal" data-bud-plan="${esc(c.key)}"
+          value="${esc(B.plan[c.key] ?? '')}" placeholder="0" autocomplete="off" style="text-align:right" /></td>
+        <td><input type="text" data-bud-gl="${esc(c.key)}" value="${esc(B.gl[c.key] ?? '')}"
+          placeholder="Optional" autocomplete="off" /></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="actions">
+      <button class="btn small" id="budPlanSave" ${B.saving ? 'disabled' : ''}>${B.saving ? 'Saving&hellip;' : 'Save budget'}</button>
+      <button class="linkbtn" id="budPlanCancel">Cancel</button>
+      <span class="hint">The GL account goes into the export, so accounting can file each line.</span>
+    </div>`
+  : `<div class="bud-scroll"><table><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Spent</th>
+      <th class="num">Committed</th><th class="num">Left</th><th style="width:28%"></th></tr></thead><tbody>
+      ${rows.map(r => {
+        const l = r.planned - r.paid - r.committed;
+        return `<tr><td>${esc(r.label)}</td>
+          <td class="num">${r.planned ? money(r.planned) : '&ndash;'}</td>
+          <td class="num">${money(r.paid)}</td><td class="num">${money(r.committed)}</td>
+          <td class="num" ${l < 0 ? 'style="color:var(--red)"' : ''}>${r.planned || l ? (l < 0 ? '&minus;' + money(-l) : money(l)) : '&ndash;'}</td>
+          <td>${budBar(r)}</td></tr>`;
+      }).join('')}
+    </tbody></table></div>`;
+
+  const needCat = items.filter(it => !it.category);
+  const shown = items.filter(it =>
+      B.filter === 'all' ? true
+    : B.filter === 'nocat' ? !it.category
+    : it.status === B.filter)
+    .filter(it => !B.cat || it.category === B.cat);
+  const shownTotal = shown.reduce((s, it) => s + it.amount, 0);
+
+  const chips = [
+    ['all', 'Everything', items.length],
+    ['committed', 'Committed', items.filter(it => it.status !== 'paid').length],
+    ['paid', 'Paid', items.filter(it => it.status === 'paid').length]
+  ].concat(needCat.length ? [['nocat', 'Needs a category', needCat.length]] : [])
+   .map(([k, label, n]) =>
+    `<button class="fchip ${B.filter === k ? 'on' : ''}" data-bud-filt="${k}">${label} <b>${n}</b></button>`).join('');
+
+  return `<main class="page" style="max-width:1060px">
+    <div class="bud-head">
+      <div class="bud-year">
+        <button class="linkbtn" data-bud-year="-1" aria-label="Previous year">&lsaquo;</button>
+        <h2>${y}</h2>
+        <button class="linkbtn" data-bud-year="1" aria-label="Next year">&rsaquo;</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn small ghost" id="budExport">Export for Sage Intacct</button>
+      <button class="btn small ghost" id="budEdit">${B.edit ? 'Stop editing' : 'Edit budget'}</button>
+      <button class="btn small" id="budAdd">Add an expense</button>
+    </div>
+
+    ${B.note ? `<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(B.note)}</p></div>` : ''}
+    ${B.err && !B.form ? `<p class="hint err" style="margin-bottom:14px">${esc(B.err)}</p>` : ''}
+
+    ${stats}
+
+    <div class="block"><h2 class="sec">By category</h2>${catTable}</div>
+
+    <div class="block" style="margin-top:30px"><h2 class="sec">Spending</h2>
+      ${needCat.length ? `<div class="warn soft" style="margin-bottom:12px"><b>${
+        needCat.length} item${needCat.length === 1 ? '' : 's'}</b>
+        still need${needCat.length === 1 ? 's' : ''} a category. Pick one in the list below.</div>` : ''}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <div class="fchips" style="margin:0;flex:1">${chips}</div>
+        <select id="budCatFilt" style="width:auto;min-width:200px">${budCatOptions(B.cat, 'All categories')}</select>
+      </div>
+      ${shown.length ? `<div class="bud-scroll"><table class="bud-log"><thead><tr><th style="width:110px">Date</th><th>What</th>
+        <th style="width:210px">Category</th><th class="num" style="width:120px">Amount</th>
+        <th style="width:110px">Status</th><th style="width:150px"></th></tr></thead><tbody>
+        ${shown.map(budRow).join('')}
+        <tr class="bud-tot"><td colspan="3">Total shown</td><td class="num">${esc(apvMoney(shownTotal))}</td><td colspan="2"></td></tr>
+      </tbody></table></div>`
+      : `<div class="empty" style="padding:30px 0"><h2>Nothing here</h2><p>Nothing in this list for ${y} yet.</p></div>`}
+    </div>
+  </main>${budForm()}`;
+}
+
+function budRow(it){
+  const B = S.bud;
+  const busy = B.busy === it.id;
+  const what = [it.vendor ? `<b>${esc(it.vendor)}</b>` : '', it.description ? esc(it.description) : '']
+    .filter(Boolean).join(' &middot; ') || '<span class="muted">No details</span>';
+  const tags = [];
+  if(BUD_SRC[it.source]) tags.push(`<span class="bud-tag">${BUD_SRC[it.source]}</span>`);
+  if(it.payment_method && BUD_PAY[it.payment_method]) tags.push(`<span class="bud-tag">${esc(BUD_PAY[it.payment_method])}</span>`);
+  if(it.reference) tags.push(`<span class="bud-tag">#${esc(it.reference)}</span>`);
+  const rc = it.receipt_path && B.urls[it.receipt_path]
+    ? `<a class="bud-tag" href="${esc(B.urls[it.receipt_path])}" target="_blank" rel="noopener">Receipt</a>` : '';
+  const cat = it.category ? esc(budCatLabel(it.category))
+    : `<select data-bud-setcat="${esc(it.id)}" ${busy ? 'disabled' : ''}>${budCatOptions('', 'Pick a category')}</select>`;
+  const status = it.status === 'paid'
+    ? `<span class="bud-st paid">Paid</span>${it.paid_on ? `<div class="hint">${esc(shortDate(it.paid_on + 'T12:00:00'))}</div>` : ''}`
+    : `<span class="bud-st">Committed</span>`;
+  const acts = [];
+  if(it.status !== 'paid') acts.push(`<button class="linkbtn" data-bud-paid="${esc(it.id)}" ${busy ? 'disabled' : ''}>Mark paid</button>`);
+  acts.push(`<button class="linkbtn" data-bud-open="${esc(it.id)}">Edit</button>`);
+  return `<tr class="${busy ? 'busy' : ''}">
+    <td class="mono">${esc(shortDate(it.spent_on + 'T12:00:00'))}</td>
+    <td>${what}${tags.length || rc ? `<div class="bud-tags">${tags.join('')}${rc}</div>` : ''}</td>
+    <td>${cat}</td>
+    <td class="num">${esc(apvMoney(it.amount))}</td>
+    <td>${status}</td>
+    <td style="text-align:right;white-space:nowrap">${acts.join('')}</td>
+  </tr>`;
+}
+
+function budForm(){
+  const B = S.bud, f = B.form;
+  if(!f) return '';
+  const auto = f.source === 'approval' || f.source === 'event';
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Expense">
+    <div class="sheet-in">
+      <div class="sheet-head">
+        <h2>${f.id ? 'Edit expense' : 'Add an expense'}</h2>
+        <button class="linkbtn" id="budClose">Close</button>
+      </div>
+      ${auto ? `<p class="hint" style="margin-top:10px">${f.source === 'event' ? 'This came in from an event on the calendar.' : 'This came in from an approval.'}
+        While it is committed, the amount follows the ${f.source === 'event' ? 'event' : 'approval'}. Once it is marked paid, it stays as entered here.</p>` : ''}
+
+      <div class="apv-pair">
+        <div class="field"><label for="budDate">Date</label>
+          <input type="date" id="budDate" value="${esc(f.spent_on)}" /></div>
+        <div class="field"><label for="budAmt">Amount</label>
+          <input type="text" inputmode="decimal" id="budAmt" value="${esc(f.amount)}" placeholder="0.00" autocomplete="off" /></div>
+      </div>
+      <div class="field"><label for="budVendor">Vendor</label>
+        <input type="text" id="budVendor" value="${esc(f.vendor)}" placeholder="Who was paid" autocomplete="off" /></div>
+      <div class="field"><label for="budDesc">What for</label>
+        <input type="text" id="budDesc" value="${esc(f.description)}" placeholder="Booth banner for the ABC expo" autocomplete="off" /></div>
+      <div class="field"><label for="budCat">Category</label>
+        <select id="budCat">${budCatOptions(f.category, 'Pick a category')}</select></div>
+
+      <div class="apv-pair">
+        <div class="field"><label for="budStatus">Status</label>
+          <select id="budStatus">
+            <option value="paid" ${f.status === 'paid' ? 'selected' : ''}>Paid</option>
+            <option value="committed" ${f.status !== 'paid' ? 'selected' : ''}>Committed, not paid yet</option>
+          </select></div>
+        ${f.status === 'paid' ? `<div class="field"><label for="budPaidOn">Paid on</label>
+          <input type="date" id="budPaidOn" value="${esc(f.paid_on || '')}" /></div>` : '<div class="field"></div>'}
+      </div>
+      <div class="apv-pair">
+        <div class="field"><label for="budPay">Paid with</label>
+          <select id="budPay">${Object.entries(BUD_PAY).map(([k, l]) =>
+            `<option value="${k}" ${f.payment_method === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="field"><label for="budRef">Invoice or PO number</label>
+          <input type="text" id="budRef" value="${esc(f.reference)}" placeholder="Optional" autocomplete="off" /></div>
+      </div>
+
+      <div class="field"><label for="budFile">Receipt</label>
+        <input type="file" id="budFile" accept="image/*,application/pdf"
+               style="width:100%;font-size:13px;padding:8px 0;border:0;background:none" /></div>
+      ${B.file ? `<p class="hint"><b>${esc(B.file.name)}</b> &middot; ${Math.round(B.file.size / 1024).toLocaleString()} KB</p>`
+        : f.receipt_name ? `<p class="hint">On file: <b>${esc(f.receipt_name)}</b>. Choosing a new one replaces it.</p>` : ''}
+
+      <div class="field"><label for="budNotes">Notes</label>
+        <textarea id="budNotes" style="min-height:70px" placeholder="Optional">${esc(f.notes)}</textarea></div>
+
+      ${B.err ? `<p class="hint err">${esc(B.err)}</p>` : ''}
+
+      <div class="sheet-foot">
+        <button class="btn" id="budSave" ${B.saving ? 'disabled' : ''}>${B.saving ? 'Saving&hellip;' : 'Save'}</button>
+        ${f.id && !auto ? `<p style="margin:12px 0 0;text-align:center"><button class="linkbtn" id="budDel" style="color:var(--red)">Delete this expense</button></p>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function budOpenFor(id){
+  const B = S.bud;
+  B.err = ''; B.note = ''; B.file = null;
+  if(!id){ B.form = budBlankForm(); return render(); }
+  const x = B.exps.find(x => x.id === id);
+  if(!x) return;
+  B.form = budBlankForm({ id:x.id, source:x.source, spent_on:x.spent_on,
+    vendor:x.vendor || '', description:x.description || '', category:x.category || '',
+    amount:Number(x.amount).toFixed(2), status:x.status, paid_on:x.paid_on || today(),
+    payment_method:x.payment_method || 'card', reference:x.reference || '',
+    notes:x.notes || '', receipt_name:x.receipt_name });
+  render();
+}
+
+async function budReload(){ S.loaded.budget = false; await loadBudget(); }
+
+async function saveBudExpense(){
+  const B = S.bud, f = B.form;
+  if(!f || B.saving) return;
+  const amt = apvNum(f.amount);
+  if(amt === null || Number.isNaN(amt)){ B.err = 'Amount needs to be a number, like 125 or 125.50.'; return render(); }
+  if(!f.spent_on){ B.err = 'Pick a date.'; return render(); }
+  if(!String(f.description).trim()){ B.err = 'Say what it was for.'; return render(); }
+  B.saving = true; B.err = ''; render();
+
+  let who = '';
+  try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
+
+  try{
+    const row = {
+      spent_on:f.spent_on, vendor:String(f.vendor).trim() || null,
+      description:String(f.description).trim(), category_id:f.category ? Number(f.category) : null,
+      amount:Math.round(amt * 100) / 100, status:f.status,
+      paid_on:f.status === 'paid' ? (f.paid_on || f.spent_on) : null,
+      payment_method:f.payment_method || null, invoice_ref:String(f.reference).trim() || null,
+      notes:String(f.notes).trim() || null, updated_at:new Date().toISOString()
+    };
+    let oldPath = null;
+    if(B.file){
+      const safe = B.file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}/${safe}`;
+      const { error:upErr } = await sb.storage.from('receipts').upload(path, B.file, { upsert:false });
+      if(upErr) throw upErr;
+      row.receipt_path = path; row.receipt_name = B.file.name;
+      if(f.id) oldPath = (B.exps.find(x => x.id === f.id) || {}).receipt_path || null;
+    }
+    const { error } = f.id
+      ? await sb.from('expenses').update(row).eq('id', f.id)
+      : await sb.from('expenses').insert(Object.assign(row, { source:'manual', created_by:who }));
+    if(error) throw error;
+    if(oldPath){ try{ await sb.storage.from('receipts').remove([oldPath]); }catch(e){} }
+    B.form = null; B.file = null;
+    B.note = 'Saved.';
+    await budReload();
+  }catch(err){ B.err = err.message || String(err); }
+  B.saving = false; render();
+}
+
+async function deleteBudExpense(){
+  const B = S.bud, f = B.form;
+  if(!f || !f.id) return;
+  if(!confirm('Delete this expense? This cannot be undone.')) return;
+  const x = B.exps.find(x => x.id === f.id);
+  B.saving = true; render();
+  try{
+    const { error } = await sb.from('expenses').delete().eq('id', f.id);
+    if(error) throw error;
+    if(x && x.receipt_path){ try{ await sb.storage.from('receipts').remove([x.receipt_path]); }catch(e){} }
+    B.form = null; B.note = 'Deleted.';
+    await budReload();
+  }catch(err){ B.err = err.message || String(err); }
+  B.saving = false; render();
+}
+
+/* A category picked from the list, or Mark paid on a committed row. */
+async function budQuick(id, patch){
+  const B = S.bud;
+  B.busy = id; B.err = ''; B.note = ''; render();
+  try{
+    const { error } = await sb.from('expenses')
+      .update(Object.assign({ updated_at:new Date().toISOString() }, patch)).eq('id', id);
+    if(error) throw error;
+    await budReload();
+  }catch(err){ B.err = err.message || String(err); }
+  B.busy = ''; render();
+}
+
+async function saveBudPlan(){
+  const B = S.bud, y = B.year;
+  const cats = B.cats.filter(c => c.active !== false);
+  const lines = [];
+  for(const c of cats){
+    const n = apvNum(B.plan[c.key]);
+    if(Number.isNaN(n)){ B.err = `The budget for ${c.label} needs to be a number.`; return render(); }
+    lines.push({ year:y, category_id:c.id, amount:n === null ? 0 : Math.round(n * 100) / 100 });
+  }
+  B.saving = true; B.err = ''; render();
+  let who = '';
+  try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
+  try{
+    const now = new Date().toISOString();
+    const { error } = await sb.from('budget_plan')
+      .upsert(lines.map(l => Object.assign(l, { updated_by:who, updated_at:now })), { onConflict:'year,category_id' });
+    if(error) throw error;
+    for(const c of cats){
+      const gl = String(B.gl[c.key] ?? '').trim() || null;
+      if(gl !== (c.gl_account || null)){
+        const { error:e2 } = await sb.from('budget_categories').update({ gl_account:gl }).eq('id', c.id);
+        if(e2) throw e2;
+      }
+    }
+    B.edit = false; B.note = `The ${y} budget is saved.`;
+    await budReload();
+  }catch(err){ B.err = err.message || String(err); }
+  B.saving = false; render();
+}
+
+function budStartEdit(){
+  const B = S.bud;
+  B.plan = {}; B.gl = {};
+  for(const c of B.cats){
+    const l = B.lines.find(l => l.year === B.year && l.category === c.key);
+    B.plan[c.key] = l && Number(l.planned) ? String(Number(l.planned)) : '';
+    B.gl[c.key] = c.gl_account || '';
+  }
+  B.edit = true; B.err = ''; B.note = '';
+}
+
+/* One row per item, with the GL account from the category, so it can be
+   brought into Sage Intacct or checked against it. Cells that start with
+   = + - @ are prefixed so a spreadsheet never treats them as formulas. */
+function exportBudget(){
+  const B = S.bud, y = B.year;
+  const items = budItems(y).slice().reverse();
+  const cell = c => {
+    let s = String(c ?? '');
+    if(/^[=+\-@]/.test(s)) s = "'" + s;
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const glOf = k => (B.cats.find(c => c.key === k) || {}).gl_account || '';
+  const rows = [['Date','Vendor','Description','Category','GL account','Amount','Status',
+                 'Paid on','Paid with','Invoice or PO','Notes','Source']];
+  for(const it of items){
+    rows.push([it.spent_on, it.vendor, it.description, budCatLabel(it.category), glOf(it.category),
+      it.amount.toFixed(2), it.status === 'paid' ? 'Paid' : 'Committed', it.paid_on || '',
+      BUD_PAY[it.payment_method] || '', it.reference || '', it.notes || '',
+      { approval:'Approvals', event:'Events' }[it.source] || 'Budget tab']);
+  }
+  const blob = new Blob([rows.map(r => r.map(cell).join(',')).join('\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `haggerty-marketing-spend-${y}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function wireBudget(){
+  if(S.page !== 'budget') return;
+  const B = S.bud;
+  document.querySelectorAll('[data-bud-year]').forEach(el =>
+    el.addEventListener('click', () => {
+      B.year += Number(el.dataset.budYear); B.note = ''; B.err = '';
+      if(B.edit) budStartEdit();
+      render();
+    }));
+  document.querySelectorAll('[data-bud-filt]').forEach(el =>
+    el.addEventListener('click', () => { B.filter = el.dataset.budFilt; render(); }));
+  const cf = document.getElementById('budCatFilt');
+  if(cf) cf.addEventListener('change', () => { B.cat = cf.value; render(); });
+
+  const ed = document.getElementById('budEdit');
+  if(ed) ed.addEventListener('click', () => { if(B.edit){ B.edit = false; B.err = ''; } else budStartEdit(); render(); });
+  const pc = document.getElementById('budPlanCancel');
+  if(pc) pc.addEventListener('click', () => { B.edit = false; B.err = ''; render(); });
+  const ps = document.getElementById('budPlanSave');
+  if(ps) ps.addEventListener('click', saveBudPlan);
+  document.querySelectorAll('[data-bud-plan]').forEach(el =>
+    el.addEventListener('input', () => { B.plan[el.dataset.budPlan] = el.value; }));
+  document.querySelectorAll('[data-bud-gl]').forEach(el =>
+    el.addEventListener('input', () => { B.gl[el.dataset.budGl] = el.value; }));
+
+  const ex = document.getElementById('budExport');
+  if(ex) ex.addEventListener('click', exportBudget);
+  const ad = document.getElementById('budAdd');
+  if(ad) ad.addEventListener('click', () => budOpenFor(null));
+  document.querySelectorAll('[data-bud-open]').forEach(el =>
+    el.addEventListener('click', () => budOpenFor(el.dataset.budOpen)));
+  document.querySelectorAll('[data-bud-setcat]').forEach(el =>
+    el.addEventListener('change', () => { if(el.value) budQuick(el.dataset.budSetcat, { category_id:Number(el.value) }); }));
+  document.querySelectorAll('[data-bud-paid]').forEach(el =>
+    el.addEventListener('click', () => budQuick(el.dataset.budPaid, { status:'paid', paid_on:today() })));
+
+  if(!B.form) return;
+  const f = B.form;
+  [['budDate','spent_on'],['budAmt','amount'],['budVendor','vendor'],['budDesc','description'],
+   ['budPaidOn','paid_on'],['budRef','reference'],['budNotes','notes']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', () => { f[key] = el.value; });
+  });
+  [['budCat','category'],['budPay','payment_method']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('change', () => { f[key] = el.value; });
+  });
+  const st = document.getElementById('budStatus');
+  if(st) st.addEventListener('change', () => {
+    f.status = st.value;
+    if(f.status === 'paid' && !f.paid_on) f.paid_on = today();
+    render();
+  });
+  const fl = document.getElementById('budFile');
+  if(fl) fl.addEventListener('change', () => { B.file = (fl.files && fl.files[0]) || null; B.err = ''; render(); });
+  const cl = document.getElementById('budClose');
+  if(cl) cl.addEventListener('click', () => { B.form = null; B.file = null; B.err = ''; render(); });
+  const sv = document.getElementById('budSave');
+  if(sv) sv.addEventListener('click', saveBudExpense);
+  const dl = document.getElementById('budDel');
+  if(dl) dl.addEventListener('click', deleteBudExpense);
 }
 
 /* ================= boot ================= */
