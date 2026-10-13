@@ -607,6 +607,23 @@
   .socbody p{margin:0;font-size:13px;color:var(--grey);line-height:1.5;display:-webkit-box;
              -webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .socfoot{display:flex;gap:6px;padding:0 13px 12px}
+  .socstrip{margin-bottom:16px}
+  .socres{margin:0 13px 12px;padding:8px 10px;background:var(--paper);border:1px solid var(--rule);
+          display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--grey);
+          font-variant-numeric:tabular-nums}
+  .socres > div{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;align-items:baseline}
+  .socres .n{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:11px;
+             font-weight:600;color:var(--slate);text-decoration:none}
+  .socres .n:hover{color:var(--orange-ink);text-decoration:underline}
+  .socres b{color:var(--ink)}
+  .soccard.result{border-top-color:var(--orange)}
+  .socthumb.static{cursor:default;background:var(--rule-soft)}
+  .socthumb.static .none{color:var(--slate)}
+  .soccard.result{position:relative}
+  .soccard.noimg .socbody{padding-top:14px}
+  .soccard.noimg .socbody .d{padding-right:110px}
+  .socbest{position:absolute;top:9px;right:9px;z-index:1;background:var(--orange);color:#fff;font-family:var(--mono);
+           font-size:11px;padding:3px 7px}
   .socfoot .btn{flex:1}
   .sheet-in.soc{max-width:1040px;padding:0}
   .socgrid2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
@@ -881,7 +898,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13f';
+const BUILD = '2026-10-13g';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -6701,6 +6718,13 @@ async function loadSocial(){
     .order('created_at', { ascending:false }).limit(8);
   if(j.error) throw j.error;
   S.socJobs = j.data || [];
+  /* Results come from Metricool through the daily refresh. A failed read
+     leaves the calendar working without them. */
+  const since = new Date(Date.now() - 90*864e5).toISOString().slice(0,10);
+  const r = await sb.from('social_results').select('*')
+    .eq('brand', SOC_BRAND).gte('post_date', since)
+    .order('post_date', { ascending:false });
+  S.socResults = r.error ? [] : (r.data || []);
   S.loaded.social = true;
 }
 async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
@@ -6710,6 +6734,102 @@ function socMediaTag(m, controls){
   return m.kind === 'video'
     ? `<video src="${u}#t=0.5" preload="metadata" muted playsinline ${controls?'controls':''}></video>`
     : `<img src="${u}" alt="" ${controls?"":"loading=\"lazy\""} />`;
+}
+
+/* ---- results from Metricool ----
+   One row per published post per network. The refresh pairs the
+   Instagram and LinkedIn posts on one subject with a shared group_key, and
+   links a row to the dashboard's own post when it came from here. */
+function socResultGroups(){
+  const by = new Map();
+  for(const r of S.socResults || []){
+    const k = r.group_key || (r.network + ':' + r.post_id);
+    if(!by.has(k)) by.set(k, { key:k, ig:null, li:null });
+    const g = by.get(k);
+    if(r.network === 'instagram' && !g.ig) g.ig = r;
+    if(r.network === 'linkedin' && !g.li) g.li = r;
+  }
+  return [...by.values()].map(g => {
+    const rows = [g.ig, g.li].filter(Boolean);
+    g.date = rows.map(r => String(r.post_date).slice(0,10)).sort()[0];
+    g.postId = (rows.find(r => r.social_post_id) || {}).social_post_id || null;
+    g.score = ((g.ig && g.ig.interactions) || 0) + ((g.li && g.li.clicks) || 0) + ((g.li && g.li.reactions) || 0);
+    return g;
+  }).sort((a,b) => b.date.localeCompare(a.date));
+}
+function socRecent(days){
+  const cut = new Date(Date.now() - days*864e5).toISOString().slice(0,10);
+  return socResultGroups().filter(g => g.date >= cut);
+}
+function socBestKey(groups){
+  const best = groups.slice().sort((a,b) => b.score - a.score)[0];
+  return best && best.score > 0 ? best.key : null;
+}
+function socSnippet(r, n){
+  const first = String((r && r.content) || '').split(/\n|(?<=[.!?])\s/)[0].trim();
+  return first.length > n ? first.slice(0, n - 1).trim() + '…' : first;
+}
+function socResLines(ig, li){
+  const b = v => `<b>${num(v)}</b>`;
+  const line = (label, r, parts) => `<div><a class="n" href="${esc(r.permalink || '#')}" target="_blank" rel="noopener">${label}</a>
+      <span>${parts.filter(Boolean).join(' &middot; ')}</span></div>`;
+  return `<div class="socres">
+    ${ig ? line('Instagram', ig, [b(ig.reach) + ' reach', b(ig.interactions) + ' interactions']) : ''}
+    ${li ? line('LinkedIn', li, [b(li.impressions) + ' impressions',
+          li.clicks !== null && li.clicks !== undefined ? b(li.clicks) + ' clicks' : '',
+          b(li.reactions) + ' reactions']) : ''}
+  </div>`;
+}
+function socResultsStrip(){
+  const g = socRecent(30);
+  const ig = g.map(x => x.ig).filter(Boolean), li = g.map(x => x.li).filter(Boolean);
+  if(!ig.length && !li.length) return '';
+  const sum = (a, k) => a.reduce((t, r) => t + (r[k] || 0), 0);
+  const avg = (a, k) => a.length ? Math.round(sum(a, k) / a.length) : 0;
+  const top = li.slice().sort((a,b) => (b.clicks||0) - (a.clicks||0))[0];
+  const topName = top ? 'the ' + socDay(top.post_date).replace(/^\w+, /, '') + ' post' : '';
+  return `<div class="stat-grid ret-stats socstrip">
+    <div class="stat"><div class="k">Instagram reach</div><div class="v">${num(sum(ig,'reach'))}</div>
+      <p class="hint" style="margin:4px 0 0">${ig.length} post${ig.length===1?'':'s'}, last 30 days &middot; ${num(avg(ig,'reach'))} a post</p></div>
+    <div class="stat"><div class="k">Instagram interactions</div><div class="v">${num(sum(ig,'interactions'))}</div>
+      <p class="hint" style="margin:4px 0 0">Likes, comments, saves, shares</p></div>
+    <div class="stat"><div class="k">LinkedIn impressions</div><div class="v">${num(sum(li,'impressions'))}</div>
+      <p class="hint" style="margin:4px 0 0">${li.length} post${li.length===1?'':'s'} &middot; ${num(avg(li,'impressions'))} a post</p></div>
+    <div class="stat accent"><div class="k">LinkedIn clicks</div><div class="v">${num(sum(li,'clicks'))}</div>
+      <p class="hint" style="margin:4px 0 0">${top && top.clicks ? 'Best: ' + esc(topName) + ', ' + num(top.clicks) + ' clicks' : 'Clicks on links and photos'}</p></div>
+  </div>`;
+}
+function socResultCard(g, bestKey){
+  const own = g.postId && (S.social || []).find(p => p.id === g.postId);
+  const media = own ? socMedia(own) : [];
+  const main = g.ig || g.li;
+  const img = media.length ? socMediaTag(media[0], false)
+    : (g.ig && g.ig.image_url ? `<img src="${esc(g.ig.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()" />` : '');
+  /* Instagram's image links expire after a few weeks; a card whose image
+     is gone, or never had one, drops the picture rather than show an
+     empty box. */
+  const best = g.key === bestKey ? `<span class="socbest">Best in 30 days</span>` : '';
+  return `<article class="soccard result ${img ? '' : 'noimg'}">
+    ${img ? `<div class="socthumb static">${img}${best}</div>` : best}
+    <div class="socbody">
+      <span class="d">${esc(socDay(g.date))}</span>
+      ${own && own.topic ? `<span class="t">${esc(own.topic)}</span>` : ''}
+      <p>${esc(String(main.content || '').trim())}</p>
+    </div>
+    ${socResLines(g.ig, g.li)}
+  </article>`;
+}
+function socResultsView(){
+  const groups = socResultGroups();
+  if(!groups.length) return `<div class="empty" style="padding:44px 0">
+      <h2>No results yet</h2>
+      <p>Post results come from Metricool every morning. Check back after the next refresh.</p></div>`;
+  const last = (S.socResults || []).map(r => r.fetched_at).sort().pop();
+  const bestKey = socBestKey(socRecent(30));
+  return `<div class="soc-grid">${groups.map(g => socResultCard(g, bestKey)).join('')}</div>
+    <p class="hint" style="margin-top:14px">Published posts from the last 90 days, from Metricool.
+      ${last ? 'Numbers last refreshed ' + esc(new Date(last).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })) + '.' : ''}
+      Instagram and LinkedIn posts on the same subject share a card.</p>`;
 }
 
 function socCard(p){
@@ -6729,6 +6849,8 @@ function socCard(p){
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
     </div>
+    ${(() => { const r = (S.socResults || []).filter(x => x.social_post_id === p.id);
+       return r.length ? socResLines(r.find(x => x.network === 'instagram'), r.find(x => x.network === 'linkedin')) : ''; })()}
     <div class="socfoot">
       ${p.status === 'draft'
         ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
@@ -6882,7 +7004,8 @@ function pageSocial(){
   const busy = !!S.socBusy;
 
   const chips = [['all','Calendar', live.length], ['draft','Drafts', drafts], ['approved','Approved', approved],
-                 ['sent','In Metricool', count('sent') + count('queued')], ['extra','Extra options', extras],
+                 ['sent','In Metricool', count('sent') + count('queued')], ['results','Results', socResultGroups().length],
+                 ['extra','Extra options', extras],
                  ['skipped','Cleared', count('skipped')]]
     .map(([k,label,n])=>`<button class="fchip ${S.socFilter===k?'on':''}" data-socfilter="${k}">${label} <b>${n}</b></button>`).join('');
   const notes = socJobNote();
@@ -6903,6 +7026,7 @@ function pageSocial(){
       <button class="btn small" id="socSend" ${busy||!approved?'disabled':''}>Send ${approved||''} approved to Metricool</button>
     </div>
 
+    ${socResultsStrip()}
     <div class="fchips" style="margin:0 0 14px">${chips}</div>
 
     ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
@@ -6910,11 +7034,12 @@ function pageSocial(){
     ${S.socProg && !S.socOpenId?`<p class="hint" style="margin-bottom:14px">${esc(S.socProg)}</p>`:''}
     ${S.socErr && !S.socOpenId?`<p class="hint err" style="margin-bottom:14px">${esc(S.socErr)}</p>`:''}
 
-    ${all.length && openDates.length ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
+    ${all.length && openDates.length && S.socFilter !== 'results' ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
         ${openDates.map(d=>esc(socDay(d))).join(', ')}. ${extras
           ? 'Pick an extra option and choose Use on.'
           : 'Click Get more options to have spare posts built, then assign one to each date.'}</p>` : ''}
-    ${rows.length
+    ${S.socFilter === 'results' ? socResultsView()
+      : rows.length
       ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
       : `<div class="empty" style="padding:44px 0">
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
