@@ -866,7 +866,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13c';
+const BUILD = '2026-10-13d';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2602,7 +2602,22 @@ async function loadLeadRows(){
   S.loaded.leads = true;
 }
 
+/* "JWT issued at future" comes back when a request reaches the database a
+   moment after Supabase has issued a fresh login token, before the
+   database's clock has caught up with it. The same token works a second
+   later, so the tab waits briefly and tries once more rather than showing
+   an error. Loaders only mark themselves loaded on success, so the retry
+   re-runs just the reads that failed. */
 async function ensure(page){
+  try{ await ensureOnce(page); }
+  catch(err){
+    if(!/issued at future|PGRST303/i.test(String(err && (err.message || err.code) || err))) throw err;
+    await new Promise(r => setTimeout(r, 1500));
+    await ensureOnce(page);
+  }
+}
+
+async function ensureOnce(page){
   if(page==='home') await loadHome();
   if(page==='today'){
     // Six independent reads. One after another they were the slowest
