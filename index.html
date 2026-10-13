@@ -898,7 +898,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13g';
+const BUILD = '2026-10-13h';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -6645,7 +6645,11 @@ function wireReels(){
    plan.json). Import brings that folder in: media goes to the public
    social-media bucket and each post becomes a row here. From then on
    everything is editable. Generate and Send only queue a row in
-   social_jobs, which the scheduled Claude task picks up. */
+   social_jobs. Generate and extras need the J: archive, so the scheduled
+   Claude task on the laptop picks those up. Send only needs Metricool and
+   the media already in the bucket, so it queues a 'send_cloud' job that a
+   cloud routine picks up (see sql/social_send.sql); the laptop task
+   ignores that kind. */
 const SOC_BUCKET = 'social-media';
 const SOC_BRAND  = 'haggerty';
 const SOC_STATUS = { draft:'Draft', approved:'Approved', queued:'Sending',
@@ -6978,11 +6982,16 @@ function socJobNote(){
       : x.status === 'ready' ? 'More options are ready' + (x.note ? ': ' + x.note : '') + '. Click Import folder and pick that folder.'
       : 'More options did not finish' + (x.note ? ': ' + x.note : '.'));
   }
-  const s = jobs.find(j => j.kind === 'send');
-  if(s && s.status !== 'done'){
-    out.push(s.status === 'pending' ? 'Send requested. Approved posts go to Metricool as drafts within the hour on weekdays while the laptop is on.'
+  const s = jobs.find(j => j.kind === 'send' || j.kind === 'send_cloud');
+  const fresh = s && s.finished_at && (Date.now() - new Date(s.finished_at)) < 864e5;
+  if(s && (s.status !== 'done' || fresh)){
+    out.push(s.status === 'pending'
+        ? (s.kind === 'send_cloud'
+            ? 'Send requested. Approved posts go to Metricool as drafts within the hour, between 7 AM and 7 PM.'
+            : 'Send requested. Approved posts go to Metricool as drafts within the hour on weekdays while the laptop is on.')
       : s.status === 'running' ? 'Posts are going to Metricool now.'
       : s.status === 'failed' ? 'Sending did not finish' + (s.note ? ': ' + s.note : '.')
+      : s.status === 'done' && s.note ? 'Sent: ' + s.note
       : '');
   }
   return out.filter(Boolean);
@@ -7275,10 +7284,11 @@ async function requestSocialJob(kind){
         .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'approved');
       if(error) throw error;
     }
-    const open = (S.socJobs||[]).find(j => j.kind === kind && j.status === 'pending');
+    const jobKind = kind === 'send' ? 'send_cloud' : kind;
+    const open = (S.socJobs||[]).find(j => j.kind === jobKind && j.status === 'pending');
     if(!open){
       const { error } = await sb.from('social_jobs').insert({
-        kind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who });
+        kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who });
       if(error) throw error;
     }
     await reloadSocial();
