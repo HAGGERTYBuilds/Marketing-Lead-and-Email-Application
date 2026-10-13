@@ -7156,11 +7156,12 @@ function wireSocial(){
 /* Liam and Pat only. The tables refuse anyone else too (sql/budget.sql),
    so hiding the tab is a convenience, not the lock.
 
-   Approved items with a cost are read straight from approvals and count
-   as committed in the year they were approved. An expenses row is only
-   written for one when somebody gives it a category or marks it paid, so
-   nothing is typed twice and nothing has to be kept in step. */
+   Approved items with a cost, and events marked going with an amount
+   spent, are written into expenses by database triggers as committed.
+   The amount follows the approval or event until the row is marked paid,
+   and an approval sent back takes its committed row with it. */
 const BUDGET_USERS = ['liam','pat'];
+const BUD_SRC = { approval:'From approvals', event:'From events' };
 const BUD_PAY = { card:'Company card', ach:'ACH', check:'Check', invoice:'Invoice',
                   reimb:'Reimbursement', other:'Other' };
 
@@ -7169,7 +7170,7 @@ S.bud = { year:new Date().getFullYear(), cats:[], lines:[], exps:[], urls:{},
           saving:false, busy:'', err:'', note:'', loadErr:'' };
 
 function budBlankForm(over){
-  return Object.assign({ id:null, approval_id:null, spent_on:today(), vendor:'',
+  return Object.assign({ id:null, source:'manual', spent_on:today(), vendor:'',
     description:'', category:'', amount:'', status:'paid', paid_on:today(),
     payment_method:'card', reference:'', notes:'', receipt_name:null }, over || {});
 }
@@ -7177,8 +7178,8 @@ function budBlankForm(over){
 async function loadBudget(){
   const B = S.bud;
   const [c, l, e] = await Promise.all([
-    sb.from('budget_categories').select('*').order('sort'),
-    sb.from('budget_lines').select('*'),
+    sb.from('budget_categories').select('*').order('sort_order'),
+    sb.from('budget_plan').select('*'),
     sb.from('expenses').select('*')
       .order('spent_on', { ascending:false }).order('created_at', { ascending:false })
   ]);
@@ -7194,14 +7195,18 @@ async function loadBudget(){
     return;
   }
   B.loadErr = '';
-  B.cats = c.data || []; B.lines = l.data || []; B.exps = e.data || [];
-  if(!S.loaded.approvals) await loadApprovals();
+  /* Categories are keyed by id everywhere below, as strings, because
+     that is what a <select> hands back. */
+  B.cats = (c.data || []).map(r => Object.assign({}, r, { key:String(r.id), label:r.name }));
+  B.lines = (l.data || []).map(r => ({ year:r.year, category:String(r.category_id), planned:r.amount }));
+  B.exps = (e.data || []).map(r => Object.assign({}, r, {
+    category:r.category_id == null ? null : String(r.category_id), reference:r.invoice_ref }));
 
   B.urls = {};
   const paths = [...new Set(B.exps.map(x => x.receipt_path).filter(Boolean))];
   if(paths.length){
     try{
-      const { data:urls } = await sb.storage.from('budget-receipts').createSignedUrls(paths, 3600);
+      const { data:urls } = await sb.storage.from('receipts').createSignedUrls(paths, 3600);
       for(const u of (urls||[])) if(u && u.path && u.signedUrl) B.urls[u.path] = u.signedUrl;
     }catch(err){ /* the row just shows no receipt link */ }
   }
@@ -7211,24 +7216,10 @@ async function loadBudget(){
 const budYearOf = d => d ? Number(String(d).slice(0, 4)) : null;
 const budCatLabel = k => { const c = S.bud.cats.find(c => c.key === k); return c ? c.label : (k || ''); };
 
-/* Everything that counts against one year: logged expenses, plus approved
-   items nobody has logged yet. An expense linked to any version of an
-   approval covers the whole chain, so a re-approved v2 is not counted
-   on top of the v1 it replaced. */
+/* Everything that counts against one year, newest first. */
 function budItems(year){
-  const B = S.bud;
-  const exps = B.exps.filter(x => budYearOf(x.spent_on) === year)
-    .map(x => Object.assign({}, x, { src:'exp', amount:Number(x.amount || 0) }));
-  const linked = new Set(B.exps.map(x => x.approval_id).filter(Boolean));
-  const apvs = apvCurrent()
-    .filter(a => a.status === 'approved' && a.unit_cost != null)
-    .filter(a => budYearOf(a.decided_at || a.created_at) === year)
-    .filter(a => ![a].concat(apvChain(a)).some(v => linked.has(v.id)))
-    .map(a => ({ src:'apv', id:'apv:' + a.id, approval_id:a.id,
-      spent_on:String(a.decided_at || a.created_at).slice(0, 10),
-      vendor:'', description:a.title, category:null, status:'committed',
-      amount:Math.round(Number(a.quantity == null ? 1 : a.quantity) * Number(a.unit_cost) * 100) / 100 }));
-  return exps.concat(apvs)
+  return S.bud.exps.filter(x => budYearOf(x.spent_on) === year)
+    .map(x => Object.assign({}, x, { src:'exp', amount:Number(x.amount || 0) }))
     .sort((a, b) => String(b.spent_on).localeCompare(String(a.spent_on)));
 }
 
@@ -7375,9 +7366,9 @@ function pageBudget(){
     <div class="block"><h2 class="sec">By category</h2>${catTable}</div>
 
     <div class="block" style="margin-top:30px"><h2 class="sec">Spending</h2>
-      ${needCat.some(it => it.src === 'apv') ? `<div class="warn soft" style="margin-bottom:12px"><b>${
-        needCat.filter(it => it.src === 'apv').length} approved item${needCat.filter(it => it.src === 'apv').length === 1 ? '' : 's'}</b>
-        came in from Approvals and still need a category. Pick one in the list below.</div>` : ''}
+      ${needCat.length ? `<div class="warn soft" style="margin-bottom:12px"><b>${
+        needCat.length} item${needCat.length === 1 ? '' : 's'}</b>
+        still need${needCat.length === 1 ? 's' : ''} a category. Pick one in the list below.</div>` : ''}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <div class="fchips" style="margin:0;flex:1">${chips}</div>
         <select id="budCatFilt" style="width:auto;min-width:200px">${budCatOptions(B.cat, 'All categories')}</select>
@@ -7399,7 +7390,7 @@ function budRow(it){
   const what = [it.vendor ? `<b>${esc(it.vendor)}</b>` : '', it.description ? esc(it.description) : '']
     .filter(Boolean).join(' &middot; ') || '<span class="muted">No details</span>';
   const tags = [];
-  if(it.approval_id) tags.push(`<span class="bud-tag">From approvals</span>`);
+  if(BUD_SRC[it.source]) tags.push(`<span class="bud-tag">${BUD_SRC[it.source]}</span>`);
   if(it.payment_method && BUD_PAY[it.payment_method]) tags.push(`<span class="bud-tag">${esc(BUD_PAY[it.payment_method])}</span>`);
   if(it.reference) tags.push(`<span class="bud-tag">#${esc(it.reference)}</span>`);
   const rc = it.receipt_path && B.urls[it.receipt_path]
@@ -7411,7 +7402,7 @@ function budRow(it){
     : `<span class="bud-st">Committed</span>`;
   const acts = [];
   if(it.status !== 'paid') acts.push(`<button class="linkbtn" data-bud-paid="${esc(it.id)}" ${busy ? 'disabled' : ''}>Mark paid</button>`);
-  if(it.src === 'exp') acts.push(`<button class="linkbtn" data-bud-open="${esc(it.id)}">Edit</button>`);
+  acts.push(`<button class="linkbtn" data-bud-open="${esc(it.id)}">Edit</button>`);
   return `<tr class="${busy ? 'busy' : ''}">
     <td class="mono">${esc(shortDate(it.spent_on + 'T12:00:00'))}</td>
     <td>${what}${tags.length || rc ? `<div class="bud-tags">${tags.join('')}${rc}</div>` : ''}</td>
@@ -7425,14 +7416,15 @@ function budRow(it){
 function budForm(){
   const B = S.bud, f = B.form;
   if(!f) return '';
-  const apv = f.approval_id ? (S.approvals || []).find(a => a.id === f.approval_id) : null;
+  const auto = f.source === 'approval' || f.source === 'event';
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Expense">
     <div class="sheet-in">
       <div class="sheet-head">
-        <h2>${f.id ? 'Edit expense' : apv ? 'Mark paid' : 'Add an expense'}</h2>
+        <h2>${f.id ? 'Edit expense' : 'Add an expense'}</h2>
         <button class="linkbtn" id="budClose">Close</button>
       </div>
-      ${apv ? `<p class="hint" style="margin-top:10px">From the approval <b>${esc(apv.title)}</b>. Change the amount if the invoice came in different.</p>` : ''}
+      ${auto ? `<p class="hint" style="margin-top:10px">${f.source === 'event' ? 'This came in from an event on the calendar.' : 'This came in from an approval.'}
+        While it is committed, the amount follows the ${f.source === 'event' ? 'event' : 'approval'}. Once it is marked paid, it stays as entered here.</p>` : ''}
 
       <div class="apv-pair">
         <div class="field"><label for="budDate">Date</label>
@@ -7477,7 +7469,7 @@ function budForm(){
 
       <div class="sheet-foot">
         <button class="btn" id="budSave" ${B.saving ? 'disabled' : ''}>${B.saving ? 'Saving&hellip;' : 'Save'}</button>
-        ${f.id ? `<p style="margin:12px 0 0;text-align:center"><button class="linkbtn" id="budDel" style="color:var(--red)">Delete this expense</button></p>` : ''}
+        ${f.id && !auto ? `<p style="margin:12px 0 0;text-align:center"><button class="linkbtn" id="budDel" style="color:var(--red)">Delete this expense</button></p>` : ''}
       </div>
     </div>
   </div>`;
@@ -7487,19 +7479,12 @@ function budOpenFor(id){
   const B = S.bud;
   B.err = ''; B.note = ''; B.file = null;
   if(!id){ B.form = budBlankForm(); return render(); }
-  if(id.startsWith('apv:')){
-    const it = budItems(B.year).find(x => x.id === id);
-    if(!it) return;
-    B.form = budBlankForm({ approval_id:it.approval_id, description:it.description,
-      amount:it.amount.toFixed(2), spent_on:it.spent_on });
-    return render();
-  }
   const x = B.exps.find(x => x.id === id);
   if(!x) return;
-  B.form = budBlankForm({ id:x.id, approval_id:x.approval_id, spent_on:x.spent_on,
+  B.form = budBlankForm({ id:x.id, source:x.source, spent_on:x.spent_on,
     vendor:x.vendor || '', description:x.description || '', category:x.category || '',
-    amount:Number(x.amount).toFixed(2), status:x.status, paid_on:x.paid_on || '',
-    payment_method:x.payment_method || 'other', reference:x.reference || '',
+    amount:Number(x.amount).toFixed(2), status:x.status, paid_on:x.paid_on || today(),
+    payment_method:x.payment_method || 'card', reference:x.reference || '',
     notes:x.notes || '', receipt_name:x.receipt_name });
   render();
 }
@@ -7512,6 +7497,7 @@ async function saveBudExpense(){
   const amt = apvNum(f.amount);
   if(amt === null || Number.isNaN(amt)){ B.err = 'Amount needs to be a number, like 125 or 125.50.'; return render(); }
   if(!f.spent_on){ B.err = 'Pick a date.'; return render(); }
+  if(!String(f.description).trim()){ B.err = 'Say what it was for.'; return render(); }
   B.saving = true; B.err = ''; render();
 
   let who = '';
@@ -7520,27 +7506,26 @@ async function saveBudExpense(){
   try{
     const row = {
       spent_on:f.spent_on, vendor:String(f.vendor).trim() || null,
-      description:String(f.description).trim() || null, category:f.category || null,
+      description:String(f.description).trim(), category_id:f.category ? Number(f.category) : null,
       amount:Math.round(amt * 100) / 100, status:f.status,
       paid_on:f.status === 'paid' ? (f.paid_on || f.spent_on) : null,
-      payment_method:f.payment_method || null, reference:String(f.reference).trim() || null,
-      notes:String(f.notes).trim() || null, approval_id:f.approval_id || null,
-      updated_at:new Date().toISOString()
+      payment_method:f.payment_method || null, invoice_ref:String(f.reference).trim() || null,
+      notes:String(f.notes).trim() || null, updated_at:new Date().toISOString()
     };
     let oldPath = null;
     if(B.file){
       const safe = B.file.name.replace(/[^A-Za-z0-9._-]/g, '_');
       const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}/${safe}`;
-      const { error:upErr } = await sb.storage.from('budget-receipts').upload(path, B.file, { upsert:false });
+      const { error:upErr } = await sb.storage.from('receipts').upload(path, B.file, { upsert:false });
       if(upErr) throw upErr;
       row.receipt_path = path; row.receipt_name = B.file.name;
       if(f.id) oldPath = (B.exps.find(x => x.id === f.id) || {}).receipt_path || null;
     }
     const { error } = f.id
       ? await sb.from('expenses').update(row).eq('id', f.id)
-      : await sb.from('expenses').insert(Object.assign(row, { created_by:who }));
+      : await sb.from('expenses').insert(Object.assign(row, { source:'manual', created_by:who }));
     if(error) throw error;
-    if(oldPath){ try{ await sb.storage.from('budget-receipts').remove([oldPath]); }catch(e){} }
+    if(oldPath){ try{ await sb.storage.from('receipts').remove([oldPath]); }catch(e){} }
     B.form = null; B.file = null;
     B.note = 'Saved.';
     await budReload();
@@ -7557,31 +7542,20 @@ async function deleteBudExpense(){
   try{
     const { error } = await sb.from('expenses').delete().eq('id', f.id);
     if(error) throw error;
-    if(x && x.receipt_path){ try{ await sb.storage.from('budget-receipts').remove([x.receipt_path]); }catch(e){} }
+    if(x && x.receipt_path){ try{ await sb.storage.from('receipts').remove([x.receipt_path]); }catch(e){} }
     B.form = null; B.note = 'Deleted.';
     await budReload();
   }catch(err){ B.err = err.message || String(err); }
   B.saving = false; render();
 }
 
-/* A category picked from the list, or Mark paid on a committed row.
-   For an approved item this is the moment its expenses row is written. */
+/* A category picked from the list, or Mark paid on a committed row. */
 async function budQuick(id, patch){
   const B = S.bud;
   B.busy = id; B.err = ''; B.note = ''; render();
   try{
-    let error;
-    if(id.startsWith('apv:')){
-      const it = budItems(B.year).find(x => x.id === id);
-      if(!it) throw new Error('That approval is no longer in the list.');
-      let who = '';
-      try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
-      ({ error } = await sb.from('expenses').insert(Object.assign({
-        approval_id:it.approval_id, spent_on:it.spent_on, description:it.description,
-        amount:it.amount, status:'committed', created_by:who }, patch)));
-    }else{
-      ({ error } = await sb.from('expenses').update(Object.assign({ updated_at:new Date().toISOString() }, patch)).eq('id', id));
-    }
+    const { error } = await sb.from('expenses')
+      .update(Object.assign({ updated_at:new Date().toISOString() }, patch)).eq('id', id);
     if(error) throw error;
     await budReload();
   }catch(err){ B.err = err.message || String(err); }
@@ -7595,20 +7569,20 @@ async function saveBudPlan(){
   for(const c of cats){
     const n = apvNum(B.plan[c.key]);
     if(Number.isNaN(n)){ B.err = `The budget for ${c.label} needs to be a number.`; return render(); }
-    lines.push({ year:y, category:c.key, planned:n === null ? 0 : Math.round(n * 100) / 100 });
+    lines.push({ year:y, category_id:c.id, amount:n === null ? 0 : Math.round(n * 100) / 100 });
   }
   B.saving = true; B.err = ''; render();
   let who = '';
   try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
   try{
     const now = new Date().toISOString();
-    const { error } = await sb.from('budget_lines')
-      .upsert(lines.map(l => Object.assign(l, { updated_by:who, updated_at:now })), { onConflict:'year,category' });
+    const { error } = await sb.from('budget_plan')
+      .upsert(lines.map(l => Object.assign(l, { updated_by:who, updated_at:now })), { onConflict:'year,category_id' });
     if(error) throw error;
     for(const c of cats){
       const gl = String(B.gl[c.key] ?? '').trim() || null;
       if(gl !== (c.gl_account || null)){
-        const { error:e2 } = await sb.from('budget_categories').update({ gl_account:gl }).eq('key', c.key);
+        const { error:e2 } = await sb.from('budget_categories').update({ gl_account:gl }).eq('id', c.id);
         if(e2) throw e2;
       }
     }
@@ -7647,7 +7621,7 @@ function exportBudget(){
     rows.push([it.spent_on, it.vendor, it.description, budCatLabel(it.category), glOf(it.category),
       it.amount.toFixed(2), it.status === 'paid' ? 'Paid' : 'Committed', it.paid_on || '',
       BUD_PAY[it.payment_method] || '', it.reference || '', it.notes || '',
-      it.approval_id ? 'Approvals' : 'Budget tab']);
+      { approval:'Approvals', event:'Events' }[it.source] || 'Budget tab']);
   }
   const blob = new Blob([rows.map(r => r.map(cell).join(',')).join('\n')], { type:'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -7689,15 +7663,9 @@ function wireBudget(){
   document.querySelectorAll('[data-bud-open]').forEach(el =>
     el.addEventListener('click', () => budOpenFor(el.dataset.budOpen)));
   document.querySelectorAll('[data-bud-setcat]').forEach(el =>
-    el.addEventListener('change', () => { if(el.value) budQuick(el.dataset.budSetcat, { category:el.value }); }));
-  /* An approved item goes through the form, so the real vendor, amount
-     and receipt can be filled in. A logged row is one click. */
+    el.addEventListener('change', () => { if(el.value) budQuick(el.dataset.budSetcat, { category_id:Number(el.value) }); }));
   document.querySelectorAll('[data-bud-paid]').forEach(el =>
-    el.addEventListener('click', () => {
-      const id = el.dataset.budPaid;
-      if(id.startsWith('apv:')){ budOpenFor(id); B.form.status = 'paid'; render(); }
-      else budQuick(id, { status:'paid', paid_on:today() });
-    }));
+    el.addEventListener('click', () => budQuick(el.dataset.budPaid, { status:'paid', paid_on:today() })));
 
   if(!B.form) return;
   const f = B.form;
