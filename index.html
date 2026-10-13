@@ -5894,7 +5894,11 @@ async function generate(verticalId, count, gold){
       headers:await authHeaders(),
       body:JSON.stringify(body)});
     const out = await res.json().catch(()=>({}));
-    S.gen = out.ok ? `${out.queued} added to the list with drafts ready.`
+    /* removed is how many picks failed the Evaboot address check and were
+       left off before any draft was written. */
+    const dropped = Number(out.removed || 0);
+    S.gen = out.ok ? `${out.queued} added to the list with drafts ready.` +
+                     (dropped ? ` ${dropped} left off because the address failed the check.` : '')
                    : (out.error || 'Nothing eligible in that sector right now.');
     S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
     await loadTiles(); await loadBoard();

@@ -1,4 +1,5 @@
--- Supabase security advisor fixes. NOT applied yet: run once Liam says so.
+-- Supabase security advisor fixes. Applied to Supabase on 2026-10-13 as
+-- migration 18_hardening. Kept here as the record.
 --
 -- 1. Pins search_path on the 21 functions the advisor flags. Without it a
 --    function resolves table and function names through whatever search_path
