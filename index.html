@@ -722,6 +722,10 @@
   .health .bad .v{color:var(--red)}
   .health .warnv .v{color:var(--orange-ink)}
 
+  /* ---------- marketing return ---------- */
+  .ret-stats .stat{min-width:0}
+  .ret-stats .v{font-size:clamp(19px,5.4vw,31px);white-space:nowrap}
+
   /* ---------- home ---------- */
   .home{max-width:1180px;padding:22px 22px 70px}
   .home-hi{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 16px}
@@ -866,7 +870,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13d';
+const BUILD = '2026-10-13e';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2639,6 +2643,7 @@ async function ensureOnce(page){
   if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='kpis'){
     if(!S.loaded.kpis) await loadKpis();
+    if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
     if(!S.loaded.metrics) await loadMetrics();
   }
   if(OWNERS[page] && !S.loaded.tasks[OWNERS[page]]) await loadTasks(OWNERS[page]);
@@ -2850,6 +2855,7 @@ function wirePage(){
   const ks = document.getElementById('kpiSave');
   if(ks) ks.addEventListener('click', saveKpiTargets);
   wireHome();
+  wireReturn();
   wireRequests();
   wireApprovals();
   wireBudget();
@@ -3980,6 +3986,7 @@ function pageKpis(){
   const o = k.outcomes || {}, op = k.open || {};
   const qtr = Math.floor(new Date().getMonth()/3) + 1;
   if(S.kpiView === 'board') return pageBoard();
+  if(S.kpiView === 'return') return pageReturn();
 
   /* ---- scorecard ---- */
   const score = k.score.map(r=>{
@@ -4059,10 +4066,7 @@ function pageKpis(){
 
   return `<main class="page">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <div class="kswitch">
-        <button data-kview="scorecard" class="${S.kpiView==='scorecard'?'on':''}">Scorecard</button>
-        <button data-kview="board" class="${S.kpiView==='board'?'on':''}">Board</button>
-      </div>
+      ${kpiSwitch()}
       <span class="eyebrow" style="flex:1;min-width:150px">Pat Dobson &middot; ${k.year} &middot; Q${qtr} to date</span>
       <button class="btn small ghost" id="kpiEdit">${S.kpiEdit?'Hide targets':'Edit targets'}</button>
       <button class="btn small ghost" id="exportCsv">Export CSV</button>
@@ -4198,10 +4202,7 @@ function pageBoard(){
 
 function boardHead(){
   return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-    <div class="kswitch">
-      <button data-kview="scorecard" class="${S.kpiView==='scorecard'?'on':''}">Scorecard</button>
-      <button data-kview="board" class="${S.kpiView==='board'?'on':''}">Board</button>
-    </div>
+    ${kpiSwitch()}
     <span class="spacer"></span>
   </div>`;
 }
@@ -4238,6 +4239,10 @@ function dealSheet(){
 
       <div class="field"><label for="dStage">Stage</label>
         <select id="dStage">${opts}</select></div>
+      ${(() => {
+        const sr = (S.ret.rows||[]).find(r => String(r.pipedrive_deal_id) === String(d.pipedrive_deal_id));
+        return sr ? `<div class="field"><label for="dSource">Came from</label>${retSourceSelect(sr, 'dSource')}</div>` : '';
+      })()}
 
       <div class="actions">
         <button class="btn" id="dMove" ${S.dealBusy?'disabled':''}>${S.dealBusy?'Saving&hellip;':'Move'}</button>
@@ -4412,7 +4417,13 @@ function wireDrag(){
 function wireBoard(){
   wireDrag();
   document.querySelectorAll('[data-kview]').forEach(el=>
-    el.addEventListener('click',()=>{ S.kpiView = el.dataset.kview; S.kpiNote=''; S.dealErr=''; render(); }));
+    el.addEventListener('click', async ()=>{
+      S.kpiView = el.dataset.kview; S.kpiNote=''; S.dealErr=''; render();
+      if(S.kpiView !== 'scorecard' && !S.loaded.ret){
+        try{ await loadReturn(); }catch(err){ S.ret.err = 'Could not load deal sources. ' + (err.message || err); }
+        render();
+      }
+    }));
 
   document.querySelectorAll('[data-cview]').forEach(el=>
     el.addEventListener('click',()=>{ S.calView = el.dataset.cview; S.inviteErr=''; render(); }));
@@ -7832,6 +7843,209 @@ function wireBudget(){
   if(sv) sv.addEventListener('click', saveBudExpense);
   const dl = document.getElementById('budDel');
   if(dl) dl.addEventListener('click', deleteBudExpense);
+}
+
+/* ================= marketing return ================= */
+/* What the marketing spend brought in. Pipedrive has no source on a deal,
+   so it lives in deal_sources (sql/deal_sources.sql). A deal at a company
+   the dashboard emailed before the deal was added counts as outreach
+   without anyone tagging it; a source picked by hand always wins. */
+const RET_SOURCES = { outreach:'Outreach email', event:'Event', website:'Website or inbound',
+                      social:'Social', referral:'Referral', repeat:'Repeat client', other:'Other' };
+/* The sources marketing can take credit for. Referrals and repeat
+   clients are won by the relationship, not the spend. */
+const RET_MARKETING = ['outreach','event','website','social'];
+
+S.ret = { rows:null, events:[], busy:'', err:'', note:'' };
+
+async function loadReturn(){
+  const [r, e] = await Promise.all([
+    sb.from('v_deal_sources').select('*'),
+    sb.from('event_invites').select('id,event_name,subject,org_name,starts_at,amount_spent')
+      .eq('decision','going').order('starts_at', { ascending:false })
+  ]);
+  if(r.error){
+    S.ret.err = /does not exist|schema cache|PGRST205|42P01/i.test(r.error.message + ' ' + (r.error.code||''))
+      ? 'Deal sources are not set up in the database yet (sql/deal_sources.sql).'
+      : 'Could not load deal sources. ' + r.error.message;
+    S.ret.rows = [];
+  } else { S.ret.err = ''; S.ret.rows = r.data || []; }
+  S.ret.events = e.data || [];
+  if(BUDGET_USERS.includes(S.me) && !S.loaded.budget){
+    try{ await loadBudget(); }catch(err){ /* spend shows as unavailable */ }
+  }
+  S.loaded.ret = true;
+}
+
+const retYear = d => d ? Number(String(d).slice(0,4)) : null;
+const retCanEdit = () => BUDGET_USERS.includes(S.me);
+
+function retEventLabel(ev){
+  return (ev.event_name || ev.subject || 'Event') + (ev.starts_at ? ' (' + shortDate(ev.starts_at) + ')' : '');
+}
+
+function retSourceSelect(row, id){
+  const cur = row.source_auto ? '' : (row.source || '');
+  const opts = `<option value="">${row.source_auto ? 'Outreach email (worked out)' : 'Not set'}</option>` +
+    Object.entries(RET_SOURCES).map(([k,l]) =>
+      `<option value="${k}" ${k===cur?'selected':''}>${esc(l)}</option>`).join('');
+  const busy = S.ret.busy === row.deal_id;
+  let html = `<select id="${id}" data-ret-src="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
+    aria-label="Where ${esc(row.title || 'this deal')} came from">${opts}</select>`;
+  if(row.source === 'event' && !row.source_auto){
+    html += `<select data-ret-ev="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
+      aria-label="Which event" style="margin-top:4px">
+      <option value="">Which event?</option>
+      ${(S.ret.events||[]).map(ev => `<option value="${esc(ev.id)}" ${ev.id===row.event_invite_id?'selected':''}>${
+        esc(retEventLabel(ev))}</option>`).join('')}</select>`;
+  }
+  return html;
+}
+
+async function saveDealSource(dealId, source, eventId){
+  if(S.ret.busy) return;
+  const row = (S.ret.rows||[]).find(r => r.deal_id === dealId);
+  if(!row) return;
+  S.ret.busy = dealId; S.ret.err = ''; render();
+  try{
+    if(!source){
+      const { error } = await sb.from('deal_sources').delete().eq('deal_id', dealId);
+      if(error) throw error;
+    } else {
+      const who = await socWho();
+      const { error } = await sb.from('deal_sources').upsert({
+        deal_id: dealId, source,
+        event_invite_id: source === 'event' ? (eventId || null) : null,
+        set_by: who, set_at: new Date().toISOString()
+      });
+      if(error) throw error;
+    }
+    S.loaded.ret = false;
+    await loadReturn();
+  }catch(err){ S.ret.err = 'Could not save the source. ' + (err.message || err); }
+  S.ret.busy = ''; render();
+}
+
+function kpiSwitch(){
+  return `<div class="kswitch">
+    <button data-kview="scorecard" class="${S.kpiView==='scorecard'?'on':''}">Scorecard</button>
+    <button data-kview="board" class="${S.kpiView==='board'?'on':''}">Board</button>
+    <button data-kview="return" class="${S.kpiView==='return'?'on':''}">Return</button>
+  </div>`;
+}
+
+function pageReturn(){
+  if(!S.loaded.ret) return `<main class="page">${kpiSwitch()}${loading()}</main>`;
+  const year = new Date().getFullYear();
+  const rows = S.ret.rows || [];
+  const wonY = rows.filter(r => r.status === 'won' && retYear(r.pipedrive_updated_at) === year);
+  const open = rows.filter(r => r.status === 'open');
+  const sum = list => list.reduce((a, r) => a + Number(r.value || 0), 0);
+  const mkt = r => RET_MARKETING.includes(r.source);
+
+  /* Spend comes from the Budget tab, so it is only there for Liam and Pat. */
+  let spend = null, evSpend = {};
+  if(S.loaded.budget && !S.bud.loadErr && retCanEdit()){
+    const t = budSummary(year, budItems(year)).t;
+    spend = t.paid + t.committed;
+    for(const x of S.bud.exps) if(x.event_invite_id)
+      evSpend[x.event_invite_id] = (evSpend[x.event_invite_id] || 0) + Number(x.amount || 0);
+  }
+  const wonMkt = sum(wonY.filter(mkt));
+  const multiple = spend ? wonMkt / spend : null;
+  const untagged = wonY.filter(r => !r.source).length + open.filter(r => !r.source).length;
+
+  const stats = `<div class="stat-grid ret-stats" style="margin-bottom:22px">
+    <div class="stat"><div class="k">Marketing spend ${year}</div><div class="v">${spend === null ? '&ndash;' : money(spend)}</div>
+      ${spend === null ? `<p class="hint" style="margin:4px 0 0">From the Budget tab, Liam and Pat only.</p>` : ''}</div>
+    <div class="stat accent"><div class="k">Won from marketing</div><div class="v">${money(wonMkt)}</div>
+      <p class="hint" style="margin:4px 0 0">${num(wonY.filter(mkt).length)} of ${num(wonY.length)} deals won this year</p></div>
+    <div class="stat"><div class="k">Return on spend</div><div class="v">${multiple === null ? '&ndash;' : (multiple >= 10 ? Math.round(multiple) : multiple.toFixed(1)) + '<small>&times;</small>'}</div>
+      <p class="hint" style="margin:4px 0 0">${multiple === null ? 'Needs spend and a tagged win' : 'Won value per dollar spent'}</p></div>
+    <div class="stat"><div class="k">Open from marketing</div><div class="v">${money(sum(open.filter(mkt)))}</div>
+      <p class="hint" style="margin:4px 0 0">${num(open.filter(mkt).length)} open deal${open.filter(mkt).length===1?'':'s'}</p></div>
+  </div>`;
+
+  const keys = Object.keys(RET_SOURCES).concat(['']);
+  const bySource = keys.map(k => {
+    const w = wonY.filter(r => (r.source || '') === k), o = open.filter(r => (r.source || '') === k);
+    if(!w.length && !o.length) return '';
+    return `<tr>
+      <td>${k ? `<b>${esc(RET_SOURCES[k])}</b>${RET_MARKETING.includes(k) ? '' : ' <span class="chip">not marketing</span>'}`
+              : `<span style="color:var(--red)">No source yet</span>`}</td>
+      <td class="num">${num(w.length)}</td><td class="num"><b>${money(sum(w))}</b></td>
+      <td class="num">${num(o.length)}</td><td class="num">${money(sum(o))}</td>
+    </tr>`;
+  }).join('');
+
+  const evRows = (S.ret.events || []).map(ev => {
+    const tagged = rows.filter(r => r.source === 'event' && r.event_invite_id === ev.id);
+    const spent = evSpend[ev.id] != null ? evSpend[ev.id] : (ev.amount_spent != null ? Number(ev.amount_spent) : null);
+    return `<tr>
+      <td><b>${esc(ev.event_name || ev.subject || 'Event')}</b>${ev.org_name ? ` <span class="muted">${esc(ev.org_name)}</span>` : ''}</td>
+      <td class="num">${esc(shortDate(ev.starts_at))}</td>
+      <td class="num">${spent === null ? '&ndash;' : money(spent)}</td>
+      <td class="num">${num(tagged.length)}</td>
+      <td class="num"><b>${money(sum(tagged.filter(r => r.status === 'won')))}</b></td>
+      <td class="num">${money(sum(tagged.filter(r => r.status === 'open')))}</td>
+    </tr>`;
+  }).join('');
+
+  const need = wonY.filter(r => !r.source).concat(open.filter(r => !r.source))
+    .sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const needRows = need.map((r, i) => `<tr>
+      <td><b>${esc(r.title || 'Untitled')}</b>${r.company_name ? ` <span class="muted">${esc(r.company_name)}</span>` : ''}
+        ${r.status === 'won' ? ' <span class="chip good">won</span>' : ''}</td>
+      <td class="num">${money(r.value)}</td>
+      <td style="min-width:190px">${retSourceSelect(r, 'retSrc' + i)}</td>
+    </tr>`).join('');
+
+  return `<main class="page">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      ${kpiSwitch()}
+      <span class="eyebrow" style="flex:1;min-width:150px">Marketing return &middot; ${year}</span>
+    </div>
+    ${S.ret.err ? `<div class="warn" style="margin-bottom:14px">${esc(S.ret.err)}</div>` : ''}
+    ${stats}
+
+    <div class="block">
+      <h2 class="sec">Where deals came from</h2>
+      <div style="overflow-x:auto"><table><thead><tr><th>Source</th>
+        <th class="num">Won ${year}</th><th class="num">Won value</th>
+        <th class="num">Open</th><th class="num">Open value</th></tr></thead>
+        <tbody>${bySource || `<tr><td colspan="5" class="hint">No deals yet.</td></tr>`}</tbody></table></div>
+      <p class="hint">Deals at a company Pat emailed before the deal was added count as outreach on their own.
+      Won deals count in the year of their last Pipedrive update, the same as the scorecard.</p>
+    </div>
+
+    <div class="block">
+      <h2 class="sec">Events</h2>
+      ${evRows ? `<div style="overflow-x:auto"><table><thead><tr><th>Event</th><th class="num">Date</th>
+        <th class="num">Spent</th><th class="num">Deals</th><th class="num">Won</th><th class="num">Open</th></tr></thead>
+        <tbody>${evRows}</tbody></table></div>
+        <p class="hint">Spent is what the Budget tab has against the event. Tag a deal with the event below to count it here.</p>`
+      : `<p class="hint">No events marked going yet.</p>`}
+    </div>
+
+    <div class="block">
+      <h2 class="sec">Needs a source${need.length ? ` (${need.length})` : ''}</h2>
+      ${need.length ? `<div style="overflow-x:auto"><table><thead><tr><th>Deal</th><th class="num">Value</th><th>Came from</th></tr></thead>
+        <tbody>${needRows}</tbody></table></div>
+        <p class="hint">${retCanEdit() ? 'Pick where each one came from. It saves as soon as you choose.'
+          : 'Liam or Pat can set these.'} Deals won this year come first, then open deals, biggest first.</p>`
+      : `<p class="hint">Every won and open deal has a source.</p>`}
+    </div>
+  </main>`;
+}
+
+function wireReturn(){
+  document.querySelectorAll('[data-ret-src]').forEach(el =>
+    el.addEventListener('change', () => {
+      const row = (S.ret.rows||[]).find(r => r.deal_id === el.dataset.retSrc);
+      saveDealSource(el.dataset.retSrc, el.value, row && row.event_invite_id);
+    }));
+  document.querySelectorAll('[data-ret-ev]').forEach(el =>
+    el.addEventListener('change', () => saveDealSource(el.dataset.retEv, 'event', el.value)));
 }
 
 /* ================= home ================= */
