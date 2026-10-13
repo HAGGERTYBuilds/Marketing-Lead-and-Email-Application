@@ -38,6 +38,7 @@
                letter-spacing:.08em;font-size:13px;color:var(--slate);
                font-weight:600;margin-bottom:6px}
   .field .req{color:var(--orange)}
+  .hpf{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
   /* 16px minimum, or iOS zooms the whole page on focus and the person
      loses their place in the form. */
   input[type=text],input[type=email],input[type=date],textarea,select{
@@ -145,8 +146,18 @@ const CHANNELS = {
 const F = {
   brand:'haggerty', name:'', email:'', type:'', channel:'',
   title:'', details:'', needed_by:'', files:[],
-  busy:false, err:'', done:false, prog:0, ref:''
+  busy:false, err:'', done:false, prog:0, ref:'', hp:''
 };
+
+/* Spam guard. The form is public and anyone can write to it, so a bot
+   that finds the link could fill the request list and the photo bucket.
+   Two quiet checks catch the usual form bots without bothering people:
+   a field that is hidden from people but which bots fill in, and a
+   minimum time on the page, since nobody writes a request in three
+   seconds. Either one makes the form look as if it sent without
+   writing anything. */
+const OPENED_AT = Date.now();
+const MIN_SECONDS = 3;
 
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -253,6 +264,11 @@ function render(){
       <p class="hint">Leave it blank if there is no hard date.</p>
     </div>
 
+    <div class="hpf" aria-hidden="true">
+      <label for="hpw">Leave this empty</label>
+      <input type="text" id="hpw" tabindex="-1" autocomplete="off" value="${esc(F.hp)}" />
+    </div>
+
     <div class="field">
       <label>Photos or screenshots</label>
       <input type="file" id="fi" accept="image/*,application/pdf" multiple capture="environment" />
@@ -295,7 +311,7 @@ function render(){
     if(el) el.addEventListener(ev,()=>{ F[key] = el.value; });
   };
   bind('nm','name'); bind('em','email'); bind('ti','title');
-  bind('de','details'); bind('nb','needed_by','change');
+  bind('de','details'); bind('nb','needed_by','change'); bind('hpw','hp');
 
   const fi = document.getElementById('fi');
   document.getElementById('addf').addEventListener('click',()=>fi.click());
@@ -329,6 +345,10 @@ async function submit(){
   if(missing.length){
     F.err = 'Still need ' + missing.join(', ') + '.';
     render(); window.scrollTo(0,0); return;
+  }
+
+  if(F.hp.trim() || (Date.now() - OPENED_AT) < MIN_SECONDS*1000){
+    F.done = true; F.ref = ''; render(); window.scrollTo(0,0); return;
   }
 
   F.busy = true; F.err = ''; F.prog = 0; render();

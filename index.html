@@ -17,6 +17,10 @@
     --display:"Barlow Condensed",system-ui,sans-serif;
     --body:"IBM Plex Sans",system-ui,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,monospace;
+    /* Older blocks below were written against these two names. They were
+       never defined, so every border and font that used them silently
+       dropped out. Pointing them at the real tokens brings them back. */
+    --line:var(--rule); --sans:var(--body);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -706,6 +710,55 @@
     .page{max-width:none;padding:0}
   }
 
+  /* ---------- email health ---------- */
+  .health{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+          border:1px solid var(--rule)}
+  .health > div{background:var(--card);padding:10px 12px}
+  .health .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+             font-size:11.5px;color:var(--slate);font-weight:600}
+  .health .v{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.15;
+             font-variant-numeric:tabular-nums}
+  .health .v small{font-size:13px;color:var(--slate);font-weight:600}
+  .health .bad .v{color:var(--red)}
+  .health .warnv .v{color:var(--orange-ink)}
+
+  /* ---------- home ---------- */
+  .home{max-width:1180px;padding:22px 22px 70px}
+  .home-hi{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 16px}
+  .home-hi h1{font-family:var(--display);font-size:30px;font-weight:700;margin:0;text-wrap:balance}
+  .home-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+              background:var(--rule);border:1px solid var(--rule);margin-bottom:24px}
+  .hcard{background:var(--card);border:0;text-align:left;padding:13px 15px 12px;cursor:pointer;
+         display:flex;flex-direction:column;gap:3px;font:inherit;color:inherit;min-width:0}
+  .hcard:hover{background:var(--paper)}
+  .hcard .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+            font-size:11.5px;color:var(--slate);font-weight:600}
+  .hcard .v{font-family:var(--display);font-size:30px;font-weight:700;line-height:1.1;
+            font-variant-numeric:tabular-nums}
+  .hcard .v small{font-size:14px;color:var(--slate);font-weight:600}
+  .hcard .d{font-size:12.5px;color:var(--slate)}
+  .hcard.hot{box-shadow:inset 3px 0 0 var(--orange)}
+  .hcard.bad .v{color:var(--red)}
+  .hcard.quiet .v{color:var(--slate)}
+  .home-cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:26px}
+  .home-cols > div{min-width:0}
+  .hlist{border:1px solid var(--rule);background:var(--card)}
+  .hrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:9px 13px;
+        border-bottom:1px solid var(--rule-soft);font-size:13.5px;align-items:baseline}
+  .hrow:last-child{border-bottom:0}
+  .hrow .n{font-weight:600;overflow-wrap:anywhere}
+  .hrow .n em{font-style:normal;font-weight:400;color:var(--slate)}
+  .hrow .w{font-family:var(--mono);font-size:12px;color:var(--slate);white-space:nowrap}
+  .hrow .w.late{color:var(--red)}
+  button.hrow{width:100%;background:none;border:0;border-bottom:1px solid var(--rule-soft);
+              text-align:left;font:inherit;color:inherit;cursor:pointer}
+  button.hrow:hover{background:var(--paper)}
+  .hmore{display:inline-block;margin-top:7px}
+  @media (max-width:820px){
+    .home{padding:18px 16px 70px}
+    .home-cols{grid-template-columns:1fr}
+  }
+
   /* ---------- budget ---------- */
   .bud-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .bud-year{display:flex;align-items:center;gap:2px}
@@ -772,7 +825,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
                internal:'Internal', other:'Block' };
 
 const PAGES = [
-  ['today','Outreach'], ['calendar',"Pat's Calendar"],
+  ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads']
 ];
@@ -787,7 +840,8 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
 const visiblePages = () => (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
-  .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me));
+  .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
+  .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
 
 /* Every n8n call carries the signed-in session, so the workflows can
    refuse anyone who is not logged in to this dashboard. */
@@ -812,7 +866,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13a';
+const BUILD = '2026-10-13d';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -940,6 +994,18 @@ function renderLogin(msg){
   });
 }
 
+function renderNoAccess(email){
+  app.innerHTML = `<div class="center"><div class="loginbox">
+    <span class="wordmark">HAGGERT<span>Y</span></span>
+    <span class="eyebrow">Marketing hub</span>
+    <p style="margin:0 0 6px"><b>${esc(email || 'This account')}</b> is signed in but has not been given a place on the dashboard yet.</p>
+    <p class="hint">Ask Liam to add it.</p>
+    <button class="btn" id="naOut">Sign out</button></div></div>`;
+  document.getElementById('naOut').addEventListener('click', async ()=>{
+    await sb.auth.signOut(); renderLogin();
+  });
+}
+
 /* ================= loaders ================= */
 /* Today's queue, plus any follow-up still sitting unhandled from an earlier
    day. A follow-up used to appear for exactly one day and then fall off the
@@ -1035,6 +1101,43 @@ function voicePanel(){
     ${v ? `<p class="hint">Profile rebuilt ${esc(shortDate(v.created_at))} from ${esc(v.built_from || 'examples')}.
       <button class="linkbtn" data-toggle="voiceprofile">${open ? 'Hide it' : 'Read it'}</button></p>
       ${open ? `<div class="panelbox" style="white-space:pre-wrap;font-size:13px">${esc(v.profile_text)}</div>` : ''}` : ''}`;
+}
+
+/* Email health. The numbers already existed in v_dash_headline but only
+   reached the CSV export, so 15 bounces out of 54 sends in a month went
+   unseen. A mailbox that bounces that often gets filtered by Microsoft
+   and Google, which hurts every email Pat sends, not just outreach.
+   Never throws: a missing strip is not a reason to hold up the board. */
+const BOUNCE_WARN = 2, BOUNCE_BAD = 5;   // percent of sends
+async function loadHealth(){
+  try{
+    const { data } = await sb.from('v_dash_headline')
+      .select('sent_30d,replied_30d,bounced_30d,reply_rate_30d').single();
+    S.health = data || null;
+  }catch(e){ S.health = null; }
+  S.loaded.health = true;
+}
+
+function healthPanel(){
+  const h = S.health;
+  if(!h) return `<p class="hint">Email health could not load.</p>`;
+  const sent = Number(h.sent_30d || 0), bounced = Number(h.bounced_30d || 0);
+  const replied = Number(h.replied_30d || 0);
+  if(!sent) return `<p class="hint">Nothing sent in the last 30 days.</p>`;
+  const pct = n => Math.round(1000 * n / sent) / 10;
+  const br = pct(bounced), rr = pct(replied);
+  const cls = br >= BOUNCE_BAD ? 'bad' : (br >= BOUNCE_WARN ? 'warnv' : '');
+  return `<div class="health">
+      <div><div class="k">Sent</div><div class="v">${num(sent)}</div></div>
+      <div><div class="k">Replied</div><div class="v">${num(replied)} <small>${rr}%</small></div></div>
+      <div class="${cls}"><div class="k">Bounced</div><div class="v">${num(bounced)} <small>${br}%</small></div></div>
+    </div>
+    ${br >= BOUNCE_BAD ? `<div class="warn" style="margin-top:8px"><b>Bounce rate is too high.</b>
+      Healthy is under ${BOUNCE_WARN}%. Above ${BOUNCE_BAD}%, mail providers start filtering
+      the whole mailbox. Bounced addresses are already kept off the board; the rest of the
+      pool has not been verified yet.</div>`
+    : br >= BOUNCE_WARN ? `<p class="hint">Bounces are above ${BOUNCE_WARN}%. Keep an eye on this.</p>`
+    : `<p class="hint">Last 30 days. Healthy is under ${BOUNCE_WARN}% bounced.</p>`}`;
 }
 
 async function loadWeek(){
@@ -2323,6 +2426,7 @@ async function loadKpis(){
   S.loaded.kpis = true;
 }
 
+let crmTimer = null;
 async function crmSearch(q){
   S.crmQ = q;
   const term = String(q||'').trim();
@@ -2498,7 +2602,23 @@ async function loadLeadRows(){
   S.loaded.leads = true;
 }
 
+/* "JWT issued at future" comes back when a request reaches the database a
+   moment after Supabase has issued a fresh login token, before the
+   database's clock has caught up with it. The same token works a second
+   later, so the tab waits briefly and tries once more rather than showing
+   an error. Loaders only mark themselves loaded on success, so the retry
+   re-runs just the reads that failed. */
 async function ensure(page){
+  try{ await ensureOnce(page); }
+  catch(err){
+    if(!/issued at future|PGRST303/i.test(String(err && (err.message || err.code) || err))) throw err;
+    await new Promise(r => setTimeout(r, 1500));
+    await ensureOnce(page);
+  }
+}
+
+async function ensureOnce(page){
+  if(page==='home') await loadHome();
   if(page==='today'){
     // Six independent reads. One after another they were the slowest
     // part of opening the page.
@@ -2509,7 +2629,8 @@ async function ensure(page){
       !S.loaded.tasks[S.me] && loadTasks(S.me),
       !S.loaded.seq && loadSequences(),
       !S.loaded.assets && loadAssets(),
-      !S.loaded.voice && loadVoice()
+      !S.loaded.voice && loadVoice(),
+      !S.loaded.health && loadHealth()
     ].filter(Boolean));
   }
   if(page==='calendar' && !S.loaded.week) await loadWeek();
@@ -2565,6 +2686,9 @@ function wireChrome(){
   document.querySelectorAll('[data-page]').forEach(el=>
     el.addEventListener('click', async ()=>{
       S.page = el.dataset.page; S.err=''; S.gen='';
+      /* The tab goes in the address so a refresh, a bookmark or a link
+         sent to someone lands on the same tab. */
+      try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
       render();
       try{ await ensure(S.page); }
       catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
@@ -2572,7 +2696,13 @@ function wireChrome(){
     }));
   const cq = document.getElementById('crmQ');
   if(cq){
-    cq.addEventListener('input', ()=>{ S.crmOpen = true; crmSearch(cq.value); });
+    /* Waits for a pause in typing. Searching on every keystroke sent a
+       database query and rebuilt the whole page per letter. */
+    cq.addEventListener('input', ()=>{
+      S.crmQ = cq.value; S.crmOpen = true;
+      clearTimeout(crmTimer);
+      crmTimer = setTimeout(()=>crmSearch(S.crmQ), 220);
+    });
     cq.addEventListener('focus', ()=>{ if(S.crmQ) { S.crmOpen = true; render(); } });
     cq.addEventListener('keydown', e=>{ if(e.key==='Escape'){ S.crmOpen=false; render(); } });
     if(S.crmFocus){
@@ -2594,6 +2724,7 @@ function wireChrome(){
 
 function render(){
   let inner = '';
+  if(S.page==='home')     inner = pageHome();
   if(S.page==='today')    inner = pageToday();
   if(S.page==='calendar') inner = pageCalendar();
   if(S.page==='kpis')     inner = pageKpis();
@@ -2718,6 +2849,7 @@ function wirePage(){
   if(kc) kc.addEventListener('click', ()=>{ S.kpiEdit=false; S.kpiErr=''; render(); });
   const ks = document.getElementById('kpiSave');
   if(ks) ks.addEventListener('click', saveKpiTargets);
+  wireHome();
   wireRequests();
   wireApprovals();
   wireBudget();
@@ -2738,6 +2870,10 @@ function pageToday(){
       <h2 class="sec">Today's calendar</h2>
       ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
         : `<p class="hint">Nothing on the calendar today.</p>`}
+    </div>
+    <div class="block">
+      <h2 class="sec">Email health</h2>
+      ${healthPanel()}
     </div>
     <div class="block">
       <h2 class="sec">Follow-ups coming</h2>
@@ -5814,7 +5950,11 @@ async function generate(verticalId, count, gold){
       headers:await authHeaders(),
       body:JSON.stringify(body)});
     const out = await res.json().catch(()=>({}));
-    S.gen = out.ok ? `${out.queued} added to the list with drafts ready.`
+    /* removed is how many picks failed the Evaboot address check and were
+       left off before any draft was written. */
+    const dropped = Number(out.removed || 0);
+    S.gen = out.ok ? `${out.queued} added to the list with drafts ready.` +
+                     (dropped ? ` ${dropped} left off because the address failed the check.` : '')
                    : (out.error || 'Nothing eligible in that sector right now.');
     S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
     await loadTiles(); await loadBoard();
@@ -6068,7 +6208,7 @@ function exportCsv(){
   const h = m.head;
   push('Sent 30 days', h.sent_30d); push('Replies 30 days', h.replied_30d);
   push('Reply rate %', h.reply_rate_30d); push('Send-through %', h.send_through_30d);
-  push('Bounced', h.bounced_30d); push('Open deals', h.open_deals);
+  push('Bounced', h.bounced_30d); push('Open deals, all owners', h.open_deals);
   push('Open value', h.open_value); push('Engaged contacts', h.engaged_contacts);
   push('');
   push('Daily'); push('Day','Drafted','Sent','Replied','Bounced');
@@ -7694,17 +7834,278 @@ function wireBudget(){
   if(dl) dl.addEventListener('click', deleteBudExpense);
 }
 
+/* ================= home ================= */
+/* One screen each for Liam and Pat that says what is waiting on them and
+   sends them to the tab where it gets done. Everything here is read from
+   loaders the other tabs already use, so a number on Home and the same
+   number on its tab cannot disagree. Iyanna keeps landing on her list. */
+const HOME_USERS = ['liam','pat'];
+const HOME_NAMES = { liam:'Liam', pat:'Pat' };
+/* How far back a reply still counts as one to answer. */
+const HOME_REPLY_DAYS = 14;
+/* Social drafts dated within this many days are close enough to need a look. */
+const HOME_SOCIAL_DAYS = 14;
+
+S.home = { replies:[], pipe:null, socDrafts:null };
+
+async function loadHome(){
+  const since = new Date(Date.now() - HOME_REPLY_DAYS * 86400000).toISOString();
+  const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
+  const soonYmd = [soon.getFullYear(), String(soon.getMonth()+1).padStart(2,'0'),
+                   String(soon.getDate()).padStart(2,'0')].join('-');
+  const pat = S.me === 'pat';
+  const own = [
+    sb.from('v_dash_recent').select('id,full_name,company_name,vertical,replied_at')
+      .eq('state','replied').gte('replied_at', since).order('replied_at', { ascending:false })
+      .then(r => { S.home.replies = r.data || []; }),
+    /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
+       v_dash_headline counts every owner's deals. */
+    sb.from('v_kpi_open').select('*').single()
+      .then(r => { S.home.pipe = r.data || null; }),
+    !pat && sb.from('social_posts').select('id,post_date')
+      .eq('brand', SOC_BRAND).eq('status','draft')
+      .gte('post_date', today()).lte('post_date', soonYmd)
+      .order('post_date')
+      .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); })
+  ];
+  /* A tab that fails to load should not blank the whole screen, so each
+     read is caught on its own and its card says it could not load. */
+  const safe = p => p && Promise.resolve(p).catch(() => {});
+  await Promise.all([
+    ...own,
+    !S.loaded.board && loadBoard(),
+    !S.loaded.health && loadHealth(),
+    !S.loaded.approvals && loadApprovals(),
+    pat && !S.loaded.week && loadWeek(),
+    pat && !S.loaded.seq && loadSequences(),
+    pat && !S.loaded.invites && loadInvites(),
+    !pat && !S.loaded.tasks.liam && loadTasks('liam'),
+    !pat && !S.loaded.requests && loadRequests(),
+    !pat && !S.loaded.budget && loadBudget()
+  ].filter(Boolean).map(safe));
+  S.loaded.home = true;
+}
+
+function homeGreeting(){
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return `${part}, ${HOME_NAMES[S.me] || ''}`;
+}
+
+/* One tile. go is a tab key, optionally "calendar:invites" to open a view
+   inside a tab. tone is hot (needs you), bad (late) or quiet (nothing). */
+function homeCard(label, value, detail, go, tone){
+  return `<button class="hcard ${tone || ''}" data-home-go="${esc(go)}">
+    <span class="k">${esc(label)}</span>
+    <span class="v">${value}</span>
+    <span class="d">${detail}</span>
+  </button>`;
+}
+
+function homeReplies(){
+  const rows = S.home.replies || [];
+  if(!rows.length) return `<p class="hint">No replies in the last ${HOME_REPLY_DAYS} days.</p>`;
+  return `<div class="hlist">${rows.slice(0, 8).map(r => `
+    <button class="hrow" data-home-crm="${esc(r.full_name || '')}" title="Look them up">
+      <span class="n">${esc(r.full_name || 'Unknown')}${
+        r.company_name ? ` <em>${esc(r.company_name)}</em>` : ''}</span>
+      <span class="w">${esc(shortDate(r.replied_at))}</span>
+    </button>`).join('')}</div>
+    ${rows.length > 8 ? `<p class="hint">${rows.length - 8} more in the last ${HOME_REPLY_DAYS} days.</p>` : ''}`;
+}
+
+function homeBoardCounts(){
+  const live = (S.board || []).filter(r => r.status !== 'skipped');
+  const open = live.filter(r => !r.handled);
+  return { live, open, sent: live.length - open.length,
+           late: open.filter(r => r.carried && !r.carriedFirst).length };
+}
+
+function homeApprovals(){
+  if(!S.loaded.approvals || !S.approvals) return null;
+  const cur = apvCurrent();
+  return { pending: cur.filter(a => a.status === 'pending').length,
+           changes: cur.filter(a => a.status === 'changes').length };
+}
+
+function homePat(){
+  const b = homeBoardCounts();
+  const due = (S.seq || []).filter(x => x.days_until !== null && Number(x.days_until) <= 0).length;
+  const inv = (S.invites || []).filter(v => v.decision === 'undecided' && !v.is_past && isLocal(v)).length;
+  const apv = homeApprovals();
+  const p = S.home.pipe;
+  const todayEvents = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
+
+  const cards = [
+    homeCard('Outreach', `${b.open.length}<small> to send</small>`,
+      b.live.length ? `${b.sent} of ${b.live.length} emailed today${b.late ? `, ${b.late} follow-up${b.late===1?'':'s'} overdue` : ''}`
+                    : 'List is empty. Generate 5 to fill it.',
+      'today', b.late ? 'bad' : b.open.length ? 'hot' : 'quiet'),
+    homeCard('Follow-ups due', String(due),
+      due ? 'Due today or earlier' : 'Nothing due today', 'today', due ? 'hot' : 'quiet'),
+    homeCard('Event invites', String(inv),
+      inv ? 'Waiting on your yes or no' : 'Nothing waiting', 'calendar:invites', inv ? 'hot' : 'quiet'),
+    homeCard('Approvals', apv ? String(apv.pending) : '&ndash;',
+      !apv ? 'Could not load' : apv.pending ? 'Waiting on your decision' : 'Nothing waiting',
+      'approvals', apv && apv.pending ? 'hot' : 'quiet'),
+    homeCard('Open pipeline', p ? money(p.open_value) : '&ndash;',
+      p ? `${num(p.open_deals)} open deal${Number(p.open_deals)===1?'':'s'}` : 'Could not load',
+      'kpis', '')
+  ].join('');
+
+  return `<div class="home-cards">${cards}</div>
+    <div class="home-cols">
+      <div>
+        <div class="block">
+          <h2 class="sec">Today's calendar</h2>
+          ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
+            : `<p class="hint">Nothing on the calendar today.</p>`}
+        </div>
+        <div class="block">
+          <h2 class="sec">Replied recently</h2>
+          ${homeReplies()}
+        </div>
+      </div>
+      <div>
+        <div class="block">
+          <h2 class="sec">Email health</h2>
+          ${healthPanel()}
+        </div>
+      </div>
+    </div>`;
+}
+
+function homeLiam(){
+  const rows = (S.tasks.liam || []).filter(t => !t.parent_id);
+  const openT = rows.filter(t => t.status !== 'done');
+  const carried = openT.filter(t => t.work_date < today()).length;
+  const reqs = S.loaded.requests ? reqOpenList() : null;
+  const reqLate = reqs ? reqs.filter(r => { const d = reqDaysLeft(r); return d !== null && d < 0; }).length : 0;
+  const reqSoon = reqs ? reqs.filter(r => { const d = reqDaysLeft(r); return d !== null && d >= 0 && d <= 2; }).length : 0;
+  const soc = S.home.socDrafts;
+  const apv = homeApprovals();
+  const b = homeBoardCounts();
+
+  let bud = null;
+  if(S.loaded.budget && !S.bud.loadErr){
+    const y = new Date().getFullYear();
+    const t = budSummary(y, budItems(y)).t;
+    bud = { used: t.paid + t.committed, planned: t.planned };
+  }
+  const budPct = bud && bud.planned ? Math.round(100 * bud.used / bud.planned) : null;
+  const pace = Math.round(100 * budPace(new Date().getFullYear()));
+
+  const cards = [
+    homeCard('My tasks', String(openT.length),
+      openT.length ? `${rows.length - openT.length} done${carried ? `, ${carried} carried over` : ''}` : 'All clear',
+      'myday', carried ? 'bad' : openT.length ? 'hot' : 'quiet'),
+    homeCard('Requests', reqs ? String(reqs.length) : '&ndash;',
+      !reqs ? 'Could not load' : reqLate ? `${reqLate} past due` : reqSoon ? `${reqSoon} due in 2 days` : reqs.length ? 'None due soon' : 'Nothing open',
+      'myday', reqLate ? 'bad' : reqSoon ? 'hot' : 'quiet'),
+    homeCard('Social drafts', soc ? String(soc.length) : '&ndash;',
+      !soc ? 'Could not load' : soc.length ? `Posting in the next ${HOME_SOCIAL_DAYS} days` : `None due in ${HOME_SOCIAL_DAYS} days`,
+      'social', soc && soc.length ? 'hot' : 'quiet'),
+    homeCard('Approvals', apv ? String(apv.changes + apv.pending) : '&ndash;',
+      !apv ? 'Could not load' : apv.changes ? `${apv.changes} sent back for changes` : apv.pending ? `${apv.pending} waiting on Pat` : 'Nothing out',
+      'approvals', apv && apv.changes ? 'hot' : 'quiet'),
+    homeCard('Budget used', budPct === null ? (bud ? money(bud.used) : '&ndash;') : `${budPct}<small>%</small>`,
+      !bud ? 'Could not load' : bud.planned ? `${money(bud.used)} of ${money(bud.planned)}, ${pace}% of the year gone`
+           : 'No amounts set for this year yet',
+      'budget', budPct !== null && budPct > 100 ? 'bad' : '')
+  ].join('');
+
+  const next = openT.slice(0, 5);
+  const due = (reqs || []).slice(0, 4);
+
+  return `<div class="home-cards">${cards}</div>
+    <div class="home-cols">
+      <div>
+        <div class="block">
+          <h2 class="sec">Up next</h2>
+          ${next.length ? `<div class="hlist">${next.map(t => `
+            <button class="hrow" data-home-go="myday">
+              <span class="n">${esc(t.title)}${t.status === 'doing' ? ' <em>in progress</em>' : ''}</span>
+              <span class="w ${t.work_date < today() ? 'late' : ''}">${t.work_date < today() ? 'from ' + esc(dateOnly(t.work_date)) : esc(t.category || '')}</span>
+            </button>`).join('')}</div>
+            ${openT.length > next.length ? `<a href="#myday" class="hint hmore" data-home-go="myday">${openT.length - next.length} more on your list</a>` : ''}`
+          : `<p class="hint">Nothing open on your list.</p>`}
+        </div>
+        <div class="block">
+          <h2 class="sec">Requests due</h2>
+          ${due.length ? `<div class="hlist">${due.map(r => { const d = reqDaysLeft(r); return `
+            <button class="hrow" data-home-go="myday">
+              <span class="n">${esc(r.title || 'Request')}${r.requester_name ? ` <em>${esc(r.requester_name)}</em>` : ''}</span>
+              <span class="w ${d !== null && d < 0 ? 'late' : ''}">${d === null ? 'no date' : d < 0 ? `${-d}d late` : d === 0 ? 'today' : `${d}d`}</span>
+            </button>`; }).join('')}</div>`
+          : `<p class="hint">No open requests.</p>`}
+        </div>
+      </div>
+      <div>
+        <div class="block">
+          <h2 class="sec">Pat's outreach today</h2>
+          <p style="margin:0 0 8px">${b.live.length
+            ? `<b>${b.sent}</b> of ${b.live.length} emailed, ${b.open.length} still to send${b.late ? `, <span style="color:var(--red)">${b.late} follow-up${b.late===1?'':'s'} overdue</span>` : ''}.`
+            : `Pat's list is empty today.`}</p>
+          ${healthPanel()}
+        </div>
+        <div class="block">
+          <h2 class="sec">Replied recently</h2>
+          ${homeReplies()}
+        </div>
+      </div>
+    </div>`;
+}
+
+function pageHome(){
+  if(!S.loaded.home) return loading();
+  return `<main class="home">
+    <div class="home-hi"><h1>${esc(homeGreeting())}</h1><span class="eyebrow">${esc(prettyDate())}</span></div>
+    ${S.err ? `<div class="warn" style="margin-bottom:14px">${esc(S.err)}</div>` : ''}
+    ${S.me === 'pat' ? homePat() : homeLiam()}
+  </main>`;
+}
+
+async function homeGo(target){
+  const [page, view] = String(target).split(':');
+  if(page === 'calendar' && view) S.calView = view;
+  S.page = page; S.err = ''; S.gen = '';
+  try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
+  render();
+  try{ await ensure(S.page); }
+  catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
+  render();
+}
+
+function wireHome(){
+  document.querySelectorAll('[data-home-go]').forEach(el =>
+    el.addEventListener('click', e => { e.preventDefault(); homeGo(el.dataset.homeGo); }));
+  document.querySelectorAll('[data-home-crm]').forEach(el =>
+    el.addEventListener('click', () => {
+      const q = el.dataset.homeCrm;
+      if(!q) return;
+      S.crmOpen = true; crmSearch(q);
+    }));
+}
+
 /* ================= boot ================= */
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session) return renderLogin();
-  /* Falls back to liam for an unrecognised address, which keeps an
-     unknown account looking at a list rather than at an error. */
-  S.me = WHOAMI[(session.user && session.user.email || '').toLowerCase()] || 'liam';
+  /* An address that is not on the list used to be treated as Liam, which
+     showed it Liam's tabs, Budget included. The database still guards the
+     data, but the screen should not offer what the account cannot have. */
+  const email = (session.user && session.user.email || '').toLowerCase();
+  S.me = WHOAMI[email];
+  if(!S.me) return renderNoAccess(email);
   S.dayOwner = S.me;
   S.day = today();
+  /* A tab named in the address wins. Otherwise Liam and Pat start on
+     Home, and Iyanna on her own list. */
+  const want = location.hash.slice(1);
+  S.page = visiblePages().some(([k]) => k === want) ? want
+         : (S.me === 'iyanna' ? 'iyanna' : 'home');
   try{
-    await ensure('today');
+    await ensure(S.page);
     render();
   }catch(e){
     app.innerHTML = topbar() + `<div class="empty"><h2>Could not load</h2>
