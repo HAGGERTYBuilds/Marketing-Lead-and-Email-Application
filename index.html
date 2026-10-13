@@ -730,14 +730,14 @@
   .home{max-width:1180px;padding:22px 22px 70px}
   .home-hi{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 16px}
   .home-hi h1{font-family:var(--display);font-size:30px;font-weight:700;margin:0;text-wrap:balance}
-  .home-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+  .home-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;
               background:var(--rule);border:1px solid var(--rule);margin-bottom:24px}
   .hcard{background:var(--card);border:0;text-align:left;padding:13px 15px 12px;cursor:pointer;
          display:flex;flex-direction:column;gap:3px;font:inherit;color:inherit;min-width:0}
   .hcard:hover{background:var(--paper)}
   .hcard .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
             font-size:11.5px;color:var(--slate);font-weight:600}
-  .hcard .v{font-family:var(--display);font-size:30px;font-weight:700;line-height:1.1;
+  .hcard .v{font-family:var(--display);font-size:clamp(21px,5.6vw,30px);font-weight:700;line-height:1.1;
             font-variant-numeric:tabular-nums}
   .hcard .v small{font-size:14px;color:var(--slate);font-weight:600}
   .hcard .d{font-size:12.5px;color:var(--slate)}
@@ -758,6 +758,17 @@
               text-align:left;font:inherit;color:inherit;cursor:pointer}
   button.hrow:hover{background:var(--paper)}
   .hmore{display:inline-block;margin-top:7px}
+  .hotlead{padding:11px 13px;border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:3px;min-width:0}
+  .hotlead:last-child{border-bottom:0}
+  .hotlead-top{display:flex;align-items:baseline;gap:10px;justify-content:space-between;flex-wrap:wrap}
+  .hotlead-top .n{font-weight:600;overflow-wrap:anywhere}
+  .hotlead-top .n em{font-style:normal;font-weight:400;color:var(--slate)}
+  .hotlead-top .w{font-family:var(--mono);font-size:12px;color:var(--orange-ink);white-space:nowrap}
+  .hotlead-t{font-size:12.5px;color:var(--slate)}
+  .hotlead-what{font-size:13.5px}
+  .hotlead-act{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}
+  .hotlead-act a{color:var(--ink);overflow-wrap:anywhere}
+  .hotlead-act .spacer{flex:1}
   @media (max-width:820px){
     .home{padding:18px 16px 70px}
     .home-cols{grid-template-columns:1fr}
@@ -870,7 +881,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13e';
+const BUILD = '2026-10-13f';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -928,6 +939,9 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const num = n => (n===null||n===undefined) ? '0' : Number(n).toLocaleString('en-US');
 const money = n => '$' + Math.round(Number(n||0)).toLocaleString('en-US');
+/* $18.3M rather than $18,250,000, for a figure that has to fit a small tile. */
+const moneyShort = n => '$' + Number(n||0).toLocaleString('en-US',
+  { notation:'compact', maximumFractionDigits:1 });
 const today = () => { const d=new Date();
   return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
 const prettyDate = () => new Date().toLocaleDateString('en-US',
@@ -8055,23 +8069,22 @@ function wireReturn(){
    number on its tab cannot disagree. Iyanna keeps landing on her list. */
 const HOME_USERS = ['liam','pat'];
 const HOME_NAMES = { liam:'Liam', pat:'Pat' };
-/* How far back a reply still counts as one to answer. */
-const HOME_REPLY_DAYS = 14;
+/* Hot leads are the last 30 days of replies, sheet clicks and accepted
+   event invites (sql/hot_leads.sql). Marking one done hides that signal;
+   a new reply or click from the same person brings them back. */
+const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
 /* Social drafts dated within this many days are close enough to need a look. */
 const HOME_SOCIAL_DAYS = 14;
 
-S.home = { replies:[], pipe:null, socDrafts:null };
+S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null };
 
 async function loadHome(){
-  const since = new Date(Date.now() - HOME_REPLY_DAYS * 86400000).toISOString();
   const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
   const soonYmd = [soon.getFullYear(), String(soon.getMonth()+1).padStart(2,'0'),
                    String(soon.getDate()).padStart(2,'0')].join('-');
   const pat = S.me === 'pat';
   const own = [
-    sb.from('v_dash_recent').select('id,full_name,company_name,vertical,replied_at')
-      .eq('state','replied').gte('replied_at', since).order('replied_at', { ascending:false })
-      .then(r => { S.home.replies = r.data || []; }),
+    loadHotLeads(),
     /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
        v_dash_headline counts every owner's deals. */
     sb.from('v_kpi_open').select('*').single()
@@ -8116,16 +8129,57 @@ function homeCard(label, value, detail, go, tone){
   </button>`;
 }
 
-function homeReplies(){
-  const rows = S.home.replies || [];
-  if(!rows.length) return `<p class="hint">No replies in the last ${HOME_REPLY_DAYS} days.</p>`;
-  return `<div class="hlist">${rows.slice(0, 8).map(r => `
-    <button class="hrow" data-home-crm="${esc(r.full_name || '')}" title="Look them up">
-      <span class="n">${esc(r.full_name || 'Unknown')}${
-        r.company_name ? ` <em>${esc(r.company_name)}</em>` : ''}</span>
-      <span class="w">${esc(shortDate(r.replied_at))}</span>
-    </button>`).join('')}</div>
-    ${rows.length > 8 ? `<p class="hint">${rows.length - 8} more in the last ${HOME_REPLY_DAYS} days.</p>` : ''}`;
+async function loadHotLeads(){
+  const { data, error } = await sb.from('v_hot_leads').select('*').order('at', { ascending:false });
+  S.home.hot = error ? null : (data || []);
+  S.home.hotErr = error ? 'Hot leads could not load. ' + error.message : '';
+}
+
+function hotWhat(r){
+  if(r.kind === 'reply') return `Replied to <i>${esc(r.detail || 'an outreach email')}</i>`;
+  if(r.kind === 'click') return `Opened <i>${esc(r.detail || 'a sheet')}</i> from an email`;
+  return `Accepted the invite to <i>${esc(r.detail || 'an event')}</i>`;
+}
+
+function homeHotLeads(){
+  if(S.home.hot === null) return `<p class="hint err">${esc(S.home.hotErr || 'Hot leads could not load.')}</p>`;
+  const rows = S.home.hot;
+  if(!rows.length) return `<p class="hint">Nobody new in the last 30 days. Replies, sheet clicks and accepted invites land here.</p>`;
+  const shown = S.home.hotAll ? rows : rows.slice(0, 6);
+  const can = HOME_USERS.includes(S.me);
+  return `<div class="hlist">${shown.map(r => `
+    <div class="hotlead">
+      <div class="hotlead-top">
+        <span class="n">${esc(r.full_name || r.email || 'Unknown')}${r.is_gold ? ' <span class="chip gold">Gold</span>' : ''}${
+          r.company_name ? ` <em>${esc(r.company_name)}</em>` : ''}</span>
+        <span class="w">${esc(HOT_KINDS[r.kind] || '')} ${esc(shortDate(r.at))}</span>
+      </div>
+      ${r.title ? `<div class="hotlead-t">${esc(r.title)}</div>` : ''}
+      <div class="hotlead-what">${hotWhat(r)}</div>
+      <div class="hotlead-act">
+        ${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^0-9+]/g,''))}" class="mono">${esc(r.phone)}</a>` : ''}
+        ${r.email ? `<a href="mailto:${esc(r.email)}" class="mono">${esc(r.email)}</a>` : ''}
+        <span class="spacer"></span>
+        ${r.full_name ? `<button class="linkbtn" data-home-crm="${esc(r.full_name)}">Look up</button>` : ''}
+        ${can ? `<button class="btn small ghost" data-hot-done="${esc(r.signal_key)}" ${S.home.hotBusy ? 'disabled' : ''}>${
+          S.home.hotBusy === r.signal_key ? 'Saving&hellip;' : 'Done'}</button>` : ''}
+      </div>
+    </div>`).join('')}</div>
+    ${rows.length > shown.length ? `<button class="linkbtn hmore" id="hotAll">Show all ${rows.length}</button>` : ''}
+    ${S.home.hotErr ? `<p class="hint err">${esc(S.home.hotErr)}</p>` : ''}
+    <p class="hint">Mark one done once it's followed up. A new reply or click brings them back.</p>`;
+}
+
+async function hotDone(key){
+  if(S.home.hotBusy) return;
+  S.home.hotBusy = key; S.home.hotErr = ''; render();
+  try{
+    const who = await socWho();
+    const { error } = await sb.from('hot_lead_done').upsert({ signal_key:key, done_by:who, done_at:new Date().toISOString() });
+    if(error) throw error;
+    S.home.hot = (S.home.hot || []).filter(r => r.signal_key !== key);
+  }catch(err){ S.home.hotErr = 'Could not mark it done. ' + (err.message || err); }
+  S.home.hotBusy = ''; render();
 }
 
 function homeBoardCounts(){
@@ -8155,6 +8209,9 @@ function homePat(){
       b.live.length ? `${b.sent} of ${b.live.length} emailed today${b.late ? `, ${b.late} follow-up${b.late===1?'':'s'} overdue` : ''}`
                     : 'List is empty. Generate 5 to fill it.',
       'today', b.late ? 'bad' : b.open.length ? 'hot' : 'quiet'),
+    homeCard('Hot leads', S.home.hot ? String(S.home.hot.length) : '&ndash;',
+      !S.home.hot ? 'Could not load' : S.home.hot.length ? 'Replied, clicked or said yes' : 'Nobody new',
+      'home:hot', S.home.hot && S.home.hot.length ? 'hot' : 'quiet'),
     homeCard('Follow-ups due', String(due),
       due ? 'Due today or earlier' : 'Nothing due today', 'today', due ? 'hot' : 'quiet'),
     homeCard('Event invites', String(inv),
@@ -8162,7 +8219,7 @@ function homePat(){
     homeCard('Approvals', apv ? String(apv.pending) : '&ndash;',
       !apv ? 'Could not load' : apv.pending ? 'Waiting on your decision' : 'Nothing waiting',
       'approvals', apv && apv.pending ? 'hot' : 'quiet'),
-    homeCard('Open pipeline', p ? money(p.open_value) : '&ndash;',
+    homeCard('Open pipeline', p ? moneyShort(p.open_value) : '&ndash;',
       p ? `${num(p.open_deals)} open deal${Number(p.open_deals)===1?'':'s'}` : 'Could not load',
       'kpis', '')
   ].join('');
@@ -8171,13 +8228,13 @@ function homePat(){
     <div class="home-cols">
       <div>
         <div class="block">
+          <h2 class="sec" id="hotLeads">Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}</h2>
+          ${homeHotLeads()}
+        </div>
+        <div class="block">
           <h2 class="sec">Today's calendar</h2>
           ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
             : `<p class="hint">Nothing on the calendar today.</p>`}
-        </div>
-        <div class="block">
-          <h2 class="sec">Replied recently</h2>
-          ${homeReplies()}
         </div>
       </div>
       <div>
@@ -8263,8 +8320,8 @@ function homeLiam(){
           ${healthPanel()}
         </div>
         <div class="block">
-          <h2 class="sec">Replied recently</h2>
-          ${homeReplies()}
+          <h2 class="sec">Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}</h2>
+          ${homeHotLeads()}
         </div>
       </div>
     </div>`;
@@ -8281,6 +8338,11 @@ function pageHome(){
 
 async function homeGo(target){
   const [page, view] = String(target).split(':');
+  if(page === 'home' && view === 'hot'){
+    const el = document.getElementById('hotLeads');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
   if(page === 'calendar' && view) S.calView = view;
   S.page = page; S.err = ''; S.gen = '';
   try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
@@ -8291,6 +8353,10 @@ async function homeGo(target){
 }
 
 function wireHome(){
+  document.querySelectorAll('[data-hot-done]').forEach(el =>
+    el.addEventListener('click', () => hotDone(el.dataset.hotDone)));
+  const ha = document.getElementById('hotAll');
+  if(ha) ha.addEventListener('click', () => { S.home.hotAll = true; render(); });
   document.querySelectorAll('[data-home-go]').forEach(el =>
     el.addEventListener('click', e => { e.preventDefault(); homeGo(el.dataset.homeGo); }));
   document.querySelectorAll('[data-home-crm]').forEach(el =>
