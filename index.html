@@ -17,6 +17,10 @@
     --display:"Barlow Condensed",system-ui,sans-serif;
     --body:"IBM Plex Sans",system-ui,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,monospace;
+    /* Older blocks below were written against these two names. They were
+       never defined, so every border and font that used them silently
+       dropped out. Pointing them at the real tokens brings them back. */
+    --line:var(--rule); --sans:var(--body);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -706,6 +710,18 @@
     .page{max-width:none;padding:0}
   }
 
+  /* ---------- email health ---------- */
+  .health{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+          border:1px solid var(--rule)}
+  .health > div{background:var(--card);padding:10px 12px}
+  .health .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+             font-size:11.5px;color:var(--slate);font-weight:600}
+  .health .v{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.15;
+             font-variant-numeric:tabular-nums}
+  .health .v small{font-size:13px;color:var(--slate);font-weight:600}
+  .health .bad .v{color:var(--red)}
+  .health .warnv .v{color:var(--orange-ink)}
+
   /* ---------- budget ---------- */
   .bud-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .bud-year{display:flex;align-items:center;gap:2px}
@@ -812,7 +828,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13a';
+const BUILD = '2026-10-13b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -940,6 +956,18 @@ function renderLogin(msg){
   });
 }
 
+function renderNoAccess(email){
+  app.innerHTML = `<div class="center"><div class="loginbox">
+    <span class="wordmark">HAGGERT<span>Y</span></span>
+    <span class="eyebrow">Marketing hub</span>
+    <p style="margin:0 0 6px"><b>${esc(email || 'This account')}</b> is signed in but has not been given a place on the dashboard yet.</p>
+    <p class="hint">Ask Liam to add it.</p>
+    <button class="btn" id="naOut">Sign out</button></div></div>`;
+  document.getElementById('naOut').addEventListener('click', async ()=>{
+    await sb.auth.signOut(); renderLogin();
+  });
+}
+
 /* ================= loaders ================= */
 /* Today's queue, plus any follow-up still sitting unhandled from an earlier
    day. A follow-up used to appear for exactly one day and then fall off the
@@ -1035,6 +1063,43 @@ function voicePanel(){
     ${v ? `<p class="hint">Profile rebuilt ${esc(shortDate(v.created_at))} from ${esc(v.built_from || 'examples')}.
       <button class="linkbtn" data-toggle="voiceprofile">${open ? 'Hide it' : 'Read it'}</button></p>
       ${open ? `<div class="panelbox" style="white-space:pre-wrap;font-size:13px">${esc(v.profile_text)}</div>` : ''}` : ''}`;
+}
+
+/* Email health. The numbers already existed in v_dash_headline but only
+   reached the CSV export, so 15 bounces out of 54 sends in a month went
+   unseen. A mailbox that bounces that often gets filtered by Microsoft
+   and Google, which hurts every email Pat sends, not just outreach.
+   Never throws: a missing strip is not a reason to hold up the board. */
+const BOUNCE_WARN = 2, BOUNCE_BAD = 5;   // percent of sends
+async function loadHealth(){
+  try{
+    const { data } = await sb.from('v_dash_headline')
+      .select('sent_30d,replied_30d,bounced_30d,reply_rate_30d').single();
+    S.health = data || null;
+  }catch(e){ S.health = null; }
+  S.loaded.health = true;
+}
+
+function healthPanel(){
+  const h = S.health;
+  if(!h) return `<p class="hint">Email health could not load.</p>`;
+  const sent = Number(h.sent_30d || 0), bounced = Number(h.bounced_30d || 0);
+  const replied = Number(h.replied_30d || 0);
+  if(!sent) return `<p class="hint">Nothing sent in the last 30 days.</p>`;
+  const pct = n => Math.round(1000 * n / sent) / 10;
+  const br = pct(bounced), rr = pct(replied);
+  const cls = br >= BOUNCE_BAD ? 'bad' : (br >= BOUNCE_WARN ? 'warnv' : '');
+  return `<div class="health">
+      <div><div class="k">Sent</div><div class="v">${num(sent)}</div></div>
+      <div><div class="k">Replied</div><div class="v">${num(replied)} <small>${rr}%</small></div></div>
+      <div class="${cls}"><div class="k">Bounced</div><div class="v">${num(bounced)} <small>${br}%</small></div></div>
+    </div>
+    ${br >= BOUNCE_BAD ? `<div class="warn" style="margin-top:8px"><b>Bounce rate is too high.</b>
+      Healthy is under ${BOUNCE_WARN}%. Above ${BOUNCE_BAD}%, mail providers start filtering
+      the whole mailbox. Bounced addresses are already kept off the board; the rest of the
+      pool has not been verified yet.</div>`
+    : br >= BOUNCE_WARN ? `<p class="hint">Bounces are above ${BOUNCE_WARN}%. Keep an eye on this.</p>`
+    : `<p class="hint">Last 30 days. Healthy is under ${BOUNCE_WARN}% bounced.</p>`}`;
 }
 
 async function loadWeek(){
@@ -2323,6 +2388,7 @@ async function loadKpis(){
   S.loaded.kpis = true;
 }
 
+let crmTimer = null;
 async function crmSearch(q){
   S.crmQ = q;
   const term = String(q||'').trim();
@@ -2509,7 +2575,8 @@ async function ensure(page){
       !S.loaded.tasks[S.me] && loadTasks(S.me),
       !S.loaded.seq && loadSequences(),
       !S.loaded.assets && loadAssets(),
-      !S.loaded.voice && loadVoice()
+      !S.loaded.voice && loadVoice(),
+      !S.loaded.health && loadHealth()
     ].filter(Boolean));
   }
   if(page==='calendar' && !S.loaded.week) await loadWeek();
@@ -2565,6 +2632,9 @@ function wireChrome(){
   document.querySelectorAll('[data-page]').forEach(el=>
     el.addEventListener('click', async ()=>{
       S.page = el.dataset.page; S.err=''; S.gen='';
+      /* The tab goes in the address so a refresh, a bookmark or a link
+         sent to someone lands on the same tab. */
+      try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
       render();
       try{ await ensure(S.page); }
       catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
@@ -2572,7 +2642,13 @@ function wireChrome(){
     }));
   const cq = document.getElementById('crmQ');
   if(cq){
-    cq.addEventListener('input', ()=>{ S.crmOpen = true; crmSearch(cq.value); });
+    /* Waits for a pause in typing. Searching on every keystroke sent a
+       database query and rebuilt the whole page per letter. */
+    cq.addEventListener('input', ()=>{
+      S.crmQ = cq.value; S.crmOpen = true;
+      clearTimeout(crmTimer);
+      crmTimer = setTimeout(()=>crmSearch(S.crmQ), 220);
+    });
     cq.addEventListener('focus', ()=>{ if(S.crmQ) { S.crmOpen = true; render(); } });
     cq.addEventListener('keydown', e=>{ if(e.key==='Escape'){ S.crmOpen=false; render(); } });
     if(S.crmFocus){
@@ -2738,6 +2814,10 @@ function pageToday(){
       <h2 class="sec">Today's calendar</h2>
       ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
         : `<p class="hint">Nothing on the calendar today.</p>`}
+    </div>
+    <div class="block">
+      <h2 class="sec">Email health</h2>
+      ${healthPanel()}
     </div>
     <div class="block">
       <h2 class="sec">Follow-ups coming</h2>
@@ -6068,7 +6148,7 @@ function exportCsv(){
   const h = m.head;
   push('Sent 30 days', h.sent_30d); push('Replies 30 days', h.replied_30d);
   push('Reply rate %', h.reply_rate_30d); push('Send-through %', h.send_through_30d);
-  push('Bounced', h.bounced_30d); push('Open deals', h.open_deals);
+  push('Bounced', h.bounced_30d); push('Open deals, all owners', h.open_deals);
   push('Open value', h.open_value); push('Engaged contacts', h.engaged_contacts);
   push('');
   push('Daily'); push('Day','Drafted','Sent','Replied','Bounced');
@@ -7698,13 +7778,21 @@ function wireBudget(){
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session) return renderLogin();
-  /* Falls back to liam for an unrecognised address, which keeps an
-     unknown account looking at a list rather than at an error. */
-  S.me = WHOAMI[(session.user && session.user.email || '').toLowerCase()] || 'liam';
+  /* An address that is not on the list used to be treated as Liam, which
+     showed it Liam's tabs, Budget included. The database still guards the
+     data, but the screen should not offer what the account cannot have. */
+  const email = (session.user && session.user.email || '').toLowerCase();
+  S.me = WHOAMI[email];
+  if(!S.me) return renderNoAccess(email);
   S.dayOwner = S.me;
   S.day = today();
+  /* A tab named in the address wins. Otherwise Iyanna starts on her own
+     list, since the Outreach board is Pat's work rather than hers. */
+  const want = location.hash.slice(1);
+  S.page = visiblePages().some(([k]) => k === want) ? want
+         : (S.me === 'iyanna' ? 'iyanna' : 'today');
   try{
-    await ensure('today');
+    await ensure(S.page);
     render();
   }catch(e){
     app.innerHTML = topbar() + `<div class="empty"><h2>Could not load</h2>
