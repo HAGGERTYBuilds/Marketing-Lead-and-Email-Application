@@ -1,0 +1,52 @@
+-- Send to Metricool, run in the cloud instead of on Liam's laptop.
+-- Applied to Supabase on 2026-10-13 as migration 22_social_send_cloud.
+-- Kept here as the record, with the steps the routine follows.
+--
+-- The Social tab's Send button marks the month's approved posts 'queued'
+-- and adds a social_jobs row of kind 'send_cloud'. The laptop task only
+-- handles generate, extras and send, so it leaves these alone. A Claude
+-- routine ("Social send to Metricool", hourly 7 AM to 7 PM Pacific) picks
+-- them up. Generate and extras stay on the laptop: they read the J: archive.
+
+alter table public.social_jobs drop constraint social_jobs_kind_check;
+alter table public.social_jobs add constraint social_jobs_kind_check
+  check (kind = any (array['generate','send','extras','send_cloud']));
+
+-- What the routine does on each run
+-- ---------------------------------
+-- 1. Claim the oldest pending job, so two runs can't both send it:
+--      update social_jobs set status = 'running', started_at = now()
+--       where id = (select id from social_jobs
+--                    where kind = 'send_cloud' and status = 'pending'
+--                    order by created_at limit 1)
+--         and status = 'pending'
+--      returning *;
+--    Nothing returned means nothing to do.
+--
+-- 2. Read the job's posts: social_posts where brand and month match the job
+--    and status = 'queued', with social_post_media ordered by position.
+--    Media URL: https://ekatzukprjpisdiwubjq.supabase.co/storage/v1/object/
+--    public/social-media/<storage_path, each segment URL-encoded>.
+--
+-- 3. For each post, Metricool createScheduledPost on blogId 5357410,
+--    timezone America/Los_Angeles, draft true, autoPublish true:
+--      a. Instagram + Facebook at post_date 10:00. Text = caption, a blank
+--         line, hashtags. instagramData.type and facebookData.type are
+--         REEL when the post has a video, else POST.
+--      b. LinkedIn at post_date 11:00. Text = caption, a blank line,
+--         hashtags_li (or hashtags when that is empty).
+--         linkedinData {previewIncluded: true, type: "post"}.
+--    Skip a half already recorded in social_posts.metricool (ig_fb or
+--    linkedin), so a retry never makes a duplicate draft.
+--    A post dated before today stays queued and is named in the note.
+--    A post with no media stays queued: Instagram needs a photo or video.
+--
+-- 4. After both halves: update social_posts set status = 'sent',
+--    sent_at = now(), metricool = {"ig_fb": {id, uuid, plannerUrl},
+--    "linkedin": {id, uuid, plannerUrl}}. After one half only: save that
+--    half in metricool and leave the post queued.
+--
+-- 5. Finish the job: status 'done' when every queued post went, else
+--    'failed'; finished_at = now(); note = one or two plain sentences
+--    the Social tab shows, naming each post by date and topic, and any
+--    other post already in Metricool at the same date and time.
