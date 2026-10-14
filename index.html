@@ -625,6 +625,17 @@
   .socbody .why{font-size:12px;color:var(--slate);font-style:italic}
   .socfoot select{font-size:12.5px;padding:5px 7px;max-width:150px}
   .socopen{font-size:13px;color:var(--grey);margin:0 0 14px}
+  .socmix{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap;font-size:13px;color:var(--grey);margin:0 0 14px}
+  .socmix b{color:var(--ink);font-family:var(--mono)}
+  .socmix .short{color:var(--orange)}
+  .socmix .short b{color:var(--orange)}
+  .socmixform{background:var(--card);border:1px solid var(--rule);padding:12px 14px;margin:0 0 14px}
+  .socmixform .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px 14px;margin:8px 0 10px}
+  .socmixform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--slate)}
+  .socmixform input{width:100%;font-family:var(--body);font-size:14px;color:var(--ink);
+      background:var(--paper);border:1px solid var(--rule);padding:5px 8px}
+  .fchips.focus .fchip{border-style:dashed}
+  .fchips.focus .fchip.on{border-style:solid}
   .socthumb{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:0;padding:0;
             cursor:pointer;display:block;overflow:hidden}
   .socthumb img,.socthumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
@@ -1047,7 +1058,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-14a';
+const BUILD = '2026-10-14b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1069,7 +1080,8 @@ const S = {
   reelSaving:false, reelForm:{ url:'', text:'', brand:'haggerty', priority:'2' },
   /* social calendar */
   social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
-  socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'' },
+  socFocus:'all', socMix:{}, socMixOpen:false, socMixForm:{},
+  socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
@@ -6909,6 +6921,11 @@ const SOC_BRAND  = 'haggerty';
 const SOC_STATUS = { draft:'Draft', approved:'Approved', queued:'Sending',
                      sent:'In Metricool', skipped:'Cleared', extra:'Extra option' };
 const SOC_FORMAT = { photo:'Photo', carousel:'Carousel', video:'Video' };
+/* What a post is about. Generate month and Get more options are asked
+   for a target mix of these (social_settings.focus_mix, sent on the job
+   as options.mix); see sql/social_focus.sql. */
+const SOC_FOCUS = { projects:'Projects', people:'People', events:'Events', holidays:'Holidays',
+                    services:'Services', company:'Company', throwbacks:'Throwbacks' };
 const SOC_OK  = ['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'];
 const SOC_MAX = 50 * 1024 * 1024;
 
@@ -6983,6 +7000,8 @@ async function loadSocial(){
     .eq('brand', SOC_BRAND).gte('post_date', since)
     .order('post_date', { ascending:false });
   S.socResults = r.error ? [] : (r.data || []);
+  const st = await sb.from('social_settings').select('focus_mix').eq('brand', SOC_BRAND).maybeSingle();
+  S.socMix = (!st.error && st.data && st.data.focus_mix) || {};
   S.loaded.social = true;
 }
 async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
@@ -7098,6 +7117,7 @@ function socCard(p){
       ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
       <span class="soctag">
         <span class="chip">${esc(SOC_FORMAT[p.format] || p.format)}${media.length>1?` &middot; ${media.length}`:''}</span>
+        ${p.focus && SOC_FOCUS[p.focus] ? `<span class="chip">${esc(SOC_FOCUS[p.focus])}</span>` : ''}
         <span class="chip ${p.status==='approved'||p.status==='sent'||p.status==='queued'?'hot':''}">${esc(SOC_STATUS[p.status] || p.status)}</span>
       </span>
     </button>
@@ -7172,6 +7192,11 @@ function socSheet(){
                  <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>`}
           <div class="field"><label for="socTopic">Topic</label>
             <input type="text" id="socTopic" value="${esc(f.topic)}" autocomplete="off" /></div>
+          <div class="field"><label for="socFocusSel">Focus</label>
+            <select id="socFocusSel">
+              <option value="" ${f.focus?'':'selected'}>Not tagged</option>
+              ${Object.entries(SOC_FOCUS).map(([k,l])=>`<option value="${k}" ${f.focus===k?'selected':''}>${esc(l)}</option>`).join('')}
+            </select></div>
           <div class="field"><label for="socCaption">Caption</label>
             <textarea id="socCaption">${esc(f.caption)}</textarea></div>
           <div class="field"><label for="socTags">Hashtags, Instagram and Facebook</label>
@@ -7251,13 +7276,78 @@ function socJobNote(){
   return out.filter(Boolean);
 }
 
+/* ---- focus: what a post is about ---- */
+function socFocusLabel(k){ return k === 'none' ? 'untagged' : (SOC_FOCUS[k] || k); }
+function socFocusMatch(p, k){
+  return k === 'all' || (k === 'none' ? !SOC_FOCUS[p.focus] : p.focus === k);
+}
+function socMixTargets(){
+  const out = {};
+  for(const k of Object.keys(SOC_FOCUS)){
+    const n = Math.round(Number((S.socMix || {})[k]) || 0);
+    if(n > 0) out[k] = n;
+  }
+  return out;
+}
+function socFocusChips(list){
+  const n = k => list.filter(p => socFocusMatch(p, k)).length;
+  const keys = ['all', ...Object.keys(SOC_FOCUS), ...(n('none') ? ['none'] : [])];
+  return `<div class="fchips focus" style="margin:0 0 12px">${keys
+    .filter(k => k === 'all' || k === S.socFocus || n(k))
+    .map(k => `<button class="fchip ${S.socFocus===k?'on':''}" data-socfocus="${k}">${
+      k === 'all' ? 'All topics' : k === 'none' ? 'Untagged' : esc(SOC_FOCUS[k])} <b>${n(k)}</b></button>`).join('')}</div>`;
+}
+/* The month's mix counts the posts on the calendar (not cleared posts or
+   extras) and flags any focus that is under its target. */
+function socMixLine(live){
+  const want = socMixTargets();
+  const parts = Object.keys(SOC_FOCUS).map(k => {
+    const have = live.filter(p => p.focus === k).length;
+    const goal = want[k] || 0;
+    if(!have && !goal) return '';
+    const short = goal && have < goal;
+    return `<span class="${short?'short':''}"><b>${have}</b> ${esc(SOC_FOCUS[k])}${goal ? ` of ${goal}` : ''}</span>`;
+  }).filter(Boolean);
+  const form = S.socMixOpen ? `<div class="socmixform">
+      <b style="font-size:13px">Target mix</b>
+      <p class="hint" style="margin:4px 0 0">The least number of posts of each kind a month should have. Generate month and
+        Get more options follow it; leave a box empty for no target.</p>
+      <div class="grid">${Object.entries(SOC_FOCUS).map(([k,l]) => `<label>${esc(l)}
+        <input type="number" min="0" max="23" step="1" data-socmix="${k}" value="${esc((S.socMixForm||{})[k] || '')}" /></label>`).join('')}</div>
+      <div class="actions"><button class="btn small" id="socMixSave" ${S.socBusy?'disabled':''}>Save target mix</button>
+        <button class="linkbtn" id="socMixClose">Cancel</button></div>
+    </div>` : '';
+  return `<p class="socmix"><span>${esc(socMonthLabel(S.socMonth).split(' ')[0])} mix:</span>
+      ${parts.join('') || '<span>No posts tagged yet</span>'}
+      <button class="linkbtn" id="socMixOpen">${Object.keys(want).length ? 'Change target mix' : 'Set a target mix'}</button></p>${form}`;
+}
+async function saveSocialMix(){
+  if(S.socBusy) return;
+  const mix = {};
+  for(const [k,v] of Object.entries(S.socMixForm || {})){
+    const n = Math.round(Number(v) || 0);
+    if(SOC_FOCUS[k] && n > 0) mix[k] = n;
+  }
+  S.socBusy = 'mix'; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_settings').upsert({
+      brand: SOC_BRAND, focus_mix: mix, updated_at: new Date().toISOString(), updated_by: await socWho() });
+    if(error) throw error;
+    S.socMix = mix; S.socMixOpen = false;
+    S.socNote = Object.keys(mix).length
+      ? 'Target mix saved. Generate month and Get more options will follow it.' : 'Target mix cleared.';
+  }catch(err){ S.socErr = 'The target mix did not save: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
 function pageSocial(){
   if(!S.loaded.social) return loading();
   const all = S.social || [];
   const count = k => all.filter(p => p.status === k).length;
   const live = all.filter(socLive);
-  const rows = all.filter(p => S.socFilter === 'all' ? socLive(p) : (p.status === S.socFilter
+  const byStatus = all.filter(p => S.socFilter === 'all' ? socLive(p) : (p.status === S.socFilter
     || (S.socFilter === 'sent' && p.status === 'queued')));
+  const rows = byStatus.filter(p => socFocusMatch(p, S.socFocus));
   const openDates = socOpenDates();
   const extras = count('extra');
   const xOpen = (S.socJobs||[]).some(j => j.kind==='extras' && ['pending','running','ready'].includes(j.status));
@@ -7290,7 +7380,8 @@ function pageSocial(){
     </div>
 
     ${socResultsStrip()}
-    <div class="fchips" style="margin:0 0 14px">${chips}</div>
+    <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
+    ${S.socFilter !== 'results' && all.length ? socFocusChips(byStatus) + socMixLine(live) : ''}
 
     ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
     ${S.socNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.socNote)}</p></div>`:''}
@@ -7306,7 +7397,7 @@ function pageSocial(){
       ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
       : `<div class="empty" style="padding:44px 0">
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
-           <p>${all.length?(S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
+           <p>${all.length?(S.socFocus!=='all'&&byStatus.length?'No ' + esc(socFocusLabel(S.socFocus)) + ' posts here. Pick another focus above.':S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
              :'Generate month asks for a new set built from the J: archive. Import folder brings in a month folder that is already built.'}</p>
          </div>`}
 
@@ -7319,7 +7410,7 @@ function socOpen(id){
   const p = (S.social||[]).find(x => x.id === id);
   if(!p) return;
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
-  S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '',
+  S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '', focus: p.focus || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '' };
   render();
 }
@@ -7337,6 +7428,7 @@ async function saveSocial(status){
        a date in the editor schedules it as a draft. */
     const when = isExtra ? (f.use_date || '') : f.post_date;
     const patch = { topic: String(f.topic||'').trim() || null,
+                    focus: SOC_FOCUS[f.focus] ? f.focus : null,
                     caption: String(f.caption||'').trim(),
                     hashtags: String(f.hashtags||'').trim() || null,
                     hashtags_li: String(f.hashtags_li||'').trim() || null };
@@ -7541,8 +7633,10 @@ async function requestSocialJob(kind){
     const jobKind = kind === 'send' ? 'send_cloud' : kind;
     const open = (S.socJobs||[]).find(j => j.kind === jobKind && j.status === 'pending');
     if(!open){
+      const options = (kind === 'generate' || kind === 'extras') && Object.keys(socMixTargets()).length
+        ? { mix: socMixTargets() } : null;
       const { error } = await sb.from('social_jobs').insert({
-        kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who });
+        kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
       if(error) throw error;
     }
     await reloadSocial();
@@ -7599,6 +7693,7 @@ async function importSocialFolder(fileList){
       const ins = await sb.from('social_posts').insert({
         brand: SOC_BRAND, month: m, post_date: p.extra ? m + '-01' : p.date, seq: Number(p.n) || i + 1,
         format: socFormat(kinds), topic: p.topic || null, caption: p.caption || '',
+        focus: SOC_FOCUS[p.focus] ? p.focus : null,
         hashtags: p.tags_ig_fb || null, hashtags_li: p.tags_li || null,
         status: p.extra ? 'extra' : 'draft', source_key: p.folder }).select('id').single();
       if(ins.error) throw ins.error;
@@ -7685,6 +7780,19 @@ function wireSocial(){
     if(el) el.addEventListener('input',()=>{ S.socForm[key] = el.value; });
   };
   bind('socDate','post_date'); bind('socTopic','topic'); bind('socCaption','caption');
+  const fs = document.getElementById('socFocusSel');
+  if(fs) fs.addEventListener('change',()=>{ S.socForm.focus = fs.value; });
+  document.querySelectorAll('[data-socfocus]').forEach(el=>
+    el.addEventListener('click',()=>{ S.socFocus = el.dataset.socfocus; render(); }));
+  const mo = document.getElementById('socMixOpen');
+  if(mo) mo.addEventListener('click',()=>{
+    S.socMixOpen = !S.socMixOpen; S.socMixForm = Object.assign({}, socMixTargets()); render(); });
+  const mc = document.getElementById('socMixClose');
+  if(mc) mc.addEventListener('click',()=>{ S.socMixOpen = false; render(); });
+  document.querySelectorAll('[data-socmix]').forEach(el=>
+    el.addEventListener('input',()=>{ S.socMixForm[el.dataset.socmix] = el.value; }));
+  const ms = document.getElementById('socMixSave');
+  if(ms) ms.addEventListener('click', saveSocialMix);
   bind('socTags','hashtags'); bind('socTagsLi','hashtags_li');
 
   const cl = document.getElementById('socClose');
