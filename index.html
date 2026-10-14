@@ -4,6 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>HAGGERTY Marketing</title>
+<script>
+  /* Set the saved theme before anything paints, so a dark-mode user never
+     sees a white flash. */
+  try{ const t = localStorage.getItem('hg-theme');
+       if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; }catch(e){}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,6 +20,10 @@
     --grey:#4D4D4D; --slate:#6E7477;
     --orange:#F68922; --orange-tint:#FEF3E7; --orange-ink:#B85C00;
     --green:#3F7D5C; --red:#A6402C;
+    --hover:#FBFAF8; --gold-active:#FBE3C9; --hot-ink:#8A4A05;
+    --on-ink:#FFFFFF; --ink-strong:#000000;
+    /* The sidebar stays dark in both themes so the white logo reads. */
+    --rail:#1E1D1B; --rail-on:#2E2B28; --rail-ink:#D6D1C9; --rail-dim:#8E8980; --rail-rule:#34312D;
     --display:"Barlow Condensed",system-ui,sans-serif;
     --body:"IBM Plex Sans",system-ui,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,monospace;
@@ -22,6 +32,28 @@
        dropped out. Pointing them at the real tokens brings them back. */
     --line:var(--rule); --sans:var(--body);
   }
+  /* Dark mode. Follows the computer's setting unless someone picks Light
+     or Dark in the sidebar, which sets data-theme on <html>. */
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --ink:#EEEAE4; --paper:#151413; --card:#1E1D1B;
+    --rule:#3A3732; --rule-soft:#2C2A27; --wash:#262422;
+    --grey:#C4BFB7; --slate:#9D988F;
+    --orange-tint:#3A2814; --orange-ink:#F9A75C;
+    --green:#6DB08A; --red:#E07A63;
+    --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
+    --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
+    --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    color-scheme:dark }}
+  :root[data-theme="dark"]{
+    --ink:#EEEAE4; --paper:#151413; --card:#1E1D1B;
+    --rule:#3A3732; --rule-soft:#2C2A27; --wash:#262422;
+    --grey:#C4BFB7; --slate:#9D988F;
+    --orange-tint:#3A2814; --orange-ink:#F9A75C;
+    --green:#6DB08A; --red:#E07A63;
+    --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
+    --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
+    --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    color-scheme:dark }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{background:var(--paper);color:var(--ink);font-family:var(--body);
@@ -95,7 +127,7 @@
   .row{display:block;width:100%;text-align:left;background:none;border:0;
        border-bottom:1px solid var(--rule-soft);padding:12px 17px 12px 15px;
        cursor:pointer;border-left:3px solid transparent}
-  .row:hover{background:#FBFAF8}
+  .row:hover{background:var(--hover)}
   .row.active{background:var(--orange-tint);border-left-color:var(--orange)}
   .row.done .name{color:var(--slate)}
   /* Pat's Gold: hand-picked, so it has to read differently at a glance from
@@ -104,7 +136,7 @@
   .row.gold{background:var(--orange-tint)}
   .row.gold .name::after{content:'GOLD';font-family:var(--mono);font-size:9px;
       letter-spacing:.08em;color:var(--orange-ink);margin-left:7px;vertical-align:1px}
-  .row.gold.active{background:#FBE3C9}
+  .row.gold.active{background:var(--gold-active)}
   .row-top{display:flex;align-items:baseline;gap:8px}
   .idx{font-family:var(--mono);font-size:11px;color:var(--slate);min-width:18px}
   .name{font-weight:600;font-size:14px}
@@ -123,7 +155,7 @@
        gap:8px;background:none;border:0;cursor:pointer;padding:11px 17px;
        font-family:var(--mono);font-size:10px;letter-spacing:.08em;
        text-transform:uppercase;color:var(--slate);text-align:left}
-  .skiphead:hover{background:#FBFAF8;color:var(--ink)}
+  .skiphead:hover{background:var(--hover);color:var(--ink)}
   .skiphead .caret{font-size:9px}
   .row.skipped{background:var(--wash);opacity:.72}
   .row.skipped .name{font-weight:500;color:var(--slate);text-decoration:line-through}
@@ -137,7 +169,7 @@
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:13px 0 0}
   .chip{font-family:var(--mono);font-size:11px;border:1px solid var(--rule);
         padding:3px 7px;color:var(--slate);background:var(--card);text-decoration:none}
-  .chip.hot{border-color:var(--orange);color:#8A4A05;background:var(--orange-tint)}
+  .chip.hot{border-color:var(--orange);color:var(--hot-ink);background:var(--orange-tint)}
   .chip.good{border-color:var(--green);color:var(--green)}
   .chip.bad{border-color:var(--red);color:var(--red)}
   .panelbox{margin:18px 0 24px;padding:13px 15px;background:var(--card);border:1px solid var(--rule)}
@@ -159,7 +191,7 @@
   .field label{display:block;font-family:var(--display);text-transform:uppercase;
                letter-spacing:.08em;font-size:12px;color:var(--slate);
                font-weight:600;margin-bottom:4px}
-  input[type=text],input[type=password],textarea,select{
+  input[type=text],input[type=password],input[type=email],textarea,select{
     width:100%;font-family:var(--body);font-size:14px;line-height:1.6;
     color:var(--ink);background:var(--paper);border:1px solid var(--rule);
     border-radius:0;padding:9px 11px;resize:vertical}
@@ -168,14 +200,14 @@
   textarea{min-height:180px}
   .actions{display:flex;align-items:center;gap:12px;margin-top:13px;flex-wrap:wrap}
   .btn{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
-       font-weight:600;font-size:14px;background:var(--ink);color:#fff;border:0;
+       font-weight:600;font-size:14px;background:var(--ink);color:var(--on-ink);border:0;
        padding:9px 18px;cursor:pointer}
-  .btn:hover{background:#000}
+  .btn:hover{background:var(--ink-strong)}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
   .btn.small{font-size:12.5px;padding:6px 12px}
   .btn.ghost{background:none;color:var(--grey);border:1px solid var(--rule)}
   .btn.ghost:hover{background:var(--wash);color:var(--ink)}
-  .btn.accent{background:var(--orange)}
+  .btn.accent{background:var(--orange);color:#fff}
   .btn.accent:hover{background:#DE7A16}
   .done-banner{background:var(--card);border:1px solid var(--rule);
                border-left:3px solid var(--green);padding:15px 17px;margin-bottom:18px}
@@ -213,7 +245,7 @@
   .kind{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
         letter-spacing:.05em;padding:2px 6px;border:1px solid var(--rule);
         color:var(--slate);flex-shrink:0}
-  .kind.meeting{border-color:var(--orange);color:#8A4A05;background:var(--orange-tint)}
+  .kind.meeting{border-color:var(--orange);color:var(--hot-ink);background:var(--orange-tint)}
   .kind.networking{border-color:var(--green);color:var(--green)}
   .kind.site_visit{border-color:var(--ink);color:var(--ink)}
   .scroll{max-height:560px;overflow-y:auto;border:1px solid var(--rule)}
@@ -271,7 +303,7 @@
         font-size:13.5px;color:var(--grey)}
   .warn b{color:var(--red)}
   .warn.soft{border-left-color:var(--orange)}
-  .warn.soft b{color:#8A4A05}
+  .warn.soft b{color:var(--hot-ink)}
   .warn.info{border-left-color:var(--slate)}
   .warn.info b{color:var(--ink)}
   .warn .when{font-family:var(--mono);font-size:11.5px;color:var(--slate)}
@@ -279,7 +311,7 @@
   .prev-head{padding:9px 13px;border-bottom:1px solid var(--rule-soft);
              display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .prev-body{padding:4px 13px 10px;max-height:280px;overflow-y:auto;
-             font-size:13px;color:#555}
+             font-size:13px;color:var(--grey)}
   .prev-body p{margin:0 0 10px}
 
   /* ---------- deal board ---------- */
@@ -287,7 +319,7 @@
   .kswitch button{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
                   font-weight:600;font-size:13px;background:none;border:1px solid var(--rule);
                   color:var(--slate);padding:6px 14px;cursor:pointer}
-  .kswitch button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .kswitch button.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
   .bwrap{display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:16px}
   .bcol{flex:0 0 244px;background:var(--wash);border:1px solid var(--rule)}
   .bcol-head{padding:9px 11px 8px;background:var(--card);border-bottom:1px solid var(--rule)}
@@ -300,7 +332,7 @@
   .bcol-body .none{font-size:12px;color:var(--slate);font-style:italic;padding:6px 2px}
   .dcard{display:block;width:100%;text-align:left;background:var(--card);cursor:grab;
          border:1px solid var(--rule);border-left:3px solid var(--rule);padding:9px 10px}
-  .dcard:hover{background:#FBFAF8}
+  .dcard:hover{background:var(--hover)}
   .dcard:active{cursor:grabbing}
   .dcard.dragging{opacity:.35}
   .bcol.over{outline:2px solid var(--orange);outline-offset:-2px;background:var(--orange-tint)}
@@ -346,14 +378,14 @@
 
   /* CRM search */
   .crmbox{position:relative;display:flex;align-items:center;margin-left:16px}
-  .crmbox input{width:230px;border:1px solid var(--line);background:#fff;
+  .crmbox input{width:min(340px,100%);border:1px solid var(--line);background:var(--card);
       padding:6px 26px 6px 10px;font-size:12px;font-family:var(--sans);color:var(--ink)}
   .crmbox input:focus{outline:none;border-color:var(--ink)}
   .crmx{position:absolute;right:4px;border:0;background:none;cursor:pointer;
       color:var(--slate);font-size:16px;line-height:1;padding:0 4px}
   .crmwrap{position:relative;z-index:40}
   .crmres{position:absolute;top:6px;right:16px;width:min(560px,calc(100vw - 32px));
-      max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--ink);
+      max-height:70vh;overflow:auto;background:var(--card);border:1px solid var(--ink);
       box-shadow:0 12px 32px rgba(0,0,0,.14);padding:12px 14px}
   .crmres-head{display:flex;justify-content:space-between;align-items:center;
       margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -377,7 +409,7 @@
   .addlead .field label{display:block;font-family:var(--mono);font-size:10px;
       letter-spacing:.06em;text-transform:uppercase;color:var(--slate);margin-bottom:3px}
   .addlead input[type=text],.addlead input[type=email],.addlead select{
-      width:100%;border:1px solid var(--line);background:#fff;padding:6px 8px;
+      width:100%;border:1px solid var(--line);background:var(--card);padding:6px 8px;
       font-size:12px;font-family:var(--sans);color:var(--ink)}
   .alcheck{display:flex;align-items:center;gap:7px;margin:10px 0;font-size:12px}
   .alfoot{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -399,9 +431,9 @@
   .lbl-edit.busy{opacity:.55;pointer-events:none}
   .lbl-grp{margin-bottom:10px}
   .lbl-opts{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
-  .lbl-opt{border:1px solid var(--line);background:#fff;padding:4px 9px;
+  .lbl-opt{border:1px solid var(--line);background:var(--card);padding:4px 9px;
       font-size:12px;cursor:pointer;color:var(--slate)}
-  .lbl-opt.on{border-color:var(--ink);background:var(--ink);color:#fff}
+  .lbl-opt.on{border-color:var(--ink);background:var(--ink);color:var(--on-ink)}
   .lbl-opt.ex.on{border-color:var(--red);background:var(--red);color:#fff}
   .lbl-foot{display:flex;justify-content:space-between;align-items:center;
       gap:10px;flex-wrap:wrap;margin-top:4px}
@@ -411,13 +443,13 @@
       border-radius:8px;background:var(--orange);color:#fff;
       font-family:var(--mono);font-size:10px;line-height:16px;text-align:center}
   .fchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-  .fchip{border:1px solid var(--line);background:#fff;padding:5px 11px;
+  .fchip{border:1px solid var(--line);background:var(--card);padding:5px 11px;
       font-size:12px;cursor:pointer;color:var(--slate)}
   .fchip b{font-family:var(--mono);margin-left:4px;color:var(--ink)}
   .fchip.on{border-color:var(--ink);color:var(--ink)}
   .inv-list{display:flex;flex-direction:column;gap:10px}
   .inv{border:1px solid var(--line);border-left:3px solid var(--line);
-      background:#fff;padding:14px 16px}
+      background:var(--card);padding:14px 16px}
   .inv.busy{opacity:.55}
   .inv.going{border-left-color:var(--orange)}
   .inv.passed{opacity:.55}
@@ -455,7 +487,7 @@
   .apv-file{display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap}
   .apv-prev{margin-top:12px;padding:10px 12px;background:var(--wash);
             border-left:3px solid var(--orange)}
-  .apv-prev .eyebrow{color:#8A4A05}
+  .apv-prev .eyebrow{color:var(--hot-ink)}
   .apv-prev p{margin:5px 0 0;font-size:13px;color:var(--grey);white-space:pre-wrap}
   .apv-mine{margin-top:10px;padding:10px 12px;background:var(--wash);
             border-left:3px solid var(--slate)}
@@ -704,7 +736,8 @@
   .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
   .loginbox{width:100%;max-width:360px;background:var(--card);
             border:1px solid var(--rule);padding:30px 28px}
-  .loginbox .wordmark{font-size:26px;display:block;margin-bottom:4px}
+  .login-logo{background:var(--rail);margin:-30px -28px 20px;padding:24px 28px}
+  .login-logo img{display:block;width:210px;max-width:100%;height:auto}
   .loginbox .eyebrow{margin-bottom:22px;display:block}
   .loginbox .btn{width:100%;margin-top:20px}
   .empty{padding:52px 26px;max-width:560px}
@@ -817,6 +850,122 @@
   .bud-st.paid{color:var(--green)}
   .bud-tot td{font-weight:600;background:var(--wash)}
   td input[type=text]{padding:5px 8px;font-size:13px}
+  /* ---------- shell: sidebar, phone bar ---------- */
+  .shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+  .mainwrap{min-width:0}
+  .rail{background:var(--rail);color:var(--rail-ink);position:sticky;top:0;height:100vh;
+        overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding:20px 12px 14px}
+  .rail-logo{display:block;width:100%;max-width:176px;height:auto;padding:0 8px}
+  .rail-logo-sub{font-family:var(--display);text-transform:uppercase;letter-spacing:.2em;
+        font-size:11px;font-weight:600;color:var(--rail-dim);padding:0 9px;margin-top:-10px}
+  .navgroups{display:flex;flex-direction:column;gap:16px}
+  .navgroup{display:flex;flex-direction:column;gap:1px}
+  .navgroup h3{margin:0 0 4px;padding:0 10px;font-family:var(--display);font-size:11.5px;
+        letter-spacing:.14em;text-transform:uppercase;color:var(--rail-dim);font-weight:600}
+  .navlink{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;
+        border:0;border-radius:6px;padding:7px 10px;color:var(--rail-ink);cursor:pointer;
+        font-family:var(--body);font-size:14px}
+  .navlink svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+  .navlink:hover{background:var(--rail-on);color:#fff}
+  .navlink.on{background:var(--rail-on);color:#fff;box-shadow:inset 3px 0 0 var(--orange)}
+  .navlink .count{margin-left:auto;font-family:var(--mono);font-size:11px;background:var(--orange);
+        color:#1C1B1A;border-radius:9px;padding:0 6px;font-weight:500;line-height:17px}
+  .navlink .count.quiet{background:var(--rail-rule);color:var(--rail-ink)}
+  .rail :focus-visible,.bottombar :focus-visible,.moresheet :focus-visible{outline-color:var(--orange)}
+  .rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:12px 10px 0;
+        border-top:1px solid var(--rail-rule);font-size:13px}
+  .rail-me{display:flex;align-items:center;gap:10px}
+  .rail-me .av{width:30px;height:30px;border-radius:50%;background:var(--orange);color:#1C1B1A;
+        display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:15px;flex:none}
+  .rail-me b{color:#fff;font-weight:600}
+  .rail-acts{display:flex;gap:6px;flex-wrap:wrap}
+  .railbtn{background:none;border:1px solid var(--rail-rule);border-radius:6px;color:var(--rail-ink);
+        font-size:12px;padding:4px 9px;cursor:pointer;font-family:var(--body)}
+  .railbtn:hover{border-color:var(--rail-dim);color:#fff}
+  .topbar .crmbox{margin-left:0;flex:1 1 260px;max-width:380px}
+  .topbar .crmbox input{width:100%;border-radius:6px}
+  .bottombar,.moresheet{display:none}
+  @media (max-width:760px){
+    .shell{grid-template-columns:minmax(0,1fr)}
+    .rail{display:none}
+    .mainwrap{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+    .actionbar{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+    .topbar .tally{display:none}
+    .bottombar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;left:0;right:0;
+        bottom:0;z-index:35;background:var(--rail);
+        padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+    .bottombar button{background:none;border:0;color:var(--rail-ink);display:flex;flex-direction:column;
+        align-items:center;gap:2px;font-size:11px;padding:4px 0;cursor:pointer;position:relative;font-family:var(--body)}
+    .bottombar button.on{color:var(--orange)}
+    .bottombar svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.7}
+    .bottombar .dot{position:absolute;top:0;left:calc(50% + 5px);background:var(--orange);color:#1C1B1A;
+        font-family:var(--mono);font-size:10px;border-radius:8px;padding:0 4px;line-height:15px}
+    .moresheet.open{display:flex;flex-direction:column;gap:16px;position:fixed;left:0;right:0;
+        bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:34;background:var(--rail);
+        padding:18px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));
+        border-radius:14px 14px 0 0;max-height:75vh;overflow:auto;box-shadow:0 -10px 30px rgba(0,0,0,.3)}
+  }
+
+  /* ---------- home: needs you, numbers, charts ---------- */
+  .home-sum{margin:0;color:var(--slate)}
+  .home-sum b{color:var(--ink);font-weight:600}
+  .home-lbl{margin:0 0 8px}
+  .queue{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:22px}
+  .qitem{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:start;text-align:left;
+        background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;
+        cursor:pointer;position:relative;overflow:hidden;font:inherit;color:inherit}
+  .qitem::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--sev)}
+  .qitem:hover{border-color:var(--sev)}
+  .qitem .big{grid-row:span 2;font-family:var(--display);font-weight:700;font-size:30px;line-height:1;
+        color:var(--sev);min-width:26px;font-variant-numeric:tabular-nums}
+  .qitem .t{font-weight:600}
+  .qitem .d{font-size:12.5px;color:var(--slate)}
+  .qitem.bad{--sev:var(--red)} .qitem.hot{--sev:var(--orange)}
+  .queue-clear{margin:0 0 22px;padding:12px 14px;border:1px solid var(--rule);border-radius:10px;
+        background:var(--card);color:var(--slate);font-size:13.5px}
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:13px 15px 10px;
+        display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+  .kpi:hover{border-color:var(--orange)}
+  .kpi .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:12px;
+        color:var(--slate);font-weight:600}
+  .kpi .v{font-family:var(--display);font-weight:700;font-size:clamp(24px,5.6vw,31px);line-height:1.08;
+        font-variant-numeric:tabular-nums}
+  .kpi .v small{font-size:16px;color:var(--slate);font-weight:600;margin-left:2px}
+  .kpi .d{font-size:12.5px;color:var(--slate)}
+  .kpi.bad .v{color:var(--red)}
+  .kpi svg{width:100%;height:38px;margin-top:6px;display:block;overflow:visible}
+  .kpi .cap{font-family:var(--mono);font-size:10.5px;color:var(--slate)}
+  .panel{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:15px 17px;
+        min-width:0;margin-bottom:16px}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:11px}
+  .panel-head h2{margin:0;font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+        font-weight:700;font-size:15px}
+  .panel-head .linkbtn{color:var(--orange-ink);text-decoration:none;font-size:12.5px;padding:0}
+  .panel-head .linkbtn:hover{text-decoration:underline}
+  .panel .hlist{border:0;background:none}
+  .panel .hrow{padding-left:0;padding-right:0}
+  .panel .hotlead{padding-left:0;padding-right:0}
+  .chart{width:100%;display:block;height:auto}
+  .chart text{font-family:var(--mono);font-size:11px;fill:var(--slate)}
+  .chart .lbl{font-family:var(--body);font-size:12.5px;fill:var(--ink)}
+  .chart .val{fill:var(--ink)}
+  .chart .grid{stroke:var(--rule-soft)}
+  .chart .base{stroke:var(--rule)}
+  .chart .hit:hover + .mark,.chart .mark:hover{opacity:.8}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--slate);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  @media (max-width:1080px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media (max-width:420px){ .kpis{gap:8px} .kpi{padding:11px 12px 8px} }
+  .stages{display:flex;flex-direction:column;gap:9px}
+  .stage{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 6.5em;gap:10px;align-items:center;font-size:13px}
+  .stage-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stage-bar{height:14px;background:var(--wash);border-radius:3px;overflow:hidden}
+  .stage-bar i{display:block;height:100%;background:var(--orange);border-radius:0 4px 4px 0}
+  .stage-v{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .stage-v em{font-style:normal;color:var(--slate);margin-left:4px}
+  .home-hi{flex-direction:column;align-items:flex-start;gap:4px}
+  @media (max-width:420px){ .stage{grid-template-columns:minmax(0,1fr) 6em} .stage-bar{grid-column:1 / -1;grid-row:2} }
 </style>
 </head>
 <body>
@@ -898,7 +1047,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-13h';
+const BUILD = '2026-10-14a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1013,7 +1162,7 @@ function toHtml(plain){
 /* ================= auth ================= */
 function renderLogin(msg){
   app.innerHTML = `<div class="center"><form class="loginbox" id="lf">
-    <span class="wordmark">HAGGERT<span>Y</span></span>
+    <div class="login-logo"><img src="${LOGO}" alt="HAGGERTY" /></div>
     <span class="eyebrow">Marketing hub</span>
     <div class="field"><label for="em">Email</label><input type="email" id="em" autocomplete="username"/></div>
     <div class="field"><label for="pw">Password</label><input type="password" id="pw" autocomplete="current-password"/></div>
@@ -1031,7 +1180,7 @@ function renderLogin(msg){
 
 function renderNoAccess(email){
   app.innerHTML = `<div class="center"><div class="loginbox">
-    <span class="wordmark">HAGGERT<span>Y</span></span>
+    <div class="login-logo"><img src="${LOGO}" alt="HAGGERTY" /></div>
     <span class="eyebrow">Marketing hub</span>
     <p style="margin:0 0 6px"><b>${esc(email || 'This account')}</b> is signed in but has not been given a place on the dashboard yet.</p>
     <p class="hint">Ask Liam to add it.</p>
@@ -2691,37 +2840,139 @@ async function ensureOnce(page){
 }
 
 /* ================= chrome ================= */
+/* The white HAGGERTY logo, 600px wide. Inlined so the sidebar never waits
+   on a second request. */
+const LOGO = 'data:image/png;base64,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';
+
+/* The sidebar groups the tabs by what they are for. A tab someone cannot
+   see (visiblePages) drops out, and an empty group goes with it. */
+const NAV_GROUPS = [
+  ['Today',   ['home','today','approvals']],
+  ['People',  ['myday','calendar','iyanna']],
+  ['Content', ['social','reels']],
+  ['Growth',  ['kpis','leads']],
+  ['Money',   ['budget']]
+];
+const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
+  calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', reels:'Reels',
+  leads:'Leads', budget:'Budget' };
+/* The phone bar has room for four tabs and More. First four of these that
+   the person can see; Iyanna has no Home, so her list leads. */
+const NAV_PHONE = me => me === 'iyanna' ? ['iyanna','reels','social','leads']
+                                        : ['home','today','approvals','kpis'];
+const NAV_ICON = {
+  home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
+  today:'<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>',
+  approvals:'<path d="M5 12l4 4 10-10"/>',
+  myday:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  iyanna:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  social:'<path d="M4 18V9M10 18V5M16 18v-7M21 18H3"/>',
+  reels:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>',
+  kpis:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
+  leads:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M15 15c2.8 0 4.6 1.3 5.5 4"/>',
+  budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
+};
+const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] || ''}</svg>`;
+
+/* A count beside a tab is what makes a pending item hard to walk past.
+   Only shown once its data has loaded, so it never flashes a wrong number.
+   Outreach shows Pat what is left to send; it is grey because the board,
+   not the count, is the to-do. */
+function navCount(k){
+  if(k === 'approvals' && S.loaded.approvals) return { n:apvPendingCount() };
+  if(k === 'today' && S.me === 'pat' && S.loaded.board) return { n:homeBoardCounts().open.length, quiet:true };
+  return { n:0 };
+}
+
+function navGroupsHtml(){
+  const vis = new Map(visiblePages());
+  return NAV_GROUPS.map(([g, ks]) => [g, ks.filter(k => vis.has(k))])
+    .filter(([, ks]) => ks.length)
+    .map(([g, ks]) => `<div class="navgroup"><h3>${g}</h3>${ks.map(k => {
+      const c = navCount(k);
+      return `<button class="navlink ${S.page===k?'on':''}" data-page="${k}"${S.page===k?' aria-current="page"':''}>${
+        navIcon(k)}<span>${esc(vis.get(k))}</span>${c.n ? `<span class="count ${c.quiet?'quiet':''}">${c.n}</span>` : ''}</button>`;
+    }).join('')}</div>`).join('');
+}
+
+const THEME_NEXT = { system:'light', light:'dark', dark:'system' };
+const THEME_LABEL = { system:'Theme: Auto', light:'Theme: Light', dark:'Theme: Dark' };
+function themeNow(){
+  const t = document.documentElement.dataset.theme;
+  return t === 'light' || t === 'dark' ? t : 'system';
+}
+function cycleTheme(){
+  const t = THEME_NEXT[themeNow()];
+  if(t === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  try{ t === 'system' ? localStorage.removeItem('hg-theme') : localStorage.setItem('hg-theme', t); }catch(e){}
+  render();
+}
+
+function railFoot(){
+  const name = { liam:'Liam', pat:'Pat', iyanna:'Iyanna' }[S.me] || '';
+  return `<div class="rail-foot">
+    <div class="rail-me"><span class="av">${esc(name.slice(0,1))}</span><b>${esc(name)}</b></div>
+    <div class="rail-acts">
+      <button class="railbtn" data-theme-cycle title="Switch between automatic, light and dark">${THEME_LABEL[themeNow()]}</button>
+      <button class="railbtn" data-signout>Sign out</button>
+    </div>
+  </div>`;
+}
+
+function rail(){
+  return `<aside class="rail" aria-label="Main navigation">
+    <img class="rail-logo" src="${LOGO}" alt="HAGGERTY" />
+    <div class="rail-logo-sub">Marketing</div>
+    <nav class="navgroups">${navGroupsHtml()}</nav>
+    ${railFoot()}
+  </aside>`;
+}
+
+function bottomBar(){
+  const vis = new Set(visiblePages().map(([k]) => k));
+  const keys = NAV_PHONE(S.me).filter(k => vis.has(k)).slice(0, 4);
+  const inMore = !keys.includes(S.page);
+  return `<nav class="bottombar" aria-label="Main navigation">${keys.map(k => {
+      const c = navCount(k);
+      return `<button class="${S.page===k && !S.moreOpen?'on':''}" data-page="${k}">${navIcon(k)}${
+        c.n && !c.quiet ? `<span class="dot">${c.n}</span>` : ''}<span>${NAV_SHORT[k]}</span></button>`;
+    }).join('')}
+    <button class="${S.moreOpen || inMore ? 'on' : ''}" data-more aria-expanded="${S.moreOpen?'true':'false'}">${navIcon('more')}<span>More</span></button>
+  </nav>
+  <div class="moresheet ${S.moreOpen?'open':''}">
+    <div class="navgroups">${navGroupsHtml()}</div>
+    ${railFoot()}
+  </div>`;
+}
+
+/* Every page sits in the same frame: sidebar, then the top bar and the
+   page itself. On a phone the sidebar becomes the bar along the bottom. */
+function shell(inner){
+  return `<div class="shell">${rail()}<div class="mainwrap">${topbar()}${crmPanel()}${inner}</div></div>${bottomBar()}`;
+}
+
 function topbar(){
   const live = S.board.filter(r=>r.status !== 'skipped');
   const done = live.filter(r=>r.handled).length;
   return `<header class="topbar">
-    <span class="wordmark">HAGGERT<span>Y</span></span>
-    <nav class="tabs">
-      ${visiblePages().map(([k,l])=>{
-        /* A count on the tab is what makes a pending item hard to walk
-           past. Only shown once approvals have loaded, so it never
-           flashes a wrong number on the way in. */
-        const n = (k==='approvals' && S.loaded.approvals) ? apvPendingCount() : 0;
-        return `<button class="tab ${S.page===k?'on':''}" data-page="${k}">${l}${
-          n?` <span class="badge">${n}</span>`:''}</button>`;
-      }).join('')}
-    </nav>
     <div class="crmbox">
       <input type="search" id="crmQ" value="${esc(S.crmQ)}" autocomplete="off"
              placeholder="Search contacts and companies" aria-label="Search the CRM" />
       ${S.crmQ?`<button class="crmx" id="crmClear" aria-label="Clear">&times;</button>`:''}
     </div>
     <span class="spacer"></span>
-    <span class="tally" title="Build ${BUILD}">${esc(prettyDate())}</span>
+    <span class="tally date" title="Build ${BUILD}">${esc(prettyDate())}</span>
     ${live.length?`<span class="tally"><b>${done}</b> / ${live.length} cleared</span>`:''}
-    <button class="linkbtn" id="signout">Sign out</button>
   </header>`;
 }
 
 function wireChrome(){
   document.querySelectorAll('[data-page]').forEach(el=>
     el.addEventListener('click', async ()=>{
-      S.page = el.dataset.page; S.err=''; S.gen='';
+      S.page = el.dataset.page; S.err=''; S.gen=''; S.moreOpen = false;
       /* The tab goes in the address so a refresh, a bookmark or a link
          sent to someone lands on the same tab. */
       try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
@@ -2754,8 +3005,11 @@ function wireChrome(){
     S.crmQ=''; S.crmHits=null; S.crmOpen=false; render();
   });
 
-  const b = document.getElementById('signout');
-  if(b) b.addEventListener('click', async ()=>{ S.day = null; await sb.auth.signOut(); renderLogin(); });
+  document.querySelectorAll('[data-signout]').forEach(b =>
+    b.addEventListener('click', async ()=>{ S.day = null; S.moreOpen = false; await sb.auth.signOut(); renderLogin(); }));
+  document.querySelectorAll('[data-theme-cycle]').forEach(b => b.addEventListener('click', cycleTheme));
+  document.querySelectorAll('[data-more]').forEach(b =>
+    b.addEventListener('click', ()=>{ S.moreOpen = !S.moreOpen; render(); }));
 }
 
 function render(){
@@ -2774,7 +3028,7 @@ function render(){
   const sy = window.scrollY;
   const ob = document.querySelector('.board');
   const by = ob ? ob.scrollTop : 0;
-  app.innerHTML = topbar() + crmPanel() + inner;
+  app.innerHTML = shell(inner);
   wireChrome();
   wirePage();
   if(samePage){
@@ -8211,7 +8465,8 @@ const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
 /* Social drafts dated within this many days are close enough to need a look. */
 const HOME_SOCIAL_DAYS = 14;
 
-S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null };
+S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null,
+           stages:null, daily:null, monthly:null, reach:null };
 
 async function loadHome(){
   const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
@@ -8224,6 +8479,15 @@ async function loadHome(){
        v_dash_headline counts every owner's deals. */
     sb.from('v_kpi_open').select('*').single()
       .then(r => { S.home.pipe = r.data || null; }),
+    /* For the charts and trend lines on Home. */
+    sb.from('v_kpi_stages').select('*').order('order_nr')
+      .then(r => { S.home.stages = r.error ? null : (r.data || []); }),
+    sb.from('v_dash_daily').select('day,sent,replied,bounced').gte('day', daysAgo(13)).order('day')
+      .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
+    sb.from('v_kpi_monthly').select('month,added').order('month')
+      .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
+    !pat && sb.from('social_results').select('post_date,reach').gte('post_date', daysAgo(55))
+      .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
     !pat && sb.from('social_posts').select('id,post_date')
       .eq('brand', SOC_BRAND).eq('status','draft')
       .gte('post_date', today()).lte('post_date', soonYmd)
@@ -8252,16 +8516,6 @@ function homeGreeting(){
   const h = new Date().getHours();
   const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   return `${part}, ${HOME_NAMES[S.me] || ''}`;
-}
-
-/* One tile. go is a tab key, optionally "calendar:invites" to open a view
-   inside a tab. tone is hot (needs you), bad (late) or quiet (nothing). */
-function homeCard(label, value, detail, go, tone){
-  return `<button class="hcard ${tone || ''}" data-home-go="${esc(go)}">
-    <span class="k">${esc(label)}</span>
-    <span class="v">${value}</span>
-    <span class="d">${detail}</span>
-  </button>`;
 }
 
 async function loadHotLeads(){
@@ -8331,54 +8585,250 @@ function homeApprovals(){
            changes: cur.filter(a => a.status === 'changes').length };
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const ymdOf = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'),
+                    String(d.getDate()).padStart(2,'0')].join('-');
+const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymdOf(d); };
+
+/* ---------- needs you ---------- */
+/* One strip of what is late (red) or waiting (orange). Each item is
+   [tone, count, title, detail, go]; only items with something in them
+   are passed in, so an empty strip means nothing needs doing. */
+function homeQueue(items){
+  if(!items.length) return `<p class="queue-clear">Nothing needs you right now.</p>`;
+  items.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1));
+  return `<div class="queue">${items.map(([tone, n, t, d, go]) => `
+    <button class="qitem ${tone}" data-home-go="${esc(go)}">
+      <span class="big">${n}</span><span class="t">${esc(t)}</span><span class="d">${d}</span>
+    </button>`).join('')}</div>`;
+}
+
+function homeSummary(items){
+  if(!items.length) return '';
+  const late = items.filter(i => i[0] === 'bad').length;
+  return `<b>${plural(items.length, 'thing')}</b> ${items.length === 1 ? 'needs' : 'need'} you today${
+    late ? `, ${late} of them late` : ''}.`;
+}
+
+/* ---------- numbers with a trend ---------- */
+/* A small line with a soft fill and the latest point marked. Shape only:
+   the number above it is the value, the caption says what each point is. */
+function spark(vals, label){
+  const v = (vals || []).map(Number).filter(x => isFinite(x));
+  if(v.length < 2) return '';
+  const w = 200, h = 38, pad = 3;
+  const mn = Math.min(...v), mx = Math.max(...v), r = (mx - mn) || 1;
+  const pts = v.map((y, i) => [pad + i * (w - 2 * pad) / (v.length - 1),
+                               h - pad - (y - mn) / r * (h - 2 * pad - 2)]);
+  const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${esc(label)}">
+    <title>${esc(label)}</title>
+    <path d="${line} L${last[0].toFixed(1)} ${h} L${pad} ${h} Z" fill="var(--orange)" opacity=".13"/>
+    <path d="${line}" fill="none" stroke="var(--orange)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function kpiTile(k){
+  return `<button class="kpi ${k.tone || ''}" data-home-go="${esc(k.go)}">
+    <span class="k">${esc(k.label)}</span>
+    <span class="v">${k.value}</span>
+    <span class="d">${k.detail}</span>
+    ${k.spark ? spark(k.spark, k.label + ', ' + k.cap) + `<span class="cap">${esc(k.cap)}</span>` : ''}
+  </button>`;
+}
+
+/* The last 14 days from v_dash_daily, one entry per day even when a day
+   has no row. */
+function homeDays(){
+  const by = new Map((S.home.daily || []).map(r => [String(r.day).slice(0, 10), r]));
+  const out = [];
+  for(let i = 13; i >= 0; i--){
+    const k = daysAgo(i), r = by.get(k) || {};
+    out.push({ day:k, sent:Number(r.sent || 0), replied:Number(r.replied || 0), bounced:Number(r.bounced || 0) });
+  }
+  return out;
+}
+
+function kpiPipeline(){
+  const p = S.home.pipe, m = S.home.monthly || [];
+  return { label:'Open pipeline', go:'kpis',
+    value: p ? moneyShort(p.open_value) : '&ndash;',
+    detail: p ? plural(Number(p.open_deals || 0), 'open deal') : 'Could not load',
+    spark: m.map(r => r.added), cap:'Added each month, last 12' };
+}
+
+function kpiSent(days){
+  const sent = days.reduce((s, d) => s + d.sent, 0), bounced = days.reduce((s, d) => s + d.bounced, 0);
+  const br = sent ? Math.round(1000 * bounced / sent) / 10 : 0;
+  return { label:'Emails sent, 14 days', go:'today', value: S.home.daily ? num(sent) : '&ndash;',
+    detail: !S.home.daily ? 'Could not load' : sent ? `${num(bounced)} bounced, ${br}%` : 'Nothing sent',
+    tone: br >= BOUNCE_BAD ? 'bad' : '', spark: days.map(d => d.sent), cap:'Per day' };
+}
+
+function kpiReplies(days){
+  const sent = days.reduce((s, d) => s + d.sent, 0), rep = days.reduce((s, d) => s + d.replied, 0);
+  return { label:'Replies, 14 days', go:'today', value: S.home.daily ? num(rep) : '&ndash;',
+    detail: !S.home.daily ? 'Could not load' : sent ? `${Math.round(1000 * rep / sent) / 10}% of ${num(sent)} sent` : 'Nothing sent',
+    spark: days.map(d => d.replied), cap:'Per day' };
+}
+
+function kpiReach(){
+  const rows = S.home.reach;
+  if(!rows) return { label:'Social reach, 30 days', go:'social', value:'&ndash;', detail:'Could not load' };
+  const since = daysAgo(29);
+  const recent = rows.filter(r => String(r.post_date) >= since);
+  const reach = recent.reduce((s, r) => s + Number(r.reach || 0), 0);
+  /* Eight weekly totals, oldest first. */
+  const weeks = [];
+  for(let w = 7; w >= 0; w--){
+    const lo = daysAgo(w * 7 + 6), hi = daysAgo(w * 7);
+    weeks.push(rows.filter(r => String(r.post_date) >= lo && String(r.post_date) <= hi)
+      .reduce((s, r) => s + Number(r.reach || 0), 0));
+  }
+  return { label:'Social reach, 30 days', go:'social',
+    value: Number(reach).toLocaleString('en-US', { notation:'compact', maximumFractionDigits:1 }),
+    detail: recent.length ? `From ${plural(recent.length, 'post')}` : 'No posts measured yet',
+    spark: weeks, cap:'Per week, last 8' };
+}
+
+/* ---------- charts ---------- */
+/* Open deals by Pipedrive stage, as bars against the biggest stage. HTML
+   rather than SVG so the labels stay readable at phone width. */
+function homeStages(){
+  const st = S.home.stages;
+  if(!st) return `<p class="hint">Pipeline stages could not load.</p>`;
+  if(!st.length) return `<p class="hint">No open deals.</p>`;
+  const max = Math.max(...st.map(s => Number(s.value || 0))) || 1;
+  return `<div class="stages">${st.map(s => {
+    const v = Number(s.value || 0), w = Math.max(1.5, 100 * v / max);
+    return `<div class="stage" title="${esc(s.stage)}: ${money(v)} across ${plural(Number(s.deals || 0), 'deal')}">
+      <span class="stage-n">${esc(s.stage)}</span>
+      <span class="stage-bar"><i style="width:${w.toFixed(1)}%"></i></span>
+      <span class="stage-v">${moneyShort(v)} <em>${num(s.deals)}</em></span>
+    </div>`; }).join('')}</div>
+    <div class="legend"><span>Open value by stage. The small number is how many deals.</span></div>`;
+}
+
+/* Emails per day for 14 days. Each column is the day's sends; the red
+   part at the bottom is how many of them bounced. */
+function homeEmailChart(days){
+  if(!S.home.daily) return `<p class="hint">Daily email numbers could not load.</p>`;
+  const W = 560, H = 170, L = 30, R = 6, T = 10, B = 24, iw = W - L - R, ih = H - T - B;
+  const top = Math.max(4, ...days.map(d => d.sent));
+  const step = top <= 8 ? 2 : top <= 20 ? 5 : top <= 50 ? 10 : 20;
+  const ymax = Math.ceil(top / step) * step;
+  const y = v => T + ih - v / ymax * ih;
+  const slot = iw / days.length, bw = Math.min(26, slot * .62);
+  const grid = [];
+  for(let v = 0; v <= ymax; v += step)
+    grid.push(`<line class="${v ? 'grid' : 'base'}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>
+      <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`);
+  const cols = days.map((d, i) => {
+    const x = L + slot * i + (slot - bw) / 2;
+    const label = new Date(d.day + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    const tip = `${label}: ${plural(d.sent, 'email')} sent, ${d.bounced} bounced, ${plural(d.replied, 'reply', 'replies')}`;
+    const good = Math.max(0, d.sent - d.bounced);
+    const bars = [];
+    if(d.bounced) bars.push(`<rect x="${x.toFixed(1)}" y="${y(d.bounced).toFixed(1)}" width="${bw.toFixed(1)}" height="${(T + ih - y(d.bounced)).toFixed(1)}" fill="var(--red)"/>`);
+    if(good) bars.push(`<rect x="${x.toFixed(1)}" y="${y(d.sent).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, y(d.bounced) - y(d.sent) - (d.bounced ? 2 : 0)).toFixed(1)}" rx="3" fill="var(--orange)"/>`);
+    const tick = (days.length - 1 - i) % 3 === 0
+      ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(label)}</text>` : '';
+    return `<g><title>${esc(tip)}</title>
+      <rect x="${(L + slot * i).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>
+      ${bars.join('')}</g>${tick}`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Emails sent and bounced each day, last 14 days">
+      ${grid.join('')}${cols}</svg>
+    <div class="legend"><span><i style="background:var(--orange)"></i>Delivered</span><span><i style="background:var(--red)"></i>Bounced</span><span>Hover a day for its numbers.</span></div>`;
+}
+
+/* This year's spend, added up month by month, against an even pace to
+   the full budget. Paid and committed both count, as on the Budget tab. */
+function homeBudgetChart(){
+  if(!S.loaded.budget || S.bud.loadErr) return `<p class="hint">The budget could not load.</p>`;
+  const yr = new Date().getFullYear(), mo = new Date().getMonth();
+  const items = budItems(yr);
+  const planned = budSummary(yr, items).t.planned;
+  const monthly = Array(12).fill(0);
+  for(const it of items){ const m = Number(String(it.spent_on).slice(5, 7)) - 1; if(m >= 0 && m < 12) monthly[m] += it.amount; }
+  const cum = []; monthly.slice(0, mo + 1).reduce((s, v) => (cum.push(s + v), s + v), 0);
+  const spent = cum[cum.length - 1] || 0;
+  if(!spent && !planned) return `<p class="hint">Nothing spent or planned for ${yr} yet.</p>`;
+  const W = 420, H = 160, L = 40, R = 12, T = 12, B = 24, iw = W - L - R, ih = H - T - B;
+  const top = Math.max(planned, spent) * 1.05 || 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(top))), step = top / mag > 5 ? mag * 2 : top / mag > 2 ? mag : mag / 2;
+  const x = i => L + iw * i / 11, y = v => T + ih - v / top * ih;
+  const grid = [];
+  for(let v = 0; v <= top; v += step)
+    grid.push(`<line class="${v ? 'grid' : 'base'}" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
+      <text x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v >= 1000 ? Math.round(v / 1000) + 'k' : v}</text>`);
+  const line = cum.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  const li = cum.length - 1;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ticks = months.map((m, i) => i % 3 === 0 || i === 11 ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${m}</text>` : '').join('');
+  const dots = cum.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="9" fill="transparent"><title>${months[i]}: ${money(v)} so far</title></circle>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Budget spent so far this year${planned ? ' against an even pace' : ''}">
+      ${grid.join('')}
+      ${planned ? `<path d="M${x(0)} ${y(planned / 12).toFixed(1)} L${x(11)} ${y(planned).toFixed(1)}" stroke="var(--slate)" stroke-dasharray="4 3" fill="none"/>` : ''}
+      ${li > 0 ? `<path d="${line} L${x(li).toFixed(1)} ${T + ih} L${x(0)} ${T + ih} Z" fill="var(--orange)" opacity=".13"/>
+      <path d="${line}" stroke="var(--orange)" stroke-width="2" fill="none" stroke-linejoin="round"/>` : ''}
+      <circle cx="${x(li).toFixed(1)}" cy="${y(spent).toFixed(1)}" r="4" fill="var(--orange)" stroke="var(--card)" stroke-width="2"/>
+      <text class="val" x="${(x(li) - 8).toFixed(1)}" y="${(y(spent) - 9).toFixed(1)}" text-anchor="end">${money(spent)}</text>
+      ${ticks}${dots}
+    </svg>
+    <div class="legend"><span><i style="background:var(--orange)"></i>Spent and committed</span>${
+      planned ? `<span><i style="background:var(--slate)"></i>Even pace to ${money(planned)}</span>` : `<span>No ${yr} amounts set yet, so there is no pace line.</span>`}</div>`;
+}
+
+function homePanel(title, go, link, body, id){
+  return `<section class="panel"${id ? ` id="${id}"` : ''}>
+    <div class="panel-head"><h2>${title}</h2>${go ? `<button class="linkbtn" data-home-go="${esc(go)}">${esc(link)}</button>` : ''}</div>
+    ${body}</section>`;
+}
+
+function homeHotPanel(){
+  return homePanel(`Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}`, '', '', homeHotLeads(), 'hotLeads');
+}
+
+function homeEmailPanel(days, intro){
+  return homePanel('Email, last 14 days', 'today', 'Open Outreach',
+    `${intro || ''}${homeEmailChart(days)}<div style="margin-top:12px">${healthPanel()}</div>`);
+}
+
 function homePat(){
   const b = homeBoardCounts();
   const due = (S.seq || []).filter(x => x.days_until !== null && Number(x.days_until) <= 0).length;
   const inv = (S.invites || []).filter(v => v.decision === 'undecided' && !v.is_past && isLocal(v)).length;
   const apv = homeApprovals();
-  const p = S.home.pipe;
+  const hot = S.home.hot;
   const todayEvents = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
+  const days = homeDays();
 
-  const cards = [
-    homeCard('Outreach', `${b.open.length}<small> to send</small>`,
-      b.live.length ? `${b.sent} of ${b.live.length} emailed today${b.late ? `, ${b.late} follow-up${b.late===1?'':'s'} overdue` : ''}`
-                    : 'List is empty. Generate 5 to fill it.',
-      'today', b.late ? 'bad' : b.open.length ? 'hot' : 'quiet'),
-    homeCard('Hot leads', S.home.hot ? String(S.home.hot.length) : '&ndash;',
-      !S.home.hot ? 'Could not load' : S.home.hot.length ? 'Replied, clicked or said yes' : 'Nobody new',
-      'home:hot', S.home.hot && S.home.hot.length ? 'hot' : 'quiet'),
-    homeCard('Follow-ups due', String(due),
-      due ? 'Due today or earlier' : 'Nothing due today', 'today', due ? 'hot' : 'quiet'),
-    homeCard('Event invites', String(inv),
-      inv ? 'Waiting on your yes or no' : 'Nothing waiting', 'calendar:invites', inv ? 'hot' : 'quiet'),
-    homeCard('Approvals', apv ? String(apv.pending) : '&ndash;',
-      !apv ? 'Could not load' : apv.pending ? 'Waiting on your decision' : 'Nothing waiting',
-      'approvals', apv && apv.pending ? 'hot' : 'quiet'),
-    homeCard('Open pipeline', p ? moneyShort(p.open_value) : '&ndash;',
-      p ? `${num(p.open_deals)} open deal${Number(p.open_deals)===1?'':'s'}` : 'Could not load',
-      'kpis', '')
-  ].join('');
+  const needs = [];
+  if(b.late) needs.push(['bad', b.late, b.late === 1 ? 'Follow-up overdue' : 'Follow-ups overdue', 'Carried over from an earlier day', 'today']);
+  if(b.open.length - b.late > 0) needs.push(['hot', b.open.length - b.late, 'Emails to send', `${b.sent} of ${b.live.length} done today`, 'today']);
+  if(due) needs.push(['hot', due, due === 1 ? 'Follow-up due' : 'Follow-ups due', 'Due today or earlier', 'today']);
+  if(inv) needs.push(['hot', inv, inv === 1 ? 'Event invite' : 'Event invites', 'Waiting on your yes or no', 'calendar:invites']);
+  if(apv && apv.pending) needs.push(['hot', apv.pending, apv.pending === 1 ? 'Approval waiting' : 'Approvals waiting', 'Waiting on your decision', 'approvals']);
+  if(hot && hot.length) needs.push(['hot', hot.length, hot.length === 1 ? 'Hot lead' : 'Hot leads', 'Replied, clicked or said yes', 'home:hot']);
 
-  return `<div class="home-cards">${cards}</div>
+  const kpis = [kpiPipeline(), kpiSent(days), kpiReplies(days),
+    { label:'Hot leads', go:'home:hot', value: hot ? String(hot.length) : '&ndash;',
+      detail: !hot ? 'Could not load' : 'Last 30 days' }];
+
+  return { needs, body: `
+    <p class="eyebrow home-lbl">Needs you today</p>${homeQueue(needs)}
+    <div class="kpis">${kpis.map(kpiTile).join('')}</div>
     <div class="home-cols">
+      <div>${homeEmailPanel(days)}${homeHotPanel()}</div>
       <div>
-        <div class="block">
-          <h2 class="sec" id="hotLeads">Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}</h2>
-          ${homeHotLeads()}
-        </div>
-        <div class="block">
-          <h2 class="sec">Today's calendar</h2>
-          ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
-            : `<p class="hint">Nothing on the calendar today.</p>`}
-        </div>
+        ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayEvents.length
+          ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
+          : `<p class="hint">Nothing on the calendar today.</p>`)}
+        ${homePanel('Pipeline by stage', 'kpis', 'Open Pipeline & KPIs', homeStages())}
       </div>
-      <div>
-        <div class="block">
-          <h2 class="sec">Email health</h2>
-          ${healthPanel()}
-        </div>
-      </div>
-    </div>`;
+    </div>` };
 }
 
 function homeLiam(){
@@ -8390,84 +8840,80 @@ function homeLiam(){
   const reqSoon = reqs ? reqs.filter(r => { const d = reqDaysLeft(r); return d !== null && d >= 0 && d <= 2; }).length : 0;
   const soc = S.home.socDrafts;
   const apv = homeApprovals();
+  const hot = S.home.hot;
   const b = homeBoardCounts();
+  const days = homeDays();
 
   let bud = null;
   if(S.loaded.budget && !S.bud.loadErr){
     const y = new Date().getFullYear();
-    const t = budSummary(y, budItems(y)).t;
-    bud = { used: t.paid + t.committed, planned: t.planned };
+    const items = budItems(y), t = budSummary(y, items).t;
+    const monthly = Array(new Date().getMonth() + 1).fill(0);
+    for(const it of items){ const m = Number(String(it.spent_on).slice(5, 7)) - 1; if(m >= 0 && m < monthly.length) monthly[m] += it.amount; }
+    let run = 0;
+    bud = { used: t.paid + t.committed, planned: t.planned, cum: monthly.map(v => (run += v)) };
   }
   const budPct = bud && bud.planned ? Math.round(100 * bud.used / bud.planned) : null;
   const pace = Math.round(100 * budPace(new Date().getFullYear()));
 
-  const cards = [
-    homeCard('My tasks', String(openT.length),
-      openT.length ? `${rows.length - openT.length} done${carried ? `, ${carried} carried over` : ''}` : 'All clear',
-      'myday', carried ? 'bad' : openT.length ? 'hot' : 'quiet'),
-    homeCard('Requests', reqs ? String(reqs.length) : '&ndash;',
-      !reqs ? 'Could not load' : reqLate ? `${reqLate} past due` : reqSoon ? `${reqSoon} due in 2 days` : reqs.length ? 'None due soon' : 'Nothing open',
-      'myday', reqLate ? 'bad' : reqSoon ? 'hot' : 'quiet'),
-    homeCard('Social drafts', soc ? String(soc.length) : '&ndash;',
-      !soc ? 'Could not load' : soc.length ? `Posting in the next ${HOME_SOCIAL_DAYS} days` : `None due in ${HOME_SOCIAL_DAYS} days`,
-      'social', soc && soc.length ? 'hot' : 'quiet'),
-    homeCard('Approvals', apv ? String(apv.changes + apv.pending) : '&ndash;',
-      !apv ? 'Could not load' : apv.changes ? `${apv.changes} sent back for changes` : apv.pending ? `${apv.pending} waiting on Pat` : 'Nothing out',
-      'approvals', apv && apv.changes ? 'hot' : 'quiet'),
-    homeCard('Budget used', budPct === null ? (bud ? money(bud.used) : '&ndash;') : `${budPct}<small>%</small>`,
-      !bud ? 'Could not load' : bud.planned ? `${money(bud.used)} of ${money(bud.planned)}, ${pace}% of the year gone`
+  const needs = [];
+  if(carried) needs.push(['bad', carried, carried === 1 ? 'Task carried over' : 'Tasks carried over', 'From an earlier day on your list', 'myday']);
+  if(reqLate) needs.push(['bad', reqLate, reqLate === 1 ? 'Request past due' : 'Requests past due', 'Someone is waiting on these', 'myday']);
+  if(reqSoon) needs.push(['hot', reqSoon, reqSoon === 1 ? 'Request due soon' : 'Requests due soon', 'Due in the next 2 days', 'myday']);
+  if(soc && soc.length) needs.push(['hot', soc.length, soc.length === 1 ? 'Social draft' : 'Social drafts', `Posting in the next ${HOME_SOCIAL_DAYS} days`, 'social']);
+  if(apv && apv.changes) needs.push(['hot', apv.changes, 'Sent back for changes', 'Approvals Pat returned to you', 'approvals']);
+  if(budPct !== null && budPct > 100) needs.push(['bad', budPct + '%', 'Over budget', `${money(bud.used)} of ${money(bud.planned)}`, 'budget']);
+  if(hot && hot.length) needs.push(['hot', hot.length, hot.length === 1 ? 'Hot lead' : 'Hot leads', 'Replied, clicked or said yes', 'home:hot']);
+
+  const kpis = [kpiPipeline(), kpiReplies(days), kpiReach(),
+    { label:'Budget used', go:'budget', tone: budPct !== null && budPct > 100 ? 'bad' : '',
+      value: budPct === null ? (bud ? money(bud.used) : '&ndash;') : `${budPct}<small>%</small>`,
+      detail: !bud ? 'Could not load' : bud.planned ? `${money(bud.used)} of ${money(bud.planned)}, ${pace}% of the year gone`
            : 'No amounts set for this year yet',
-      'budget', budPct !== null && budPct > 100 ? 'bad' : '')
-  ].join('');
+      spark: bud && bud.cum, cap:'Spent so far, by month' }];
 
   const next = openT.slice(0, 5);
   const due = (reqs || []).slice(0, 4);
+  const patLine = `<p style="margin:0 0 10px;font-size:13.5px">Pat today: ${b.live.length
+    ? `<b>${b.sent}</b> of ${b.live.length} emailed, ${b.open.length} still to send${b.late ? `, <span style="color:var(--red)">${plural(b.late, 'follow-up')} overdue</span>` : ''}.`
+    : `the list is empty.`}</p>`;
 
-  return `<div class="home-cards">${cards}</div>
+  return { needs, body: `
+    <p class="eyebrow home-lbl">Needs you today</p>${homeQueue(needs)}
+    <div class="kpis">${kpis.map(kpiTile).join('')}</div>
     <div class="home-cols">
       <div>
-        <div class="block">
-          <h2 class="sec">Up next</h2>
-          ${next.length ? `<div class="hlist">${next.map(t => `
+        ${homePanel('Pipeline by stage', 'kpis', 'Open Pipeline & KPIs', homeStages())}
+        ${homeEmailPanel(days, patLine)}
+      </div>
+      <div>
+        ${homePanel('Up next', 'myday', 'Open my day', next.length ? `<div class="hlist">${next.map(t => `
             <button class="hrow" data-home-go="myday">
               <span class="n">${esc(t.title)}${t.status === 'doing' ? ' <em>in progress</em>' : ''}</span>
               <span class="w ${t.work_date < today() ? 'late' : ''}">${t.work_date < today() ? 'from ' + esc(dateOnly(t.work_date)) : esc(t.category || '')}</span>
             </button>`).join('')}</div>
             ${openT.length > next.length ? `<a href="#myday" class="hint hmore" data-home-go="myday">${openT.length - next.length} more on your list</a>` : ''}`
-          : `<p class="hint">Nothing open on your list.</p>`}
-        </div>
-        <div class="block">
-          <h2 class="sec">Requests due</h2>
-          ${due.length ? `<div class="hlist">${due.map(r => { const d = reqDaysLeft(r); return `
+          : `<p class="hint">Nothing open on your list.</p>`)}
+        ${homePanel('Requests due', '', '', due.length ? `<div class="hlist">${due.map(r => { const d = reqDaysLeft(r); return `
             <button class="hrow" data-home-go="myday">
               <span class="n">${esc(r.title || 'Request')}${r.requester_name ? ` <em>${esc(r.requester_name)}</em>` : ''}</span>
               <span class="w ${d !== null && d < 0 ? 'late' : ''}">${d === null ? 'no date' : d < 0 ? `${-d}d late` : d === 0 ? 'today' : `${d}d`}</span>
             </button>`; }).join('')}</div>`
-          : `<p class="hint">No open requests.</p>`}
-        </div>
+          : `<p class="hint">No open requests.</p>`)}
+        ${homeHotPanel()}
+        ${homePanel(`Budget ${new Date().getFullYear()}`, 'budget', 'Open Budget', homeBudgetChart())}
       </div>
-      <div>
-        <div class="block">
-          <h2 class="sec">Pat's outreach today</h2>
-          <p style="margin:0 0 8px">${b.live.length
-            ? `<b>${b.sent}</b> of ${b.live.length} emailed, ${b.open.length} still to send${b.late ? `, <span style="color:var(--red)">${b.late} follow-up${b.late===1?'':'s'} overdue</span>` : ''}.`
-            : `Pat's list is empty today.`}</p>
-          ${healthPanel()}
-        </div>
-        <div class="block">
-          <h2 class="sec">Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}</h2>
-          ${homeHotLeads()}
-        </div>
-      </div>
-    </div>`;
+    </div>` };
 }
 
 function pageHome(){
   if(!S.loaded.home) return loading();
+  const h = S.me === 'pat' ? homePat() : homeLiam();
   return `<main class="home">
-    <div class="home-hi"><h1>${esc(homeGreeting())}</h1><span class="eyebrow">${esc(prettyDate())}</span></div>
+    <div class="home-hi"><h1>${esc(homeGreeting())}</h1>
+      <p class="home-sum">${esc(prettyDate())}. ${homeSummary(h.needs) || 'Nothing needs you right now.'}</p></div>
     ${S.err ? `<div class="warn" style="margin-bottom:14px">${esc(S.err)}</div>` : ''}
-    ${S.me === 'pat' ? homePat() : homeLiam()}
+    ${h.body}
   </main>`;
 }
 
@@ -8523,9 +8969,9 @@ async function boot(){
     await ensure(S.page);
     render();
   }catch(e){
-    app.innerHTML = topbar() + `<div class="empty"><h2>Could not load</h2>
+    app.innerHTML = shell(`<div class="empty"><h2>Could not load</h2>
       <p>${esc(e.message||e)}</p>
-      <p class="hint" style="margin-top:12px">If this mentions permissions, your account may not have access yet.</p></div>`;
+      <p class="hint" style="margin-top:12px">If this mentions permissions, your account may not have access yet.</p></div>`);
     wireChrome();
   }
 }
