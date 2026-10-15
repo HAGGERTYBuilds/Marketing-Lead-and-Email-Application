@@ -829,6 +829,11 @@
   textarea[data-ec-k=code]{font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre;overflow-x:auto}
   .ec-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0 30px}
   .ec-side{align-self:stretch}
+  fieldset.ec-edit{border:0;margin:0;padding:0;min-width:0}
+  fieldset.ec-edit[disabled]{opacity:.6}
+  #ec-send_at{font:inherit;width:100%;padding:12px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);box-sizing:border-box}
+  .ec-review{border-color:var(--accent)}
+  .ec-note{margin:4px 0 8px;padding:8px 10px;background:var(--wash);font-size:14px}
   .ec-sticky{position:sticky;top:14px}
   .ec-viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .ec-frame{background:#F4F2EE;border:1px solid var(--rule);display:flex;justify-content:center;overflow-x:auto}
@@ -1105,9 +1110,9 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
-/* A social reviewer (sql/social_review.sql) sees the Social tab and
-   nothing else, locked to their brand. */
-const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social')
+/* A social reviewer (sql/social_review.sql) sees the Social tab and the
+   emails sent to them for review, locked to their brand. */
+const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns')
   : (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
@@ -1135,7 +1140,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15i';
+const BUILD = '2026-10-15j';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3000,7 +3005,7 @@ const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'
   leads:'Leads', permits:'Permits', budget:'Budget' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
-const NAV_PHONE = me => me === 'reviewer' ? ['social']
+const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
                       : me === 'iyanna' ? ['iyanna','reels','social','leads']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
@@ -8522,7 +8527,7 @@ const EC_TYPES = {
 const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html',
   'callbar','hero','card','pair','checklist','buttons','signoff'];
 const EC_FOOTERS = ['footer','brandfooter'];
-const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], sent:['Sent','hot'] };
+const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], scheduled:['Scheduled','good'], sent:['Sent','hot'] };
 const mcEditUrl = webId => 'https://us11.admin.mailchimp.com/campaigns/edit?id=' + encodeURIComponent(webId);
 
 function ecState(){
@@ -8534,15 +8539,16 @@ async function loadCampaigns(){
   const E = ecState();
   try{
     const [c] = await Promise.all([
-      sb.from('email_campaigns').select('id,brand,title,subject,status,mc_web_id,pushed_at,updated_at,last_error')
+      sb.from('email_campaigns').select('id,brand,title,subject,status,mc_web_id,pushed_at,updated_at,last_error,review_status,send_at,scheduled_for')
         .order('updated_at', { ascending:false }).limit(100),
-      S.loaded.mc ? null : loadMailchimp()
+      S.loaded.mc || ecIsRev() ? null : loadMailchimp(),
+      sb.from('social_reviewers').select('email,name,brand').then(r => { E.reviewers = r.data || []; })
     ]);
     if(c.error) throw c.error;
     E.list = c.data || [];
     E.loadErr = '';
     // Pasted RHINO emails link the IICRC logo here, so make sure it is hosted.
-    ecBadgeUrl('rhino').catch(() => {});
+    if(!ecIsRev()) ecBadgeUrl('rhino').catch(() => {});
   }catch(e){ E.loadErr = e.message || String(e); }
   S.loaded.ec = true;
 }
@@ -8792,11 +8798,85 @@ ${rows}
   return html;
 }
 
+/* ---------- review (sql/email_review.sql) ----------
+   A brand with a reviewer (Freddie for RHINO) gets their OK before an
+   email goes out. Marketing sets the send date and sends it for review;
+   the reviewer edits the words, then approves or asks for changes.
+   Approving schedules it in Mailchimp for the send date. */
+const ecIsRev = () => S.me === 'reviewer';
+function ecReviewer(brand){ return (ecState().reviewers || []).find(r => r.brand === brand); }
+function ecRevName(brand){
+  const r = ecReviewer(brand);
+  return r ? (r.name || r.email.split('@')[0]).split(' ')[0] : 'the reviewer';
+}
+function ecLocked(c){ return c.status === 'scheduled' || (ecIsRev() && c.review_status !== 'pending'); }
+const ecWhen = iso => new Date(iso).toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+function ecLocalInput(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+function ecReviewChip(c){
+  if(c.status === 'scheduled') return `<span class="chip good">Scheduled ${esc(c.scheduled_for ? ecWhen(c.scheduled_for) : '')}</span>`;
+  if(c.review_status === 'pending') return `<span class="chip hot">${ecIsRev() ? 'Waiting on you' : 'With ' + esc(ecRevName(c.brand))}</span>`;
+  if(c.review_status === 'changes') return `<span class="chip bad">Needs changes</span>`;
+  if(c.review_status === 'ok') return `<span class="chip good">Approved</span>`;
+  return '';
+}
+/* Checks before anything is handed to the reviewer, so an approval does
+   not fail on something marketing could have fixed. */
+function ecReadyProblem(c){
+  const t = c.send_at ? new Date(c.send_at) : null;
+  if(!t) return 'Set a send date first.';
+  if(t.getTime() < Date.now() + 30 * 60000) return 'Pick a send date at least 30 minutes from now.';
+  if(t.getMinutes() % 15) return 'Mailchimp schedules on the quarter hour. Pick a time ending in :00, :15, :30 or :45.';
+  const missing = [];
+  if(!c.list_id) missing.push('an audience');
+  if(!c.subject) missing.push('a subject line');
+  if(!c.from_name) missing.push('a from name');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.reply_to || '')) missing.push('a reply-to address');
+  return missing.length ? 'Add ' + missing.join(', ') + ' first.' : '';
+}
+async function ecSetReview(fields, note){
+  const E = ecState();
+  const c = E.cur;
+  const { error } = await sb.from('email_campaigns').update(fields).eq('id', c.id);
+  if(error){ E.err = 'Could not save: ' + error.message; render(); return false; }
+  Object.assign(c, fields);
+  const li = E.list.find(x => x.id === c.id);
+  if(li) Object.assign(li, fields);
+  E.err = ''; E.note = note || ''; render();
+  return true;
+}
+async function ecSendReview(){
+  const E = ecState();
+  const c = E.cur;
+  const problem = ecReadyProblem(c);
+  if(problem){ E.err = problem; render(); return; }
+  if(!(await ecSave(true))) return render();
+  await ecSetReview({ review_status:'pending', review_note:null, review_requested_at:new Date().toISOString() },
+    'Sent to ' + ecRevName(c.brand) + '. It is in the Email Campaigns tab when they sign in.');
+}
+async function ecVerdict(verdict){
+  const E = ecState();
+  const c = E.cur;
+  if(E.busy) return;
+  const note = (E.revNote || '').trim();
+  if(verdict === 'changes' && !note){ E.err = 'Add a note saying what to change.'; render(); return; }
+  if(E.dirty && !(await ecSave(true))) return render();
+  if(!(await ecSetReview({ review_status:verdict, review_note:note || null },
+    verdict === 'changes' ? 'Sent back with your note.' : ''))) return;
+  E.revNote = '';
+  if(verdict === 'ok') await ecPush('approve');
+}
+
 /* ---------- saving ---------- */
-const EC_FIELDS = ['brand','title','subject','preview_text','from_name','reply_to','list_id','tag_id','tag_name','accent','blocks'];
+const EC_FIELDS = ['brand','title','subject','preview_text','from_name','reply_to','list_id','tag_id','tag_name','accent','blocks','send_at'];
+const EC_REV_FIELDS = ['subject','preview_text','blocks'];
 let ecTimer = null;
 function ecTouch(){
   const E = ecState();
+  if(E.cur && ecLocked(E.cur)) return;
   E.dirty = true; E.saved = null;
   clearTimeout(ecTimer);
   ecTimer = setTimeout(() => ecSave(true), 1500);
@@ -8807,8 +8887,9 @@ async function ecSave(quiet){
   const c = E.cur;
   if(!c) return true;
   clearTimeout(ecTimer);
+  if(ecLocked(c)){ E.dirty = false; return true; }
   const row = {};
-  EC_FIELDS.forEach(k => { row[k] = c[k] === '' ? null : c[k]; });
+  (ecIsRev() ? EC_REV_FIELDS : EC_FIELDS).forEach(k => { row[k] = c[k] === '' ? null : c[k]; });
   row.html = ecHtml(c, false);
   row.updated_at = new Date().toISOString();
   E.saving = true; ecStatusLine();
@@ -8859,7 +8940,8 @@ async function ecOpen(id){
 function ecOpenRow(row){
   const E = ecState();
   E.cur = { ...row, blocks: Array.isArray(row.blocks) ? row.blocks : [] };
-  E.dirty = false; E.saved = null; E.note = ''; E.err = row.last_error ? 'Last push failed. ' + row.last_error : '';
+  E.dirty = false; E.saved = null; E.note = ''; E.revNote = '';
+  E.err = row.last_error ? 'Last push failed. ' + row.last_error : '';
   render(); window.scrollTo(0, 0);
 }
 async function ecClose(){
@@ -8937,24 +9019,30 @@ async function ecPush(action){
   if(E.busy) return;
   E.busy = action; E.err = ''; E.note = ''; render();
   try{
-    if(!(await ecSave(true))) throw new Error(E.err.replace(/^Could not save: /, ''));
+    // A reviewer's words were saved with the verdict; once approved they
+    // can no longer write, and an unschedule changes nothing on the page.
+    if(!ecIsRev() && action !== 'unschedule' && !(await ecSave(true))) throw new Error(E.err.replace(/^Could not save: /, ''));
     const res = await fetch(MCPUSH_URL, { method:'POST', headers: await authHeaders(),
       body: JSON.stringify({ id:c.id, action, test_emails: action === 'test' ? E.tests : '' }) });
     const out = await res.json().catch(() => ({}));
     if(!out.ok) throw new Error(out.error || 'The push did not go through.');
     c.mc_campaign_id = out.mc_campaign_id; c.mc_web_id = out.mc_web_id;
-    if(c.status !== 'sent') c.status = 'pushed';
+    c.status = out.status || (c.status === 'sent' ? 'sent' : 'pushed');
+    c.scheduled_for = action === 'unschedule' ? null : (out.scheduled_for || c.scheduled_for);
+    if(action === 'unschedule') c.review_status = null;
     c.pushed_at = new Date().toISOString(); c.last_error = null;
     const li = E.list.find(x => x.id === c.id);
-    if(li) Object.assign(li, { status:c.status, mc_web_id:c.mc_web_id, pushed_at:c.pushed_at, last_error:null });
-    E.note = action === 'test'
-      ? 'Draft updated in Mailchimp and a test sent to ' + (out.tested || []).join(', ') + '.'
+    if(li) Object.assign(li, { status:c.status, mc_web_id:c.mc_web_id, pushed_at:c.pushed_at, last_error:null,
+      scheduled_for:c.scheduled_for, review_status:c.review_status });
+    E.note = action === 'test' ? 'Draft updated in Mailchimp and a test sent to ' + (out.tested || []).join(', ') + '.'
+      : action === 'approve' ? 'Approved and scheduled in Mailchimp for ' + ecWhen(c.scheduled_for || c.send_at) + '.'
+      : action === 'unschedule' ? 'Unscheduled. You can edit it again.' + (ecReviewer(c.brand) ? ' It needs ' + ecRevName(c.brand) + '\'s OK again before it goes out.' : '')
       : 'Draft is in Mailchimp. Check it there, then send or schedule it from Mailchimp.';
   }catch(e){
     E.err = e.message || String(e);
     // A draft can exist even when a later step (say the test) failed.
-    const r = await sb.from('email_campaigns').select('mc_campaign_id,mc_web_id').eq('id', c.id).maybeSingle();
-    if(r.data){ c.mc_campaign_id = r.data.mc_campaign_id; c.mc_web_id = r.data.mc_web_id; }
+    const r = await sb.from('email_campaigns').select('mc_campaign_id,mc_web_id,status,review_status,scheduled_for').eq('id', c.id).maybeSingle();
+    if(r.data) Object.assign(c, r.data);
   }
   E.busy = ''; render();
 }
@@ -8972,12 +9060,19 @@ function ecListPage(){
         <span class="hint">${esc(c.subject || 'No subject yet')}</span>
       </button>
       <span class="chip">${esc((EC_BRANDS[c.brand] || {}).name || c.brand)}</span>
-      <span class="chip ${st[1]}">${st[0]}</span>
+      ${c.status === 'scheduled' ? '' : `<span class="chip ${st[1]}">${st[0]}</span>`}
+      ${ecReviewChip(c)}
       ${c.last_error ? `<span class="chip bad" title="${esc(c.last_error)}">Push failed</span>` : ''}
       <span class="hint">${esc(shortDate(c.updated_at))}</span>
-      ${c.mc_web_id ? `<a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener" class="hint">Open in Mailchimp</a>` : ''}
+      ${c.mc_web_id && !ecIsRev() ? `<a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener" class="hint">Open in Mailchimp</a>` : ''}
     </div>`;
   }).join('');
+  if(ecIsRev()) return `<main class="page" style="max-width:1060px">
+    <div class="ec-head"><div><h2 class="sec" style="margin:0">Emails to review</h2>
+      <p class="hint" style="margin:4px 0 0">Open one to read it, fix any wording, then approve it or send it back with a note. Approving schedules it to go out on its send date.</p></div></div>
+    ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
+    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>Nothing to review</h2><p>Emails sent to you for review show up here.</p></div>`}
+  </main>`;
   return `<main class="page" style="max-width:1060px">
     <div class="ec-head">
       <div><h2 class="sec" style="margin:0">Email campaigns</h2>
@@ -9017,8 +9112,8 @@ function ecImageField(i, key, val, label){
   return `<div class="field"><label>${label || 'Image'}</label>
     <div class="ec-img">
       ${val ? `<img src="${esc(val)}" alt="" />` : `<span class="hint">No image yet</span>`}
-      <label class="btn small ghost ec-upbtn">${E.busy === 'up' + i + key ? 'Uploading&hellip;' : val ? 'Replace' : 'Upload'}
-        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-ec-up="${i}" data-ec-uk="${key}" hidden /></label>
+      ${ecIsRev() ? '' : `<label class="btn small ghost ec-upbtn">${E.busy === 'up' + i + key ? 'Uploading&hellip;' : val ? 'Replace' : 'Upload'}
+        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-ec-up="${i}" data-ec-uk="${key}" hidden /></label>`}
     </div>
     <input type="text" data-ec-b="${i}" data-ec-k="${key}" value="${esc(val || '')}" placeholder="Or paste an image link" autocomplete="off" style="margin-top:6px" /></div>`;
 }
@@ -9079,31 +9174,20 @@ function ecEditPage(){
   const tags = (aud && Array.isArray(aud.tags) ? aud.tags : []).slice().sort((x, y) => String(x.name).localeCompare(String(y.name)));
   const audOpts = auds.map(a => `<option value="${esc(a.list_id)}" ${a.list_id === c.list_id ? 'selected' : ''}>${esc(a.name)} (${num(a.subscribed)})</option>`).join('');
   const seedOnly = auds.length && auds.every(a => String(a.list_id).startsWith('seed-'));
+  const rev = ecIsRev();
+  const locked = ecLocked(c);
   const blocks = c.blocks.map((b, i) => `<div class="ec-block">
       <div class="ec-bhead"><b>${esc(EC_TYPES[b.type] || b.type)}</b><span class="spacer"></span>
-        <button class="linkbtn" data-ec-move="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">&uarr;</button>
+        ${rev ? '' : `<button class="linkbtn" data-ec-move="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">&uarr;</button>
         <button class="linkbtn" data-ec-move="${i}" data-dir="1" ${i === c.blocks.length - 1 ? 'disabled' : ''} aria-label="Move down">&darr;</button>
-        <button class="linkbtn" data-ec-del="${i}" aria-label="Remove block">Remove</button></div>
+        <button class="linkbtn" data-ec-del="${i}" aria-label="Remove block">Remove</button>`}</div>
       ${ecBlockForm(b, i)}</div>`).join('');
   const busy = !!E.busy;
-  return `<main class="page ec-page">
-    <div class="ec-head">
-      <div><button class="linkbtn" data-ec-back style="padding-left:0">&lsaquo; All campaigns</button>
-        <h2 class="sec" style="margin:2px 0 0">${esc(c.title || 'Untitled campaign')}</h2>
-        <div class="hint"><span class="chip ${st[1]}">${st[0]}</span> <span id="ecSaved"></span>
-          ${c.mc_web_id ? ` · <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</div></div>
-      <div class="actions" style="margin:0">
-        <button class="btn small accent" data-ec-push ${busy ? 'disabled' : ''}>${E.busy === 'push' ? 'Pushing&hellip;' : c.mc_campaign_id ? 'Update Mailchimp draft' : 'Push to Mailchimp'}</button>
-        <button class="btn small ghost" data-ec-copy ${busy ? 'disabled' : ''}>Copy</button>
-        <button class="linkbtn" data-ec-remove ${busy ? 'disabled' : ''}>Delete</button>
-      </div>
-    </div>
-    ${E.note ? `<div class="done-banner" style="margin:12px 0"><p style="margin:0">${esc(E.note)}${c.mc_web_id ? ` <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</p></div>` : ''}
-    ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
-    <div class="ec-grid">
-      <div class="ec-edit">
-        <div class="panelbox" style="margin-top:0">
-          <h3 class="ec-h3">Settings</h3>
+  const rvName = ecRevName(c.brand);
+  const settings = rev ? `
+          ${ecField('Subject line', 'subject', c.subject)}
+          ${ecField('Preview text', 'preview_text', c.preview_text)}
+          <p class="hint" style="margin:6px 0 0">From ${esc(c.from_name || '')}${c.tag_name ? ' to ' + esc(c.tag_name) : ''}${c.send_at ? ', going out ' + esc(ecWhen(c.send_at)) : ''}.</p>` : `
           ${ecField('Campaign name (only you see this)', 'title', c.title)}
           ${ecField('Subject line', 'subject', c.subject, { ph:'What the inbox shows first' })}
           ${ecField('Preview text', 'preview_text', c.preview_text, { ph:'The grey line after the subject' })}
@@ -9119,14 +9203,38 @@ function ecEditPage(){
               <select id="ec-tag" data-ec-set="tag_id"><option value="">Everyone in the audience</option>${tags.map(t =>
                 `<option value="${esc(t.id)}" ${String(t.id) === String(c.tag_id) ? 'selected' : ''}>${esc(t.name)} (${num(t.member_count)})</option>`).join('')}</select></div>
           </div>
-          <div class="field"><label for="ec-accent">Button and link colour</label>
-            <input type="color" id="ec-accent" data-ec-set="accent" value="${esc(ecColor(c.accent, (EC_BRANDS[c.brand] || EC_BRANDS.haggerty).accent))}" /></div>
+          <div class="ec-two">
+            <div class="field"><label for="ec-send_at">Send date and time</label>
+              <input type="datetime-local" id="ec-send_at" data-ec-set="send_at" step="900" value="${esc(ecLocalInput(c.send_at))}" />
+              <div class="hint" style="margin-top:3px">${ecReviewer(c.brand) ? esc(rvName) + '\'s approval schedules it for this time.' : 'Schedule in Mailchimp uses this time.'}</div></div>
+            <div class="field"><label for="ec-accent">Button and link colour</label>
+              <input type="color" id="ec-accent" data-ec-set="accent" value="${esc(ecColor(c.accent, (EC_BRANDS[c.brand] || EC_BRANDS.haggerty).accent))}" /></div>
+          </div>`;
+  return `<main class="page ec-page">
+    <div class="ec-head">
+      <div><button class="linkbtn" data-ec-back style="padding-left:0">&lsaquo; All campaigns</button>
+        <h2 class="sec" style="margin:2px 0 0">${esc(c.title || 'Untitled campaign')}</h2>
+        <div class="hint"><span class="chip ${st[1]}">${st[0]}</span> <span id="ecSaved"></span>
+          ${c.mc_web_id ? ` · <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</div></div>
+      ${rev ? '' : `<div class="actions" style="margin:0">
+        ${locked ? '' : `<button class="btn small accent" data-ec-push ${busy ? 'disabled' : ''}>${E.busy === 'push' ? 'Pushing&hellip;' : c.mc_campaign_id ? 'Update Mailchimp draft' : 'Push to Mailchimp'}</button>`}
+        <button class="btn small ghost" data-ec-copy ${busy ? 'disabled' : ''}>Copy</button>
+        ${locked ? '' : `<button class="linkbtn" data-ec-remove ${busy ? 'disabled' : ''}>Delete</button>`}
+      </div>`}
+    </div>
+    ${E.note ? `<div class="done-banner" style="margin:12px 0"><p style="margin:0">${esc(E.note)}${c.mc_web_id ? ` <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</p></div>` : ''}
+    ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
+    <div class="ec-grid">
+      <fieldset class="ec-edit" ${locked ? 'disabled' : ''}>
+        <div class="panelbox" style="margin-top:0">
+          <h3 class="ec-h3">${rev ? 'Subject' : 'Settings'}</h3>
+          ${settings}
         </div>
         <h3 class="ec-h3">Content</h3>
         ${blocks}
-        <div class="ec-add"><span class="hint">Add</span>${EC_ADD.map(t =>
-          `<button class="fchip" data-ec-add="${t}">${esc(EC_TYPES[t])}</button>`).join('')}</div>
-      </div>
+        ${rev ? '<div style="height:30px"></div>' : `<div class="ec-add"><span class="hint">Add</span>${EC_ADD.map(t =>
+          `<button class="fchip" data-ec-add="${t}">${esc(EC_TYPES[t])}</button>`).join('')}</div>`}
+      </fieldset>
       <div class="ec-side">
         <div class="ec-sticky">
           <div class="ec-viewbar">
@@ -9135,16 +9243,57 @@ function ecEditPage(){
             <span class="hint">Sample name and address shown in place of Mailchimp's merge tags.</span>
           </div>
           <div class="ec-frame ${E.view}"><iframe id="ecFrame" title="Email preview" sandbox=""></iframe></div>
-          <div class="panelbox">
+          ${ecReviewPanel(c)}
+          ${rev || locked ? '' : `<div class="panelbox">
             <h3 class="ec-h3">Send a test</h3>
             <p class="hint" style="margin:0 0 6px">Updates the Mailchimp draft and sends a test to you. Add up to four more addresses if you like.</p>
             <input type="text" id="ecTests" value="${esc(E.tests)}" placeholder="pat@haggertybuilds.com, …" autocomplete="off" />
             <div class="actions"><button class="btn small" data-ec-test ${busy ? 'disabled' : ''}>${E.busy === 'test' ? 'Sending&hellip;' : 'Send test'}</button></div>
-          </div>
+          </div>`}
         </div>
       </div>
     </div>
   </main>`;
+}
+
+function ecReviewPanel(c){
+  const E = ecState();
+  const busy = !!E.busy;
+  const rv = ecReviewer(c.brand);
+  const name = esc(ecRevName(c.brand));
+  const when = c.send_at ? esc(ecWhen(c.send_at)) : '';
+  const box = (title, body) => `<div class="panelbox ec-review"><h3 class="ec-h3">${title}</h3>${body}</div>`;
+  const note = c.review_note ? `<p class="ec-note"><b>${esc(ecRevName(c.brand))}:</b> ${esc(c.review_note)}</p>` : '';
+  if(c.status === 'scheduled'){
+    const at = esc(ecWhen(c.scheduled_for || c.send_at));
+    return box('Scheduled', ecIsRev()
+      ? `<p class="hint" style="margin:0">Approved. It goes out ${at}.</p>`
+      : `<p class="hint" style="margin:0 0 6px">Scheduled in Mailchimp for ${at}${c.reviewed_by ? ', approved by ' + name : ''}. To change it, unschedule it first${rv ? '; it then needs ' + name + '\'s OK again' : ''}.</p>
+         <div class="actions"><button class="btn small ghost" data-ec-act="unschedule" ${busy ? 'disabled' : ''}>${E.busy === 'unschedule' ? 'Unscheduling&hellip;' : 'Unschedule'}</button></div>`);
+  }
+  if(ecIsRev()){
+    if(c.review_status === 'pending') return box('Your review', `
+      <p class="hint" style="margin:0 0 6px">Fix any wording on the left; it saves as you type. Approving schedules it for ${when || 'its send date'}.</p>
+      <textarea id="ecRevNote" rows="3" placeholder="Note for marketing (needed if you send it back)" style="min-height:0">${esc(E.revNote || '')}</textarea>
+      <div class="actions">
+        <button class="btn small accent" data-ec-verdict="ok" ${busy ? 'disabled' : ''}>${E.busy === 'approve' ? 'Scheduling&hellip;' : 'Approve and schedule'}</button>
+        <button class="btn small ghost" data-ec-verdict="changes" ${busy ? 'disabled' : ''}>Needs changes</button>
+      </div>`);
+    if(c.review_status === 'changes') return box('Your review', `<p class="hint" style="margin:0">You sent it back. It returns here once marketing has made the changes.</p>${note}`);
+    if(c.review_status === 'ok') return box('Your review', `<p class="hint" style="margin:0">You approved it, but scheduling did not go through. Marketing can see the reason and will fix it.</p>`);
+    return '';
+  }
+  if(!rv) return box('Schedule', `<p class="hint" style="margin:0 0 6px">${when ? 'Push the latest version to Mailchimp and schedule it for ' + when + '.' : 'Set a send date in Settings to schedule it.'}</p>
+      <div class="actions"><button class="btn small" data-ec-act="approve" ${busy || !when ? 'disabled' : ''}>${E.busy === 'approve' ? 'Scheduling&hellip;' : 'Schedule in Mailchimp'}</button></div>`);
+  const since = c.review_requested_at ? ' since ' + esc(ecWhen(c.review_requested_at)) : '';
+  if(c.review_status === 'pending') return box('Review', `<p class="hint" style="margin:0 0 6px">Waiting on ${name}${since}. Once they approve it, it is scheduled for ${when || 'the send date'}.</p>
+      <div class="actions"><button class="linkbtn" data-ec-takeback ${busy ? 'disabled' : ''}>Take it back</button></div>`);
+  if(c.review_status === 'changes') return box('Review', `<p class="hint" style="margin:0 0 6px">${name} asked for changes.</p>${note}
+      <div class="actions"><button class="btn small accent" data-ec-sendreview ${busy ? 'disabled' : ''}>Send to ${name} again</button></div>`);
+  if(c.review_status === 'ok') return box('Review', `<p class="hint" style="margin:0 0 6px">${name} approved it, but scheduling did not go through.</p>
+      <div class="actions"><button class="btn small accent" data-ec-act="approve" ${busy ? 'disabled' : ''}>${E.busy === 'approve' ? 'Scheduling&hellip;' : 'Try scheduling again'}</button></div>`);
+  return box('Review', `<p class="hint" style="margin:0 0 6px">${name} reviews ${esc((EC_BRANDS[c.brand] || {}).name || '')} emails before they go out. Set the send date, then send it over. Their approval schedules it in Mailchimp.</p>
+      <div class="actions"><button class="btn small accent" data-ec-sendreview ${busy ? 'disabled' : ''}>Send to ${name} for review</button></div>`);
 }
 
 function pageCampaigns(){
@@ -9173,6 +9322,17 @@ function wireCampaigns(){
   document.querySelectorAll('[data-ec-remove]').forEach(b => b.addEventListener('click', ecRemove));
   document.querySelectorAll('[data-ec-push]').forEach(b => b.addEventListener('click', () => ecPush('push')));
   document.querySelectorAll('[data-ec-test]').forEach(b => b.addEventListener('click', () => ecPush('test')));
+  document.querySelectorAll('[data-ec-act]').forEach(b => b.addEventListener('click', () => {
+    if(b.dataset.ecAct === 'unschedule' && !confirm('Unschedule this email? It stays in Mailchimp as a draft.')) return;
+    if(b.dataset.ecAct === 'approve'){ const p = ecReadyProblem(c); if(p){ E.err = p; render(); return; } }
+    ecPush(b.dataset.ecAct);
+  }));
+  document.querySelectorAll('[data-ec-sendreview]').forEach(b => b.addEventListener('click', ecSendReview));
+  document.querySelectorAll('[data-ec-takeback]').forEach(b => b.addEventListener('click', () =>
+    ecSetReview({ review_status:null }, 'Taken back. You can edit it and send it again.')));
+  document.querySelectorAll('[data-ec-verdict]').forEach(b => b.addEventListener('click', () => ecVerdict(b.dataset.ecVerdict)));
+  const rn = document.getElementById('ecRevNote');
+  if(rn) rn.addEventListener('input', () => { E.revNote = rn.value; });
   const tests = document.getElementById('ecTests');
   if(tests) tests.addEventListener('input', () => { E.tests = tests.value; });
   document.querySelectorAll('[data-ec-view]').forEach(b => b.addEventListener('click', () => { E.view = b.dataset.ecView; render(); }));
@@ -9181,7 +9341,8 @@ function wireCampaigns(){
     const k = el.dataset.ecSet;
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
     el.addEventListener(ev, () => {
-      if(k === 'tag_id'){
+      if(k === 'send_at') c.send_at = el.value ? new Date(el.value).toISOString() : null;
+      else if(k === 'tag_id'){
         c.tag_id = el.value ? Number(el.value) : null;
         c.tag_name = el.value ? el.options[el.selectedIndex].text.replace(/ \([\d,]+\)$/, '') : null;
       } else c[k] = el.value;
