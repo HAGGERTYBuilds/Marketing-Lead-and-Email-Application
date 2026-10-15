@@ -28,8 +28,10 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 --    Media URL: https://ekatzukprjpisdiwubjq.supabase.co/storage/v1/object/
 --    public/social-media/<storage_path, each segment URL-encoded>.
 --
--- 3. For each post, Metricool createScheduledPost on blogId 5357410,
---    timezone America/Los_Angeles, draft true, autoPublish true:
+-- 3. For each post, Metricool createScheduledPost on the job's brand:
+--    haggerty = blogId 5357410, rhino = blogId 6222867 (RHINO Restores,
+--    since 2026-10-15). Any other brand: fail the job, send nothing.
+--    Timezone America/Los_Angeles, draft true, autoPublish true:
 --      a. Instagram + Facebook at post_date 10:00. Text = caption, a blank
 --         line, hashtags. instagramData.type and facebookData.type are
 --         REEL when the post has a video, else POST.

@@ -47,7 +47,11 @@ create index if not exists social_results_date on public.social_results (brand, 
 -- -------------------------------------
 -- Read only from Metricool; write only this table.
 --
--- 1. Metricool getAnalyticsDataByMetrics, brandId 5357410, from 31 days ago
+-- Run every step once per brand (since 2026-10-15, see sql/social_rhino.sql):
+--   haggerty = Metricool brandId 5357410, rhino = brandId 6222867.
+--   Each row gets that brand in social_results.brand.
+--
+-- 1. Metricool getAnalyticsDataByMetrics, brandId as above, from 31 days ago
 --    00:00 to today 23:59, offset -07:00. Two calls, one per network
 --    (mixing networks in one call returns no rows):
 --      Instagram: IGPO01 date, IGPO02 published (UTC, yyyyMMddHHmmss),
@@ -61,7 +65,8 @@ create index if not exists social_results_date on public.social_results (brand, 
 --    content, links and fetched_at. post_date is published_at in Pacific
 --    time. LinkedIn permalink is https://www.linkedin.com/feed/update/<urn>.
 -- 3. group_key: the Instagram and LinkedIn posts on the same subject,
---    published within 3 days of each other, share the Instagram post_id.
+--    and the same brand, published within 3 days of each other, share the
+--    Instagram post_id.
 --    A post with no partner keeps its own post_id.
--- 4. social_post_id: a sent social_posts row (brand haggerty) on the same
+-- 4. social_post_id: a sent social_posts row of the same brand on the same
 --    subject within 1 day, else null.
