@@ -1058,7 +1058,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-14b';
+const BUILD = '2026-10-15a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -6915,17 +6915,28 @@ function wireReels(){
    Claude task on the laptop picks those up. Send only needs Metricool and
    the media already in the bucket, so it queues a 'send_cloud' job that a
    cloud routine picks up (see sql/social_send.sql); the laptop task
-   ignores that kind. */
+   ignores that kind.
+   Two brands share all of this: HAGGERTY and RHINO Restores. Every row
+   carries brand, the switch at the top of the tab picks which one shows,
+   and each brand has its own focus list, target mix and Metricool brand
+   (sql/social_rhino.sql). */
 const SOC_BUCKET = 'social-media';
-const SOC_BRAND  = 'haggerty';
+const SOC_BRANDS = { haggerty:'HAGGERTY', rhino:'RHINO Restores' };
+let SOC_BRAND = 'haggerty';
+try{ const b = localStorage.getItem('socBrand'); if(SOC_BRANDS[b]) SOC_BRAND = b; }catch(e){}
 const SOC_STATUS = { draft:'Draft', approved:'Approved', queued:'Sending',
                      sent:'In Metricool', skipped:'Cleared', extra:'Extra option' };
 const SOC_FORMAT = { photo:'Photo', carousel:'Carousel', video:'Video' };
 /* What a post is about. Generate month and Get more options are asked
    for a target mix of these (social_settings.focus_mix, sent on the job
    as options.mix); see sql/social_focus.sql. */
-const SOC_FOCUS = { projects:'Projects', people:'People', events:'Events', holidays:'Holidays',
-                    services:'Services', company:'Company', throwbacks:'Throwbacks' };
+const SOC_FOCUS_BY = {
+  haggerty: { projects:'Projects', people:'People', events:'Events', holidays:'Holidays',
+              services:'Services', company:'Company', throwbacks:'Throwbacks' },
+  rhino:    { fire:'Fire', water:'Water', mold:'Mold', storm:'Storm', contents:'Contents',
+              tips:'Tips', people:'People', events:'Events', holidays:'Holidays', company:'Company' }
+};
+let SOC_FOCUS = SOC_FOCUS_BY[SOC_BRAND];
 const SOC_OK  = ['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'];
 const SOC_MAX = 50 * 1024 * 1024;
 
@@ -6972,6 +6983,7 @@ function socFormat(list){
   if(list.some(m => m.kind === 'video')) return 'video';
   return list.length > 1 ? 'carousel' : 'photo';
 }
+function socPrefix(){ return SOC_BRAND === 'haggerty' ? '' : SOC_BRAND + '/'; }
 function socSafe(name){
   return String(name||'file').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-+/,'').slice(-80) || 'file';
 }
@@ -7365,12 +7377,14 @@ function pageSocial(){
 
   return `<main class="page wide">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k,l]) =>
+        `<button class="filt ${SOC_BRAND===k?'on':''}" data-socbrand="${k}" ${busy?'disabled':''}>${esc(l)}</button>`).join('')}</div>
       <button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
       <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
       <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
       <span style="flex:1"></span>
       <button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
-              title="${all.length?'This month already has posts.':'Ask for a month of posts built from the J: archive.'}">Generate month</button>
+              title="${all.length?'This month already has posts.':'Ask for a month of posts built from the ' + SOC_BRANDS[SOC_BRAND] + ' photo archive.'}">Generate month</button>
       ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
               title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
@@ -7398,7 +7412,7 @@ function pageSocial(){
       : `<div class="empty" style="padding:44px 0">
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
            <p>${all.length?(S.socFocus!=='all'&&byStatus.length?'No ' + esc(socFocusLabel(S.socFocus)) + ' posts here. Pick another focus above.':S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
-             :'Generate month asks for a new set built from the J: archive. Import folder brings in a month folder that is already built.'}</p>
+             :'Generate month asks for a new set built from the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' photo archive. Import folder brings in a month folder that is already built.'}</p>
          </div>`}
 
     <p class="hint" style="margin-top:18px">Instagram and Facebook go out at 10:00 AM and LinkedIn at 11:00 AM,
@@ -7542,7 +7556,7 @@ async function socReplace(mediaId, file){
   if(bad){ S.socErr = bad; return render(); }
   S.socBusy = p.id; S.socErr = ''; S.socProg = 'Uploading ' + file.name; render();
   try{
-    const path = p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
+    const path = socPrefix() + p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
     await socPut(path, file, false);
     const { error } = await sb.from('social_post_media').update({
       storage_path: path, kind: file.type.startsWith('video') ? 'video' : 'image',
@@ -7568,7 +7582,7 @@ async function socAddMedia(files){
     let pos = socMedia(p).reduce((n,m)=> Math.max(n, m.position), 0);
     for(const file of list){
       S.socProg = 'Uploading ' + file.name; render();
-      const path = p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
+      const path = socPrefix() + p.month + '/' + (p.source_key || p.id) + '/' + Date.now() + '-' + socSafe(file.name);
       await socPut(path, file, false);
       pos += 1;
       const { error } = await sb.from('social_post_media').insert({
@@ -7701,7 +7715,7 @@ async function importSocialFolder(fileList){
       try{
         for(let k = 0; k < picks.length; k++){
           S.socProg = `Post ${i+1} of ${plan.length}: uploading ${picks[k].name}`; render();
-          const path = m + '/' + p.folder + '/' + picks[k].name;
+          const path = socPrefix() + m + '/' + p.folder + '/' + picks[k].name;
           await socPut(path, picks[k].file, true);
           const r = await sb.from('social_post_media').insert({
             post_id: postId, position: k + 1, kind: kinds[k].kind, storage_path: path,
@@ -7732,6 +7746,19 @@ async function importSocialFolder(fileList){
 }
 
 function wireSocial(){
+  document.querySelectorAll('[data-socbrand]').forEach(el=>
+    el.addEventListener('click', async ()=>{
+      const b = el.dataset.socbrand;
+      if(!SOC_BRANDS[b] || b === SOC_BRAND || S.socBusy) return;
+      SOC_BRAND = b; SOC_FOCUS = SOC_FOCUS_BY[b];
+      try{ localStorage.setItem('socBrand', b); }catch(e){}
+      Object.assign(S, { socNote:'', socErr:'', socFilter:'all', socFocus:'all', socOpenId:null,
+                         socClearId:null, socMixOpen:false });
+      S.loaded.social = false; render();
+      try{ await loadSocial(); }
+      catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
+      render();
+    }));
   document.querySelectorAll('[data-socmonth]').forEach(el=>
     el.addEventListener('click', async ()=>{
       S.socMonth = socShift(S.socMonth, Number(el.dataset.socmonth));
@@ -8594,10 +8621,10 @@ async function loadHome(){
       .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
     sb.from('v_kpi_monthly').select('month,added').order('month')
       .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
-    !pat && sb.from('social_results').select('post_date,reach').gte('post_date', daysAgo(55))
+    !pat && sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
       .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
     !pat && sb.from('social_posts').select('id,post_date')
-      .eq('brand', SOC_BRAND).eq('status','draft')
+      .eq('status','draft')
       .gte('post_date', today()).lte('post_date', soonYmd)
       .order('post_date')
       .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); })
