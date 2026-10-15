@@ -1097,7 +1097,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15d';
+const BUILD = '2026-10-15e';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1376,6 +1376,53 @@ function healthPanel(){
       pool has not been verified yet.</div>`
     : br >= BOUNCE_WARN ? `<p class="hint">Bounces are above ${BOUNCE_WARN}%. Keep an eye on this.</p>`
     : `<p class="hint">Last 30 days. Healthy is under ${BOUNCE_WARN}% bounced.</p>`}`;
+}
+
+/* Mailchimp campaigns, next to Pat's own email numbers. A daily n8n
+   refresh copies Mailchimp's reports into mailchimp_campaigns and the
+   audience counts into mailchimp_audiences (sql/mailchimp.sql); the
+   dashboard only reads them. Bounces are counted against recipients,
+   the same way the Email health strip counts them against sends. */
+async function loadMailchimp(){
+  try{
+    const [c, a] = await Promise.all([
+      sb.from('mailchimp_campaigns').select('*').order('sent_at', { ascending:false }).limit(6),
+      sb.from('mailchimp_audiences').select('*').order('subscribed', { ascending:false })
+    ]);
+    S.mc = { campaigns: c.data || [], audiences: a.data || [], err: c.error || a.error };
+  }catch(e){ S.mc = { campaigns:[], audiences:[], err:e }; }
+  S.loaded.mc = true;
+}
+
+function mailchimpPanel(){
+  const m = S.mc;
+  if(!m || m.err) return `<p class="hint">Mailchimp results could not load.</p>`;
+  if(!m.campaigns.length) return `<p class="hint">No Mailchimp campaigns sent yet.</p>`;
+  const pct = (n, d) => d ? Math.round(1000 * Number(n || 0) / d) / 10 : 0;
+  const rate = r => Math.round(1000 * Number(r || 0)) / 10;
+  const bounced = c => Number(c.hard_bounces || 0) + Number(c.soft_bounces || 0);
+  const [c, ...older] = m.campaigns;
+  const sent = Number(c.recipients || 0), br = pct(bounced(c), sent);
+  const cls = br >= BOUNCE_BAD ? 'bad' : (br >= BOUNCE_WARN ? 'warnv' : '');
+  const aud = m.audiences.map(a => `${esc(a.name)}: ${num(a.subscribed)} subscribed, ${num(a.unsubscribed)} unsubscribed`
+    + (a.cleaned ? `, ${num(a.cleaned)} dropped for bouncing` : '')
+    + (a.bad_email ? `, ${num(a.bad_email)} tagged bad-email` : '')).join('<br>');
+  return `<p style="margin:0 0 8px"><b>${esc(c.title || c.subject || 'Campaign')}</b>
+      <span class="hint">${dateOnly(c.send_date)} · ${num(sent)} sent · ${num(c.unsubscribes)} unsubscribed</span></p>
+    <div class="health">
+      <div><div class="k">Opened</div><div class="v">${num(c.opens)} <small>${rate(c.open_rate)}%</small></div></div>
+      <div><div class="k">Clicked</div><div class="v">${num(c.clicks)} <small>${rate(c.click_rate)}%</small></div></div>
+      <div class="${cls}"><div class="k">Bounced</div><div class="v">${num(bounced(c))} <small>${br}%</small></div></div>
+    </div>
+    ${br >= BOUNCE_BAD ? `<div class="warn" style="margin-top:8px"><b>This list bounced badly.</b>
+      Mailchimp warns or suspends accounts above about ${BOUNCE_BAD}%. Check the next send's
+      list with Evaboot before it goes out.</div>` : ''}
+    ${older.length ? `<div style="margin-top:10px;font-size:13px">${older.map(o => `
+      <div style="display:flex;flex-wrap:wrap;gap:2px 8px;padding:4px 0;border-top:1px solid var(--rule)">
+        <span style="flex:1">${esc(o.title || o.subject || 'Campaign')} <span class="hint">${dateOnly(o.send_date)}</span></span>
+        <span class="mono">${rate(o.open_rate)}% open · ${rate(o.click_rate)}% click · ${pct(bounced(o), Number(o.recipients || 0))}% bounce</span>
+      </div>`).join('')}</div>` : ''}
+    ${aud ? `<p class="hint" style="margin-top:8px">${aud}</p>` : ''}`;
 }
 
 async function loadWeek(){
@@ -2868,7 +2915,8 @@ async function ensureOnce(page){
       !S.loaded.seq && loadSequences(),
       !S.loaded.assets && loadAssets(),
       !S.loaded.voice && loadVoice(),
-      !S.loaded.health && loadHealth()
+      !S.loaded.health && loadHealth(),
+      !S.loaded.mc && loadMailchimp()
     ].filter(Boolean));
   }
   if(page==='calendar' && !S.loaded.week) await loadWeek();
@@ -3224,6 +3272,10 @@ function pageToday(){
     <div class="block">
       <h2 class="sec">Email health</h2>
       ${healthPanel()}
+    </div>
+    <div class="block">
+      <h2 class="sec">Mailchimp</h2>
+      ${mailchimpPanel()}
     </div>
     <div class="block">
       <h2 class="sec">Follow-ups coming</h2>
