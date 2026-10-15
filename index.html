@@ -828,6 +828,7 @@
   .ec-upbtn{cursor:pointer}
   textarea[data-ec-k=code]{font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre;overflow-x:auto}
   .ec-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0 30px}
+  .ec-side{align-self:stretch}
   .ec-sticky{position:sticky;top:14px}
   .ec-viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .ec-frame{background:#F4F2EE;border:1px solid var(--rule);display:flex;justify-content:center;overflow-x:auto}
@@ -1134,7 +1135,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15g';
+const BUILD = '2026-10-15i';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -8497,17 +8498,30 @@ function budCatOptions(sel, blankLabel){
    from that row and can send a test to whoever clicked. Sending to the list
    still happens in Mailchimp, so nothing reaches 16,000 people from here. */
 const EC_BUCKET = 'email-images';
+// IICRC certification logo, shown at the bottom of every RHINO email.
+const IICRC_LOGO = 'data:image/png;base64,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';
 const EC_BRANDS = {
   haggerty: { name:'HAGGERTY', accent:'#F68922', site:'https://haggertybuilds.com',
-              footer:'HAGGERTY · Commercial construction in Northern California' },
+              footer:'HAGGERTY · Commercial construction in Northern California',
+              bold:{ accent:'#F68922', name1:'HAGGERTY', name2:'', tagline:'Commercial construction',
+                     area:'Commercial construction in Northern California.', phone:'', callLabel:'' } },
   rhino:    { name:'RHINO Restores', accent:'#A6402C', site:'https://rhinorestores.com',
-              footer:'RHINO Restores · Fire, water and mold restoration' }
+              footer:'RHINO Restores · Fire, water and mold restoration',
+              bold:{ accent:'#F68922', name1:'RHINO', name2:'RESTORES', tagline:'We Own The Job',
+                     area:'Serving Stockton, Sacramento, Elk Grove, Lodi, Manteca, Modesto, and Northern California.\nA division of Haggerty Construction | CSLB #1156046 | IICRC Certified',
+                     phone:'(209) 323-6200', callLabel:'24/7 Emergency line',
+                     logo:'https://rhinorestores.com/wp-content/uploads/2026/05/RHINO-Restores-Logo-W-Text.png' },
+              badge:{ path:'brand/iicrc-logo.png', data:IICRC_LOGO, alt:'IICRC Certified' } }
 };
 const EC_TYPES = {
   header:'Logo header', heading:'Heading', text:'Text', image:'Image', button:'Button',
-  spotlight:'Project spotlight', divider:'Divider', spacer:'Space', html:'Your own HTML', footer:'Footer'
+  spotlight:'Project spotlight', divider:'Divider', spacer:'Space', html:'Your own HTML', footer:'Footer',
+  callbar:'Phone bar', hero:'Hero', card:'Callout box', pair:'Before and after', checklist:'Checklist',
+  buttons:'Two buttons', signoff:'Sign-off', brandfooter:'Brand footer'
 };
-const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html'];
+const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html',
+  'callbar','hero','card','pair','checklist','buttons','signoff'];
+const EC_FOOTERS = ['footer','brandfooter'];
 const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], sent:['Sent','hot'] };
 const mcEditUrl = webId => 'https://us11.admin.mailchimp.com/campaigns/edit?id=' + encodeURIComponent(webId);
 
@@ -8527,6 +8541,8 @@ async function loadCampaigns(){
     if(c.error) throw c.error;
     E.list = c.data || [];
     E.loadErr = '';
+    // Pasted RHINO emails link the IICRC logo here, so make sure it is hosted.
+    ecBadgeUrl('rhino').catch(() => {});
   }catch(e){ E.loadErr = e.message || String(e); }
   S.loaded.ec = true;
 }
@@ -8542,12 +8558,38 @@ function ecBlock(type, brand){
   if(type === 'spotlight') return { type, src:'', title:'Project name', text:'A sentence or two about the job: what it was, where, and what made it hard.', href:b.site, link:'Read more' };
   if(type === 'divider')   return { type };
   if(type === 'spacer')    return { type, size:'24' };
-  if(type === 'footer')    return { type, text:b.footer };
+  if(type === 'footer')    return { type, text:b.footer, badge:'' };
   if(type === 'html')      return { type, code:'' };
+  const o = b.bold;
+  if(type === 'callbar')   return { type, label:o.callLabel || 'Call us', phone:o.phone };
+  if(type === 'hero')      return { type, src:'', alt:'', eyebrow:'News from ' + b.name, title:'Your headline here',
+                                    text:'One line under the headline that says what this email is about.', label:o.phone ? 'Call ' + o.phone : 'See our work',
+                                    href:o.phone ? 'tel:' + o.phone : b.site };
+  if(type === 'card')      return { type, eyebrow:'Point 1', title:'A short, plain headline.',
+                                    text:'Two or three sentences about the problem.\n\n**What we do:** How you handle it.' };
+  if(type === 'pair')      return { type, src:'', label:'Before', src2:'', label2:'After', caption:'One line about the job.' };
+  if(type === 'checklist') return { type, title:'Before the first big storm', items:'Save our contact card to your phone.\nShare our number with your on-site staff.\nAdd us to your vendor list.' };
+  if(type === 'buttons')   return { type, label:o.phone ? 'Call ' + o.phone : 'Get in touch', href:o.phone ? 'tel:' + o.phone : b.site,
+                                    label2:'See our work', href2:b.site };
+  if(type === 'signoff')   return { type, closing:'Talk soon,', name:'Your name', role:'Your title, ' + b.name, phone:o.phone };
+  if(type === 'brandfooter') return { type, badge:'', name1:o.name1, name2:o.name2, tagline:o.tagline, links:'', phone:o.phone, site:b.site, small:o.area };
   return { type };
 }
 function ecStarter(brand){
   return ['header','heading','text','button','footer'].map(t => ecBlock(t, brand));
+}
+/* The bold layout: the RHINO property manager emails' design (dark hero,
+   callout boxes, before and after, dark footer), built from blocks so the
+   words and photos are plain fields. */
+function ecBoldStarter(brand){
+  const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
+  const head = ecBlock('header', brand);
+  if(o.logo){ head.logo = o.logo; head.bg = '#FFFFFF'; }
+  const cards = [1, 2, 3].map(n => Object.assign(ecBlock('card', brand), { eyebrow:'Point ' + n }));
+  const intro = ecBlock('text', brand);
+  intro.text = 'Hi *|FNAME|*,\n\nA short opening that sets up the three points below.';
+  return [o.phone ? ecBlock('callbar', brand) : null, head, ecBlock('hero', brand), intro, ...cards,
+    ecBlock('pair', brand), ecBlock('buttons', brand), ecBlock('signoff', brand), ecBlock('brandfooter', brand)].filter(Boolean);
 }
 
 /* ---------- email HTML ---------- */
@@ -8579,7 +8621,7 @@ function ecColor(c, fallback){ return /^#[0-9a-f]{6}$/i.test(c || '') ? c : fall
 
 function ecRow(b, c, accent){
   const F = 'font-family:Arial,Helvetica,sans-serif;';
-  const pad = 'padding:0 32px;';
+  const pad = (c.blocks || []).some(x => x.type === 'hero' || x.type === 'brandfooter') ? 'padding:0 40px;' : 'padding:0 32px;';
   const al = b.align === 'center' ? 'center' : 'left';
   const brand = EC_BRANDS[c.brand] || EC_BRANDS.haggerty;
   if(b.type === 'header'){
@@ -8591,7 +8633,7 @@ function ecRow(b, c, accent){
   if(b.type === 'heading')
     return `<tr><td style="${pad}padding-top:30px;padding-bottom:6px"><h1 style="margin:0;${F}font-size:28px;line-height:1.2;font-weight:bold;color:#1E1D1B;text-align:${al}">${ecInline(b.text, accent)}</h1></td></tr>`;
   if(b.type === 'text')
-    return `<tr><td style="${pad}padding-top:14px">${ecParas(b.text, accent, `margin:0 0 14px;${F}font-size:16px;line-height:1.6;color:#3A3836`)}</td></tr>`;
+    return `<tr><td class="ec-px" style="${pad}padding-top:14px">${ecParas(b.text, accent, `margin:0 0 14px;${F}font-size:16px;line-height:1.6;color:#3A3836`)}</td></tr>`;
   if(b.type === 'image'){
     if(!b.src) return '';
     const full = b.width !== 'inset';
@@ -8628,8 +8670,76 @@ function ecRow(b, c, accent){
   }
   if(b.type === 'html')
     return b.code && b.code.trim() ? `<tr><td>${b.code}</td></tr>` : '';
+  const BP = 'padding-left:40px;padding-right:40px;';
+  const tel = p => 'tel:+1' + String(p || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+  const btn = (label, href, solid) => {
+    const u = /^tel:/i.test(href || '') ? tel(href.slice(4)) : ecUrl(href) || '#';
+    return `<td class="ec-btn" align="center" bgcolor="${solid ? accent : '#FFFFFF'}" style="border-radius:4px;border:2px solid ${solid ? accent : '#1A1A1A'}"><a href="${esc(u)}" target="_blank" style="display:inline-block;padding:14px 24px;${F}font-size:17px;font-weight:800;color:${solid ? '#000000' : '#1A1A1A'};text-decoration:none;border-radius:4px;white-space:nowrap">${esc(label)}</a></td>`;
+  };
+  const strip = `<tr><td style="height:6px;line-height:6px;font-size:0;background:${accent}">&nbsp;</td></tr>`;
+  const badge = b.badge ? `<tr><td class="ec-px" align="center" style="padding:8px 40px 28px;background:#FFFFFF"><img src="${esc(b.badge)}" width="160" alt="${esc((brand.badge && brand.badge.alt) || 'Certification')}" style="display:block;margin:0 auto;width:160px;max-width:160px;height:auto;border:0"></td></tr>` : '';
+  const eyebrow = (t, color, mb) => t ? `<p style="margin:0 0 ${mb || 6}px;${F}font-size:12px;letter-spacing:2px;text-transform:uppercase;color:${color};font-weight:bold">${esc(t)}</p>` : '';
+  if(b.type === 'callbar'){
+    if(!b.phone) return '';
+    return `<tr><td class="ec-px" style="padding:14px 40px;background:#000000;text-align:center"><a href="${tel(b.phone)}" style="${F}text-decoration:none">${b.label ? `<span style="display:block;font-size:12px;font-weight:bold;letter-spacing:2px;color:${accent};line-height:1.4;text-transform:uppercase">${esc(b.label)}</span>` : ''}<span style="display:block;font-size:26px;font-weight:800;color:#FFFFFF;line-height:1.2;white-space:nowrap">${esc(b.phone)}</span></a></td></tr>`;
+  }
+  if(b.type === 'hero'){
+    const img = b.src ? `<tr><td style="padding:0;background:#000000"><img src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>` : '';
+    return `${img}<tr><td class="ec-px" style="padding:32px 40px 30px;background:#000000">${eyebrow(b.eyebrow, accent, 10)}
+      <h1 class="ec-h1" style="margin:0 0 12px;${F}font-size:32px;line-height:1.15;color:#FFFFFF;font-weight:800">${esc(b.title || '')}</h1>
+      ${b.text ? `<p style="margin:0 0 20px;${F}font-size:17px;line-height:1.5;color:#D9D9D9">${ecInline(b.text, '#FFFFFF')}</p>` : ''}
+      ${b.label ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>${btn(b.label, b.href, true)}</tr></table>` : ''}</td></tr>
+      ${strip}<tr><td style="height:28px;line-height:28px;font-size:0">&nbsp;</td></tr>`;
+  }
+  if(b.type === 'card')
+    return `<tr><td class="ec-px" style="${BP}padding-bottom:16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F3EE"><tr>
+      <td width="6" style="width:6px;background:${accent};font-size:0;line-height:0">&nbsp;</td>
+      <td style="padding:18px 20px">${eyebrow(b.eyebrow, accent, 4)}
+        ${b.title ? `<p style="margin:0 0 8px;${F}font-size:18px;line-height:1.3;color:#1A1A1A;font-weight:800">${esc(b.title)}</p>` : ''}
+        ${ecParas(b.text, accent, `margin:0 0 10px;${F}font-size:15px;line-height:1.55;color:#2B2B2B`)}</td></tr></table></td></tr>`;
+  if(b.type === 'pair'){
+    const one = (src, label, color) => `<td class="ec-stack" width="50%" valign="top" style="padding:0 6px">${eyebrow(label, color)}${src ? `<img class="ec-ba" src="${esc(src)}" width="254" alt="${esc(label || '')}" style="display:block;width:100%;max-width:254px;height:auto;border:0;margin:0 0 12px">` : ''}</td>`;
+    if(!b.src && !b.src2) return '';
+    return `<tr><td class="ec-px" style="padding:0 34px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      ${one(b.src, b.label, '#666666')}${one(b.src2, b.label2, accent)}</tr></table></td></tr>
+      ${b.caption ? `<tr><td class="ec-px" style="${BP}"><p style="margin:0 0 22px;${F}font-size:13px;line-height:1.5;color:#666666">${ecInline(b.caption, accent)}</p></td></tr>` : ''}`;
+  }
+  if(b.type === 'checklist'){
+    const items = String(b.items || '').split('\n').map(x => x.trim()).filter(Boolean);
+    return `<tr><td class="ec-px" style="${BP}padding-bottom:26px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1A1A1A;border-radius:6px"><tr><td style="padding:20px 22px">
+      ${b.title ? `<p style="margin:0 0 10px;${F}font-size:13px;letter-spacing:1px;text-transform:uppercase;color:${accent};font-weight:bold">${esc(b.title)}</p>` : ''}
+      ${items.map((t, n) => `<p style="margin:0 0 8px;${F}font-size:15px;line-height:1.5;color:#FFFFFF"><strong style="color:${accent}">${n + 1}.</strong> ${ecInline(t, '#FFFFFF')}</p>`).join('')}
+      </td></tr></table></td></tr>`;
+  }
+  if(b.type === 'buttons'){
+    const cells = [b.label ? btn(b.label, b.href, true) : '', b.label2 ? btn(b.label2, b.href2, false) : ''].filter(Boolean);
+    if(!cells.length) return '';
+    return `<tr><td class="ec-px" style="padding:10px 40px 34px"><table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+      ${cells.join('<td class="ec-gap" width="12" style="width:12px;font-size:0;line-height:0">&nbsp;</td>')}</tr></table></td></tr>`;
+  }
+  if(b.type === 'signoff')
+    return `<tr><td class="ec-px" style="${BP}padding-bottom:26px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E4DFD8"><tr><td style="padding-top:22px">
+      ${b.closing ? `<p style="margin:0 0 2px;${F}font-size:16px;color:#2B2B2B">${esc(b.closing)}</p>` : ''}
+      <p style="margin:0;${F}font-size:16px;font-weight:bold;color:#1A1A1A">${esc(b.name || '')}</p>
+      ${b.role || b.phone ? `<p style="margin:0;${F}font-size:14px;color:#666666">${esc(b.role || '')}${b.role && b.phone ? ' &nbsp;|&nbsp; ' : ''}${b.phone ? `<a href="${tel(b.phone)}" style="color:#1A1A1A;font-weight:bold;text-decoration:none;white-space:nowrap">${esc(b.phone)}</a>` : ''}</p>` : ''}
+      </td></tr></table></td></tr>`;
+  if(b.type === 'brandfooter'){
+    const links = String(b.links || '').split('\n').map(l => l.split('|')).filter(x => x[0] && x[0].trim() && ecUrl((x[1] || '').trim()))
+      .map(([t, u]) => `<a href="${esc(ecUrl(u.trim()))}" style="color:#FFFFFF;text-decoration:none">${esc(t.trim())}</a>`).join(' &nbsp;&middot;&nbsp; ');
+    const site = ecUrl(b.site);
+    return `${badge}${strip}<tr><td class="ec-px" style="padding:30px 40px;background:#000000;text-align:center">
+      <p style="margin:0 0 6px;${F}font-size:20px;font-weight:900;letter-spacing:1px;color:#FFFFFF">${esc(b.name1 || brand.name)}${b.name2 ? ` <span style="color:${accent}">${esc(b.name2)}</span>` : ''}</p>
+      ${b.tagline ? `<p style="margin:0 0 16px;${F}font-size:13px;letter-spacing:2px;text-transform:uppercase;color:${accent};font-weight:bold">${esc(b.tagline)}</p>` : ''}
+      ${links ? `<p style="margin:0 0 16px;${F}font-size:14px;color:#FFFFFF">${links}</p>` : ''}
+      ${b.phone ? `<p style="margin:0 0 4px;${F}font-size:22px;font-weight:800"><a href="${tel(b.phone)}" style="color:#FFFFFF;text-decoration:none">${esc(b.phone)}</a></p>` : ''}
+      ${site ? `<p style="margin:0 0 18px;${F}font-size:13px;color:#BBBBBB"><a href="${esc(site)}" style="color:#BBBBBB">${esc(site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a></p>` : ''}
+      ${b.small ? `<p style="margin:0 0 18px;${F}font-size:12px;line-height:1.6;color:#999999">${esc(b.small).replace(/\n/g, '<br>')}</p>` : ''}
+      <div style="${F}font-size:11px;line-height:1.6;color:#999999"><p style="margin:0 0 8px">*|HTML:LIST_ADDRESS_HTML|*</p>
+        <p style="margin:0"><a href="*|UPDATE_PROFILE|*" style="color:#999999">Update preferences</a> &nbsp;|&nbsp; <a href="*|UNSUB|*" style="color:#999999">Unsubscribe</a></p></div>
+    </td></tr>`;
+  }
   if(b.type === 'footer')
-    return `<tr><td style="background:#F4F2EE;padding:24px 32px;${F}font-size:12px;line-height:1.6;color:#6E7477;text-align:center">
+    return badge + `<tr><td style="background:#F4F2EE;padding:24px 32px;${F}font-size:12px;line-height:1.6;color:#6E7477;text-align:center">
       ${b.text ? `<div style="margin-bottom:8px">${ecInline(b.text, '#6E7477')}</div>` : ''}
       <div>*|HTML:LIST_ADDRESS_HTML|*</div>
       <div style="margin-top:8px"><a href="*|UPDATE_PROFILE|*" style="color:#6E7477">Update your preferences</a> &middot; <a href="*|UNSUB|*" style="color:#6E7477">Unsubscribe</a></div>
@@ -8658,6 +8768,13 @@ function ecHtml(c, preview){
     .ec-wrap{width:100%!important}
     .ec-col{display:block!important;width:100%!important;padding-right:0!important;padding-bottom:12px}
     .ec-col img{max-width:100%!important}
+    .ec-px{padding-left:20px!important;padding-right:20px!important}
+    .ec-stack{display:block!important;width:100%!important;box-sizing:border-box;padding-left:0!important;padding-right:0!important}
+    img.ec-ba{max-width:100%!important;width:100%!important}
+    .ec-h1{font-size:26px!important}
+    .ec-btn{display:block!important;width:100%!important;box-sizing:border-box}
+    .ec-btn a{display:block!important}
+    .ec-gap{display:block!important;width:100%!important;height:10px!important;line-height:10px!important}
   }
 </style></head>
 <body style="margin:0;padding:0;background:#F4F2EE">
@@ -8711,17 +8828,20 @@ function ecStatusLine(){
   el.textContent = E.saving ? 'Saving…' : E.dirty ? 'Unsaved changes' : E.saved ? 'Saved ' + fmtTime(E.saved.toISOString()) : '';
 }
 
-async function ecNew(brand){
+async function ecNew(brand, layout){
   const E = ecState();
   const a = (S.mc && S.mc.audiences || []).find(x => !String(x.list_id).startsWith('seed-')) || {};
   const row = {
     brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
     subject:'', preview_text:'', from_name: a.from_name || EC_BRANDS[brand].name, reply_to: a.from_email || '',
-    list_id: a.list_id || null, accent: EC_BRANDS[brand].accent,
-    blocks: ecStarter(brand), created_by: S.me
+    list_id: a.list_id || null, accent: layout === 'bold' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
+    blocks: layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
   };
   E.busy = 'new'; render();
-  if(brand === 'haggerty') row.blocks[0].logo = await ecLogoUrl().catch(() => '');
+  const head = row.blocks.find(x => x.type === 'header');
+  if(brand === 'haggerty' && head) head.logo = await ecLogoUrl().catch(() => '');
+  const foot = row.blocks.find(x => EC_FOOTERS.includes(x.type));
+  if(foot && EC_BRANDS[brand].badge) foot.badge = await ecBadgeUrl(brand).catch(() => '');
   const { data, error } = await sb.from('email_campaigns').insert(row).select('*').single();
   E.busy = '';
   if(error){ E.err = 'Could not start a campaign: ' + error.message; render(); return; }
@@ -8776,17 +8896,23 @@ async function ecRemove(){
 /* The white HAGGERTY logo is already inlined for the sidebar. Email needs a
    public link, so the first campaign puts a copy in the email-images bucket
    and every later one reuses it. */
-async function ecLogoUrl(){
-  const path = 'brand/haggerty-logo-white.png';
+/* Brand images ship inside this page; email needs a public link, so the
+   first use uploads them to the email-images bucket. */
+function ecLogoUrl(){ return ecAssetUrl('brand/haggerty-logo-white.png', LOGO); }
+function ecBadgeUrl(brand){
+  const g = (EC_BRANDS[brand] || {}).badge;
+  return g ? ecAssetUrl(g.path, g.data) : Promise.resolve('');
+}
+async function ecAssetUrl(path, data){
   const url = sb.storage.from(EC_BUCKET).getPublicUrl(path).data.publicUrl;
   const head = await fetch(url, { method:'HEAD' }).catch(() => null);
   if(head && head.ok) return url;
-  const blob = await (await fetch(LOGO)).blob();
+  const blob = await (await fetch(data)).blob();
   const { error } = await sb.storage.from(EC_BUCKET).upload(path, blob, { contentType:'image/png', upsert:false, cacheControl:'31536000' });
   if(error && !/exists|duplicate/i.test(error.message || '')) throw error;
   return url;
 }
-async function ecUpload(i, file){
+async function ecUpload(i, file, key){
   const E = ecState();
   const c = E.cur;
   if(!file) return;
@@ -8794,13 +8920,13 @@ async function ecUpload(i, file){
   if(file.size > 5 * 1024 * 1024){ E.err = file.name + ' is over 5 MB. Email images should be well under 1 MB.'; render(); return; }
   const safe = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, '-').slice(-60);
   const path = `${c.brand}/${c.id}/${Date.now()}-${safe}`;
-  E.busy = 'up' + i; E.err = ''; render();
+  E.busy = 'up' + i + (key || ''); E.err = ''; render();
   const { error } = await sb.storage.from(EC_BUCKET).upload(path, file, { contentType:file.type, upsert:false, cacheControl:'31536000' });
   E.busy = '';
   if(error){ E.err = 'Upload failed: ' + error.message; render(); return; }
   const b = c.blocks[i];
   const url = sb.storage.from(EC_BUCKET).getPublicUrl(path).data.publicUrl;
-  if(b.type === 'header') b.logo = url; else b.src = url;
+  b[key || (b.type === 'header' ? 'logo' : 'src')] = url;
   ecTouch(); render();
 }
 
@@ -8857,8 +8983,10 @@ function ecListPage(){
       <div><h2 class="sec" style="margin:0">Email campaigns</h2>
         <p class="hint" style="margin:4px 0 0">Build an email here, push it to Mailchimp as a draft, send yourself a test, then send or schedule it from Mailchimp.</p></div>
       <div class="actions" style="margin:0">
-        <button class="btn small accent" data-ec-new="haggerty" ${E.busy ? 'disabled' : ''}>New HAGGERTY email</button>
-        <button class="btn small ghost" data-ec-new="rhino" ${E.busy ? 'disabled' : ''}>New RHINO email</button>
+        <button class="btn small accent" data-ec-new="haggerty" data-layout="bold" ${E.busy ? 'disabled' : ''}>New HAGGERTY bold email</button>
+        <button class="btn small ghost" data-ec-new="haggerty" ${E.busy ? 'disabled' : ''}>HAGGERTY simple</button>
+        <button class="btn small ghost" data-ec-new="rhino" data-layout="bold" ${E.busy ? 'disabled' : ''}>RHINO bold</button>
+        <button class="btn small ghost" data-ec-new="rhino" ${E.busy ? 'disabled' : ''}>RHINO simple</button>
       </div>
     </div>
     ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
@@ -8884,13 +9012,13 @@ function ecBField(i, label, key, val, opts){
   return `<div class="field"><label>${label}</label>
     <input type="text" data-ec-b="${i}" data-ec-k="${key}" value="${esc(val ?? '')}" placeholder="${esc(opts.ph || '')}" autocomplete="off" /></div>`;
 }
-function ecImageField(i, key, val){
+function ecImageField(i, key, val, label){
   const E = ecState();
-  return `<div class="field"><label>Image</label>
+  return `<div class="field"><label>${label || 'Image'}</label>
     <div class="ec-img">
       ${val ? `<img src="${esc(val)}" alt="" />` : `<span class="hint">No image yet</span>`}
-      <label class="btn small ghost ec-upbtn">${E.busy === 'up' + i ? 'Uploading&hellip;' : val ? 'Replace' : 'Upload'}
-        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-ec-up="${i}" hidden /></label>
+      <label class="btn small ghost ec-upbtn">${E.busy === 'up' + i + key ? 'Uploading&hellip;' : val ? 'Replace' : 'Upload'}
+        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-ec-up="${i}" data-ec-uk="${key}" hidden /></label>
     </div>
     <input type="text" data-ec-b="${i}" data-ec-k="${key}" value="${esc(val || '')}" placeholder="Or paste an image link" autocomplete="off" style="margin-top:6px" /></div>`;
 }
@@ -8910,8 +9038,32 @@ function ecBlockForm(b, i){
     + ecBField(i, 'Text', 'text', b.text, { area:true, rows:4 }) + ecBField(i, 'Link', 'href', b.href, { ph:'https://' })
     + ecBField(i, 'Link text', 'link', b.link);
   if(b.type === 'spacer') return ecBField(i, 'Height', 'size', b.size, { choices:[['12','Small'],['24','Medium'],['48','Large']] });
-  if(b.type === 'footer') return ecBField(i, 'Footer line', 'text', b.text)
+  if(b.type === 'footer') return ecImageField(i, 'badge', b.badge, 'Certification logo (optional)') + ecBField(i, 'Footer line', 'text', b.text)
     + `<p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
+  const tip = 'Leave a blank line between paragraphs. <b>**bold**</b> and [link text](https://…) work here.';
+  if(b.type === 'callbar') return ecBField(i, 'Small label', 'label', b.label) + ecBField(i, 'Phone number', 'phone', b.phone, { ph:'(209) 555-0100' })
+    + `<p class="hint">A black bar across the top. Tapping it calls the number.</p>`;
+  if(b.type === 'hero') return ecImageField(i, 'src', b.src, 'Photo') + ecBField(i, 'Photo description for screen readers', 'alt', b.alt)
+    + ecBField(i, 'Small line above the headline', 'eyebrow', b.eyebrow) + ecBField(i, 'Headline', 'title', b.title)
+    + ecBField(i, 'Line under the headline', 'text', b.text, { area:true, rows:2 })
+    + `<div class="ec-two">${ecBField(i, 'Button text', 'label', b.label)}${ecBField(i, 'Button link', 'href', b.href, { ph:'https:// or tel:' })}</div>`;
+  if(b.type === 'card') return ecBField(i, 'Small label', 'eyebrow', b.eyebrow) + ecBField(i, 'Headline', 'title', b.title)
+    + ecBField(i, 'Text', 'text', b.text, { area:true, rows:5, hint:tip });
+  if(b.type === 'pair') return `<div class="ec-two"><div>${ecImageField(i, 'src', b.src, 'Left photo')}${ecBField(i, 'Left label', 'label', b.label)}</div>
+      <div>${ecImageField(i, 'src2', b.src2, 'Right photo')}${ecBField(i, 'Right label', 'label2', b.label2)}</div></div>`
+    + ecBField(i, 'Caption', 'caption', b.caption) + `<p class="hint">Side by side on a computer, stacked on a phone.</p>`;
+  if(b.type === 'checklist') return ecBField(i, 'Title', 'title', b.title) + ecBField(i, 'Items, one per line', 'items', b.items, { area:true, rows:4 });
+  if(b.type === 'buttons') return `<div class="ec-two">${ecBField(i, 'Main button text', 'label', b.label)}${ecBField(i, 'Main button link', 'href', b.href, { ph:'https:// or tel:' })}</div>
+    <div class="ec-two">${ecBField(i, 'Second button text', 'label2', b.label2)}${ecBField(i, 'Second button link', 'href2', b.href2, { ph:'https://' })}</div>
+    <p class="hint">Leave the second button's text empty for just one button.</p>`;
+  if(b.type === 'signoff') return `<div class="ec-two">${ecBField(i, 'Closing', 'closing', b.closing)}${ecBField(i, 'Name', 'name', b.name)}</div>
+    <div class="ec-two">${ecBField(i, 'Title', 'role', b.role)}${ecBField(i, 'Phone (optional)', 'phone', b.phone)}</div>`;
+  if(b.type === 'brandfooter') return ecImageField(i, 'badge', b.badge, 'Certification logo (optional)') + `<div class="ec-two">${ecBField(i, 'Name', 'name1', b.name1)}${ecBField(i, 'Second word, in colour', 'name2', b.name2)}</div>
+    ${ecBField(i, 'Tagline', 'tagline', b.tagline)}
+    ${ecBField(i, 'Links, one per line as Label | link', 'links', b.links, { area:true, rows:3 })}
+    <div class="ec-two">${ecBField(i, 'Phone (optional)', 'phone', b.phone)}${ecBField(i, 'Website', 'site', b.site)}</div>
+    ${ecBField(i, 'Small print', 'small', b.small, { area:true, rows:2 })}
+    <p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
   if(b.type === 'html') return ecBField(i, 'HTML', 'code', b.code, { area:true, rows:10,
     hint:'Paste a section to drop in here, or a whole email from another tool. A whole email (one with &lt;html&gt; or &lt;body&gt;) replaces the layout, so it needs its own *|UNSUB|* link.' })
     + (/<(html|body)[\s>]/i.test(b.code || '') ? `<p class="hint err">This is a whole email, so the other blocks are left out of what gets sent.</p>` : '');
@@ -9011,7 +9163,7 @@ function ecPreview(){
 function wireCampaigns(){
   if(S.page !== 'campaigns') return;
   const E = ecState();
-  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew)));
+  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew, b.dataset.layout)));
   document.querySelectorAll('[data-ec-open]').forEach(b => b.addEventListener('click', () => ecOpen(b.dataset.ecOpen)));
   if(!E.cur) return;
   const c = E.cur;
@@ -9048,12 +9200,12 @@ function wireCampaigns(){
       b[el.dataset.ecK] = el.value;
       ecTouch();
       if(el.dataset.ecK === 'code' && wasFull !== !!ecFullPaste(c)){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 400); }
-      else if(el.dataset.ecK === 'src' || el.dataset.ecK === 'logo'){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 600); }
+      else if(['src','src2','logo','badge'].includes(el.dataset.ecK)){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 600); }
       else { clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(ecPreview, 200); }
     });
   });
   document.querySelectorAll('[data-ec-up]').forEach(el =>
-    el.addEventListener('change', () => ecUpload(Number(el.dataset.ecUp), el.files && el.files[0])));
+    el.addEventListener('change', () => ecUpload(Number(el.dataset.ecUp), el.files && el.files[0], el.dataset.ecUk)));
   document.querySelectorAll('[data-ec-move]').forEach(b => b.addEventListener('click', () => {
     const i = Number(b.dataset.ecMove), j = i + Number(b.dataset.dir);
     if(j < 0 || j >= c.blocks.length) return;
@@ -9062,12 +9214,12 @@ function wireCampaigns(){
   }));
   document.querySelectorAll('[data-ec-del]').forEach(b => b.addEventListener('click', () => {
     const i = Number(b.dataset.ecDel);
-    if(c.blocks[i] && c.blocks[i].type === 'footer' && !confirm('Mailchimp will not send an email without the footer and its unsubscribe link. Remove it anyway?')) return;
+    if(c.blocks[i] && EC_FOOTERS.includes(c.blocks[i].type) && !confirm('Mailchimp will not send an email without the footer and its unsubscribe link. Remove it anyway?')) return;
     c.blocks.splice(i, 1);
     ecTouch(); render();
   }));
   document.querySelectorAll('[data-ec-add]').forEach(b => b.addEventListener('click', () => {
-    const at = c.blocks.findIndex(x => x.type === 'footer');
+    const at = c.blocks.findIndex(x => EC_FOOTERS.includes(x.type));
     const nb = ecBlock(b.dataset.ecAdd, c.brand);
     if(at < 0) c.blocks.push(nb); else c.blocks.splice(at, 0, nb);
     ecTouch(); render();
