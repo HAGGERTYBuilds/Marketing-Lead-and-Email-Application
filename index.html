@@ -708,8 +708,20 @@
   .permit .desc.open{display:block}
   .permit .nums{font-family:var(--mono);font-size:11px;color:var(--slate);margin-top:4px}
   .permit .acts{display:flex;flex-direction:column;gap:6px;align-items:stretch;justify-content:flex-start;
-                grid-column:2;grid-row:2/span 4;min-width:118px}
+                grid-column:2;grid-row:2/span 8;min-width:118px}
+  .permit > :not(.acts):not(.ptop){grid-column:1}
+  .permit{row-gap:0}
+  .permit .addr{margin-top:3px}
   .permit .acts .btn{text-align:center;text-decoration:none}
+  .permit .ppro{font-size:13px;margin-top:6px;padding:7px 10px;background:var(--wash);border:1px solid var(--rule-soft)}
+  .permit .ppro .lbl{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+                     font-size:10.5px;color:var(--slate);margin-right:6px}
+  .permit .ppro .sub{font-size:12px;color:var(--grey);margin-top:2px}
+  .permit .ppro.none{background:none;border:0;padding:0;color:var(--slate);font-size:12px}
+  .permit .pnote{font-size:13px;margin-top:6px;color:var(--ink)}
+  .permit .psend{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .permit .psend textarea{width:100%;font:inherit;font-size:13px}
+  .permit .psend div{display:flex;gap:10px;align-items:center}
   @media (max-width:640px){
     .permit{grid-template-columns:1fr}
     .permit .acts{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap;min-width:0;margin-top:8px}
@@ -1082,7 +1094,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15b';
+const BUILD = '2026-10-15c';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1109,7 +1121,7 @@ const S = {
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* permits */
   permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
-  permitBusy:'', permitErr:'',
+  permitBusy:'', permitErr:'', permitSend:'', permitNote:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -6942,8 +6954,13 @@ function wireReels(){
    Refresh" saves new ones every morning at 6:15. Which records show here,
    and the sector guess, are decided in Supabase (permit_fit and
    permit_vertical in sql/permits.sql), so v_permits already holds only
-   the ones worth a look. Records name no applicant or contractor; a
-   permit is a project and an address to follow up on. */
+   the ones worth a look. AgencyCounter names no applicant or contractor.
+   The n8n workflow "Haggerty Permit Contractor Lookup" (6:40 every
+   morning) reads each building record on the city's Accela portal for
+   its job value and, once one is on file, its licensed professional
+   (usually the contractor). Owner and applicant names stay hidden there.
+   Send to Pat puts a permit on Pat's Home with a note; Pat marks it
+   contacted once she has called. */
 const PERMIT_FIT = {
   project:  ['Project',  'Commercial new building, addition, remodel or tenant improvement'],
   planning: ['Planning', 'Zoning or design review, before a contractor is picked'],
@@ -6955,19 +6972,24 @@ const PERMIT_DAYS = 60;
 async function loadPermits(){
   if(!S.loaded.verticals) await loadVerticals();
   const from = new Date(Date.now() - PERMIT_DAYS * 86400000).toISOString().slice(0, 10);
-  const [rows, last] = await Promise.all([
+  const [rows, last, older] = await Promise.all([
     sb.from('v_permits').select('*').gte('record_date', from)
       .order('record_date', { ascending:false }).order('agency_reference', { ascending:false }).limit(2000),
-    sb.from('permits').select('last_seen').order('last_seen', { ascending:false }).limit(1)
+    sb.from('permits').select('last_seen').order('last_seen', { ascending:false }).limit(1),
+    /* Sent to Pat stays on her list however old the permit gets. */
+    sb.from('v_permits').select('*').eq('mark', 'pat').lt('record_date', from)
   ]);
   if(rows.error) throw rows.error;
-  S.permits = rows.data || [];
+  S.permits = (rows.data || []).concat(older.data || []);
   S.permitsAt = last.data && last.data[0] ? last.data[0].last_seen : null;
   S.loaded.permits = true;
 }
 
+const permitSent = p => p.mark === 'pat' || p.mark === 'contacted';
+
 function permitInView(p){
   if(S.permitView === 'saved') return p.mark === 'saved';
+  if(S.permitView === 'pat') return permitSent(p);
   if(S.permitView === 'dismissed') return p.mark === 'dismissed';
   return p.mark !== 'dismissed';
 }
@@ -6979,7 +7001,8 @@ function permitVisible(){
     if(S.permitFit !== 'all' && p.fit !== S.permitFit) return false;
     if(S.permitVert && (p.vertical || 'none') !== S.permitVert) return false;
     if(q){
-      const hay = [p.name, p.description, p.address, p.agency_reference, p.record_type, p.status]
+      const hay = [p.name, p.description, p.address, p.agency_reference, p.record_type, p.status,
+                   p.pro_company, p.pro_name, p.note]
         .filter(Boolean).join(' ').toLowerCase();
       if(hay.indexOf(q) === -1) return false;
     }
@@ -6995,6 +7018,7 @@ function permitCard(p){
   const canMark = BUDGET_USERS.includes(S.me);
   const busy = S.permitBusy === p.guid;
   const nums = [
+    Number(p.job_value) > 0 ? money(p.job_value) + ' job value' : '',
     Number(p.total_fee) > 0 ? money(p.total_fee) + ' in city fees' : '',
     Number(p.improved_value) > 0 ? 'buildings on parcel ' + moneyShort(p.improved_value) : '',
     p.plan_check_target ? 'plan check due ' + permitDate(p.plan_check_target) : ''
@@ -7004,19 +7028,56 @@ function permitCard(p){
       <span class="chip ${p.fit==='project'?'hot':p.fit==='rhino'?'bad':''}" title="${esc(fit[1])}">${esc(fit[0])}</span>
       ${vert ? `<span class="chip">${esc(vert.name)}</span>` : ''}
       ${p.mark==='saved' ? '<span class="chip good">Saved</span>' : ''}
+      ${p.mark==='pat' ? '<span class="chip hot">Sent to Pat</span>' : ''}
+      ${p.mark==='contacted' ? '<span class="chip good">Pat contacted</span>' : ''}
       <span class="m">${esc(p.agency_reference)} · ${esc(p.record_type||'')} · ${esc(p.status||'')} · ${esc(permitDate(p.record_date))}</span>
     </div>
     <h4>${esc(p.name || p.record_type || p.agency_reference)}</h4>
     <div class="addr">${esc(p.address || 'No address on record')}</div>
     ${p.description ? `<p class="desc ${S.permitOpen && S.permitOpen[p.guid] ? 'open' : ''}" data-permit-more="${esc(p.guid)}">${esc(p.description)}</p>` : ''}
     ${nums ? `<div class="nums">${nums}</div>` : ''}
+    ${permitPro(p)}
+    ${permitSent(p) && p.note ? `<div class="pnote"><b>Note for Pat:</b> ${esc(p.note)}</div>` : ''}
+    ${S.permitSend === p.guid ? `<div class="psend">
+        <textarea id="permitNote" rows="2" placeholder="Note for Pat (optional): why this one, who to ask for">${esc(S.permitNote||'')}</textarea>
+        <div><button class="btn small" data-permit-send-go="${esc(p.guid)}" ${busy?'disabled':''}>${busy?'Sending&hellip;':'Send to Pat'}</button>
+        <button class="linkbtn" data-permit-send-cancel>Cancel</button></div>
+      </div>` : ''}
     <div class="acts">
       <a class="btn small ghost" href="${esc(p.url)}" target="_blank" rel="noopener">Open record</a>
-      ${canMark ? `
+      ${canMark ? (permitSent(p)
+        ? `<button class="btn small ${p.mark==='contacted'?'':'ghost'}" data-permit-contacted="${esc(p.guid)}" data-val="${p.mark==='contacted'?'0':'1'}" ${busy?'disabled':''}>${p.mark==='contacted'?'Contacted':'Mark contacted'}</button>
+        <button class="btn small ghost" data-permit-unsend="${esc(p.guid)}" ${busy?'disabled':''}>Take back</button>`
+        : `<button class="btn small" data-permit-send="${esc(p.guid)}" ${busy?'disabled':''}>Send to Pat</button>
         <button class="btn small ${p.mark==='saved'?'':'ghost'}" data-permit-mark="${esc(p.guid)}" data-val="saved" ${busy?'disabled':''}>${p.mark==='saved'?'Saved':'Save'}</button>
-        <button class="btn small ghost" data-permit-mark="${esc(p.guid)}" data-val="dismissed" ${busy?'disabled':''}>${p.mark==='dismissed'?'Bring back':'Not a fit'}</button>` : ''}
+        <button class="btn small ghost" data-permit-mark="${esc(p.guid)}" data-val="dismissed" ${busy?'disabled':''}>${p.mark==='dismissed'?'Bring back':'Not a fit'}</button>`) : ''}
     </div>
   </article>`;
+}
+
+/* Who to call. The contractor on file, from the city's Accela portal, with
+   a license check on CSLB and a company search on Apollo (a search only,
+   no credits). A building record checked with nobody on file usually
+   means no contractor has been named yet. */
+function permitPro(p){
+  if(p.pro_company || p.pro_name){
+    const co = p.pro_company || p.pro_name;
+    const tel = p.pro_phone ? String(p.pro_phone).replace(/[^0-9+]/g, '') : '';
+    const telTxt = tel.length === 10 ? `(${tel.slice(0,3)}) ${tel.slice(3,6)}-${tel.slice(6)}` : p.pro_phone;
+    return `<div class="ppro">
+      <span class="lbl">Contractor on file</span>
+      <b>${esc(co)}</b>${p.pro_name && p.pro_company ? ` · ${esc(p.pro_name)}` : ''}
+      ${tel ? ` · <a href="tel:${esc(tel)}" class="mono">${esc(telTxt)}</a>` : ''}
+      ${p.pro_address ? `<div class="sub">${esc(p.pro_address)}</div>` : ''}
+      <div class="sub">
+        ${p.pro_license ? `<a href="https://www.cslb.ca.gov/OnlineServices/CheckLicenseII/LicenseDetail.aspx?LicNum=${encodeURIComponent(p.pro_license)}" target="_blank" rel="noopener">License ${esc(p.pro_license)}</a> · ` : ''}
+        <a href="https://app.apollo.io/#/companies?qKeywords=${encodeURIComponent(co)}" target="_blank" rel="noopener">Find on Apollo</a>
+      </div>
+    </div>`;
+  }
+  if(p.module === 'building' && p.aca_checked_at)
+    return `<div class="ppro none">No contractor on file with the city yet.</div>`;
+  return '';
 }
 
 function pagePermits(){
@@ -7027,6 +7088,7 @@ function pagePermits(){
 
   const views = [['open','To review', all.filter(p=>p.mark!=='dismissed').length],
                  ['saved','Saved', all.filter(p=>p.mark==='saved').length],
+                 ['pat','Sent to Pat', all.filter(permitSent).length],
                  ['dismissed','Not a fit', all.filter(p=>p.mark==='dismissed').length]]
     .map(([k,label,n])=>`<button class="fchip ${S.permitView===k?'on':''}" data-permitview="${k}">${label} <b>${n}</b></button>`).join('');
   const fits = [['all','All', inView.length]].concat(Object.keys(PERMIT_FIT)
@@ -7070,7 +7132,8 @@ function pagePermits(){
     <p class="hint" style="margin-top:18px">Shown: commercial projects, zoning and design review files,
       smaller commercial repairs, and any repair that mentions fire, water, dry rot, mold or impact damage (RHINO).
       Residential work, HVAC and water heater swaps, signs, reroofs and fire alarm work are left out.
-      The city does not publish who applied, so Open record is the next step for a name.</p>
+      The contractor on file and job value come from the city's permit portal, checked every morning at 6:40.
+      The city does not publish the owner or applicant, so for those Open record is the next step.</p>
   </main>`;
 }
 
@@ -7096,6 +7159,60 @@ async function markPermit(guid, state){
   S.permitBusy = ''; render();
 }
 
+async function sendPermit(guid){
+  if(S.permitBusy) return;
+  const p = (S.permits||[]).find(x => x.guid === guid);
+  if(!p) return;
+  const note = String(S.permitNote || '').trim() || null;
+  S.permitBusy = guid; S.permitErr = ''; render();
+  try{
+    const now = new Date().toISOString();
+    const { error } = await sb.from('permit_marks')
+      .upsert({ guid, state:'pat', marked_by:S.me, marked_at:now, note, sent_by:S.me, sent_at:now });
+    if(error) throw error;
+    Object.assign(p, { mark:'pat', marked_by:S.me, marked_at:now, note, sent_by:S.me, sent_at:now });
+    S.permitSend = ''; S.permitNote = '';
+  }catch(e){
+    S.permitErr = 'Could not send that to Pat: ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
+async function unsendPermit(guid){
+  if(S.permitBusy) return;
+  const p = (S.permits||[]).find(x => x.guid === guid);
+  if(!p) return;
+  S.permitBusy = guid; S.permitErr = ''; render();
+  try{
+    const { error } = await sb.from('permit_marks').delete().eq('guid', guid);
+    if(error) throw error;
+    Object.assign(p, { mark:null, note:null, sent_by:null, sent_at:null });
+  }catch(e){
+    S.permitErr = 'Could not take that back: ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
+/* Pat, once she has reached out. Contacted moves it off her Home; Undo
+   puts it back. The note and who sent it stay. */
+async function contactPermit(guid, done){
+  if(S.permitBusy) return;
+  const p = (S.permits||[]).find(x => x.guid === guid);
+  if(!p) return;
+  S.permitBusy = guid; S.permitErr = ''; render();
+  try{
+    const now = new Date().toISOString();
+    const state = done ? 'contacted' : 'pat';
+    const { error } = await sb.from('permit_marks')
+      .update({ state, marked_by:S.me, marked_at:now }).eq('guid', guid);
+    if(error) throw error;
+    Object.assign(p, { mark:state, marked_by:S.me, marked_at:now });
+  }catch(e){
+    S.permitErr = 'Could not save that: ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
 let permitTimer = null;
 
 function wirePermits(){
@@ -7105,6 +7222,19 @@ function wirePermits(){
     el.addEventListener('click',()=>{ S.permitFit = el.dataset.permitfit; render(); }));
   document.querySelectorAll('[data-permit-mark]').forEach(el=>
     el.addEventListener('click',()=>markPermit(el.dataset.permitMark, el.dataset.val)));
+  document.querySelectorAll('[data-permit-send]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitSend = el.dataset.permitSend; S.permitNote = ''; render();
+      const t = document.getElementById('permitNote'); if(t) t.focus(); }));
+  document.querySelectorAll('[data-permit-send-cancel]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitSend = ''; S.permitNote = ''; render(); }));
+  document.querySelectorAll('[data-permit-send-go]').forEach(el=>
+    el.addEventListener('click',()=>sendPermit(el.dataset.permitSendGo)));
+  document.querySelectorAll('[data-permit-unsend]').forEach(el=>
+    el.addEventListener('click',()=>unsendPermit(el.dataset.permitUnsend)));
+  document.querySelectorAll('[data-permit-contacted]').forEach(el=>
+    el.addEventListener('click',()=>contactPermit(el.dataset.permitContacted, el.dataset.val === '1')));
+  const pn = document.getElementById('permitNote');
+  if(pn) pn.addEventListener('input',()=>{ S.permitNote = pn.value; });
   document.querySelectorAll('[data-permit-more]').forEach(el=>
     el.addEventListener('click',()=>{
       S.permitOpen = S.permitOpen || {};
@@ -8861,6 +8991,7 @@ async function loadHome(){
     pat && !S.loaded.week && loadWeek(),
     pat && !S.loaded.seq && loadSequences(),
     pat && !S.loaded.invites && loadInvites(),
+    pat && !S.loaded.permits && loadPermits(),
     !pat && !S.loaded.tasks.liam && loadTasks('liam'),
     !pat && !S.loaded.requests && loadRequests(),
     !pat && !S.loaded.budget && loadBudget()
@@ -9147,6 +9278,38 @@ function homeHotPanel(){
   return homePanel(`Hot leads${S.home.hot && S.home.hot.length ? ` (${S.home.hot.length})` : ''}`, '', '', homeHotLeads(), 'hotLeads');
 }
 
+/* Permits Liam sent to Pat from the Permits tab, oldest first, until she
+   marks each one contacted. */
+function homePatPermits(){
+  return (S.permits || []).filter(p => p.mark === 'pat')
+    .sort((a, b) => String(a.sent_at || '').localeCompare(String(b.sent_at || '')));
+}
+
+function homePermitPanel(rows){
+  if(!S.loaded.permits || !rows.length) return '';
+  return homePanel(`Permits to follow up (${rows.length})`, 'permits:pat', 'Open Permits', `
+    <div class="hlist">${rows.map(p => {
+      const tel = p.pro_phone ? String(p.pro_phone).replace(/[^0-9+]/g, '') : '';
+      return `<div class="hotlead">
+        <div class="hotlead-top">
+          <span class="n">${esc(p.name || p.record_type || p.agency_reference)}</span>
+          <span class="w">Sent ${esc(shortDate(p.sent_at))}</span>
+        </div>
+        <div class="hotlead-t">${esc(p.address || '')}${Number(p.job_value) > 0 ? ' · ' + esc(moneyShort(p.job_value)) + ' job' : ''}</div>
+        ${p.note ? `<div class="hotlead-what">${esc(p.note)}</div>` : ''}
+        ${p.pro_company ? `<div class="hotlead-what">Contractor on file: <b>${esc(p.pro_company)}</b>${p.pro_name ? ' · ' + esc(p.pro_name) : ''}</div>` : ''}
+        <div class="hotlead-act">
+          ${tel ? `<a href="tel:${esc(tel)}" class="mono">${esc(p.pro_phone)}</a>` : ''}
+          <a href="${esc(p.url)}" target="_blank" rel="noopener">Open record</a>
+          <span class="spacer"></span>
+          <button class="btn small ghost" data-permit-contacted="${esc(p.guid)}" data-val="1" ${S.permitBusy ? 'disabled' : ''}>${
+            S.permitBusy === p.guid ? 'Saving&hellip;' : 'Contacted'}</button>
+        </div>
+      </div>`; }).join('')}</div>
+    ${S.permitErr ? `<p class="hint err">${esc(S.permitErr)}</p>` : ''}
+    <p class="hint">Mark one contacted once you've reached out. It stays on the Permits tab under Sent to Pat.</p>`, 'patPermits');
+}
+
 function homeEmailPanel(days, intro){
   return homePanel('Email, last 14 days', 'today', 'Open Outreach',
     `${intro || ''}${homeEmailChart(days)}<div style="margin-top:12px">${healthPanel()}</div>`);
@@ -9168,6 +9331,8 @@ function homePat(){
   if(inv) needs.push(['hot', inv, inv === 1 ? 'Event invite' : 'Event invites', 'Waiting on your yes or no', 'calendar:invites']);
   if(apv && apv.pending) needs.push(['hot', apv.pending, apv.pending === 1 ? 'Approval waiting' : 'Approvals waiting', 'Waiting on your decision', 'approvals']);
   if(hot && hot.length) needs.push(['hot', hot.length, hot.length === 1 ? 'Hot lead' : 'Hot leads', 'Replied, clicked or said yes', 'home:hot']);
+  const pp = homePatPermits();
+  if(pp.length) needs.push(['hot', pp.length, pp.length === 1 ? 'Permit to follow up' : 'Permits to follow up', 'Liam sent these from Permits', 'home:permits']);
 
   const kpis = [kpiPipeline(), kpiSent(days), kpiReplies(days),
     { label:'Hot leads', go:'home:hot', value: hot ? String(hot.length) : '&ndash;',
@@ -9179,6 +9344,7 @@ function homePat(){
     <div class="home-cols">
       <div>${homeEmailPanel(days)}${homeHotPanel()}</div>
       <div>
+        ${homePermitPanel(pp)}
         ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayEvents.length
           ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
           : `<p class="hint">Nothing on the calendar today.</p>`)}
@@ -9280,7 +9446,13 @@ async function homeGo(target){
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     return;
   }
+  if(page === 'home' && view === 'permits'){
+    const el = document.getElementById('patPermits');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
   if(page === 'calendar' && view) S.calView = view;
+  if(page === 'permits' && view) S.permitView = view;
   S.page = page; S.err = ''; S.gen = '';
   try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
   render();
