@@ -1067,7 +1067,10 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
-const visiblePages = () => (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
+/* A social reviewer (sql/social_review.sql) sees the Social tab and
+   nothing else, locked to their brand. */
+const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social')
+  : (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
 
@@ -1094,7 +1097,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15c';
+const BUILD = '2026-10-15d';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2910,7 +2913,8 @@ const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'
   leads:'Leads', permits:'Permits', budget:'Budget' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
-const NAV_PHONE = me => me === 'iyanna' ? ['iyanna','reels','social','leads']
+const NAV_PHONE = me => me === 'reviewer' ? ['social']
+                      : me === 'iyanna' ? ['iyanna','reels','social','leads']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
@@ -2965,7 +2969,7 @@ function cycleTheme(){
 }
 
 function railFoot(){
-  const name = { liam:'Liam', pat:'Pat', iyanna:'Iyanna' }[S.me] || '';
+  const name = { liam:'Liam', pat:'Pat', iyanna:'Iyanna' }[S.me] || S.revName || '';
   return `<div class="rail-foot">
     <div class="rail-me"><span class="av">${esc(name.slice(0,1))}</span><b>${esc(name)}</b></div>
     <div class="rail-acts">
@@ -3011,11 +3015,11 @@ function topbar(){
   const live = S.board.filter(r=>r.status !== 'skipped');
   const done = live.filter(r=>r.handled).length;
   return `<header class="topbar">
-    <div class="crmbox">
+    ${S.me === 'reviewer' ? '' : `<div class="crmbox">
       <input type="search" id="crmQ" value="${esc(S.crmQ)}" autocomplete="off"
              placeholder="Search contacts and companies" aria-label="Search the CRM" />
       ${S.crmQ?`<button class="crmx" id="crmClear" aria-label="Clear">&times;</button>`:''}
-    </div>
+    </div>`}
     <span class="spacer"></span>
     <span class="tally date" title="Build ${BUILD}">${esc(prettyDate())}</span>
     ${live.length?`<span class="tally"><b>${done}</b> / ${live.length} cleared</span>`:''}
@@ -7365,6 +7369,9 @@ async function loadSocial(){
   S.socResults = r.error ? [] : (r.data || []);
   const st = await sb.from('social_settings').select('focus_mix').eq('brand', SOC_BRAND).maybeSingle();
   S.socMix = (!st.error && st.data && st.data.focus_mix) || {};
+  /* A brand with a reviewer needs their OK before Send takes a post. */
+  const rv = await sb.from('social_reviewers').select('email,name').eq('brand', SOC_BRAND);
+  S.socReviewers = rv.error ? [] : (rv.data || []);
   S.loaded.social = true;
 }
 async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
@@ -7472,9 +7479,32 @@ function socResultsView(){
       Instagram and LinkedIn posts on the same subject share a card.</p>`;
 }
 
+/* Review by the brand's reviewer (sql/social_review.sql): OK to post or
+   Needs changes, with a note. Only drafts and approved posts wait on it. */
+function socIsReviewer(){ return S.me === 'reviewer'; }
+function socNeedsReview(){ return (S.socReviewers || []).length > 0; }
+function socReviewerName(email){
+  const r = (S.socReviewers || []).find(x => x.email === email);
+  return (r && r.name) || (email ? String(email).split('@')[0] : 'Reviewer');
+}
+function socSendable(p){
+  return p.status === 'approved' && (!socNeedsReview() || p.review_status === 'ok');
+}
+function socReviewChip(p){
+  if(!socNeedsReview()) return '';
+  if(p.review_status === 'ok') return `<span class="chip good">OK to post</span>`;
+  if(p.review_status === 'changes') return `<span class="chip bad">Needs changes</span>`;
+  return p.status === 'draft' || p.status === 'approved' ? `<span class="chip">Waiting on review</span>` : '';
+}
+function socReviewLine(p){
+  if(!p.review_note || !socNeedsReview()) return '';
+  return `<span class="why">${esc(socReviewerName(p.reviewed_by))}: ${esc(p.review_note)}</span>`;
+}
+
 function socCard(p){
   const media = socMedia(p);
   const busy = S.socBusy === p.id;
+  const open = p.status === 'draft' || p.status === 'approved';
   return `<article class="soccard ${esc(p.status)}">
     <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit ${p.status==='extra'?'this extra option':'the post for ' + esc(socDay(p.post_date))}">
       ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
@@ -7482,6 +7512,7 @@ function socCard(p){
         <span class="chip">${esc(SOC_FORMAT[p.format] || p.format)}${media.length>1?` &middot; ${media.length}`:''}</span>
         ${p.focus && SOC_FOCUS[p.focus] ? `<span class="chip">${esc(SOC_FOCUS[p.focus])}</span>` : ''}
         <span class="chip ${p.status==='approved'||p.status==='sent'||p.status==='queued'?'hot':''}">${esc(SOC_STATUS[p.status] || p.status)}</span>
+        ${socReviewChip(p)}
       </span>
     </button>
     <div class="socbody">
@@ -7489,10 +7520,15 @@ function socCard(p){
       ${p.topic?`<span class="t">${esc(p.topic)}</span>`:''}
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
+      ${socReviewLine(p)}
     </div>
     ${(() => { const r = (S.socResults || []).filter(x => x.social_post_id === p.id);
        return r.length ? socResLines(r.find(x => x.network === 'instagram'), r.find(x => x.network === 'linkedin')) : ''; })()}
-    <div class="socfoot">
+    ${socIsReviewer() ? `<div class="socfoot">
+      ${open ? `<button class="btn small" data-soc-review="${esc(p.id)}" ${busy||p.review_status==='ok'?'disabled':''}>${p.review_status==='ok'?'OK given':'OK to post'}</button>
+        <button class="btn small ghost" data-soc-open="${esc(p.id)}">Edit or flag</button>`
+        : `<button class="btn small ghost" data-soc-open="${esc(p.id)}">Open</button>`}
+    </div>` : `<div class="socfoot">
       ${p.status === 'draft'
         ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
         : p.status === 'approved'
@@ -7510,7 +7546,7 @@ function socCard(p){
       <button class="btn small ghost" data-soc-open="${esc(p.id)}">Edit</button>
       ${p.status==='draft'||p.status==='approved'||p.status==='extra'
         ? `<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear</button>` : ''}
-    </div>
+    </div>`}
   </article>`;
 }
 
@@ -7520,6 +7556,8 @@ function socSheet(){
   const f = S.socForm;
   const media = socMedia(p);
   const busy = !!S.socBusy;
+  const rev = socIsReviewer();
+  const open = p.status === 'draft' || p.status === 'approved';
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit post">
     <div class="sheet-in soc">
       <div class="reel-head">
@@ -7530,22 +7568,22 @@ function socSheet(){
         <div class="socmedia">
           ${media.map((m,i)=>`<div class="socitem">
             ${socMediaTag(m, true)}
-            <div class="socbar">
+            ${rev ? '' : `<div class="socbar">
               <span class="n">${i+1} of ${media.length}</span>
               ${media.length>1?`<button class="btn small ghost" data-soc-mv="${esc(m.id)}" data-dir="-1" ${busy||i===0?'disabled':''} aria-label="Move earlier">&uarr;</button>
               <button class="btn small ghost" data-soc-mv="${esc(m.id)}" data-dir="1" ${busy||i===media.length-1?'disabled':''} aria-label="Move later">&darr;</button>`:''}
               <label class="btn small ghost filebtn">Replace
                 <input type="file" accept="${SOC_OK.join(',')}" data-soc-rep="${esc(m.id)}" ${busy?'disabled':''} /></label>
               ${media.length>1?`<button class="btn small ghost" data-soc-rm="${esc(m.id)}" ${busy?'disabled':''}>Remove</button>`:''}
-            </div>
+            </div>`}
           </div>`).join('')}
-          <label class="btn small ghost filebtn">Add photos or video
+          ${rev ? `<p class="hint" style="margin:0">If a photo shows a safety problem, mark the post Needs changes and say which photo.</p>` : `<label class="btn small ghost filebtn">Add photos or video
             <input type="file" id="socAdd" multiple accept="${SOC_OK.join(',')}" ${busy?'disabled':''} /></label>
           <p class="hint" style="margin:0">JPG, PNG, WebP, MP4 or MOV, up to 50 MB each.
-            Instagram needs at least one photo or video on every post.</p>
+            Instagram needs at least one photo or video on every post.</p>`}
         </div>
         <div class="socside">
-          ${p.status==='extra'
+          ${rev ? '' : p.status==='extra'
             ? `<div class="field" style="margin-top:0"><label for="socUseDate">Use on</label>
                  <select id="socUseDate">
                    <option value="">Not scheduled yet</option>
@@ -7568,15 +7606,25 @@ function socSheet(){
             <input type="text" id="socTagsLi" value="${esc(f.hashtags_li)}" autocomplete="off" /></div>
           ${p.status==='skipped' && p.notes?`<p class="hint" style="margin-top:10px">Cleared: ${esc(p.notes)}</p>`:''}
           ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
+          ${rev && open ? `<div class="field"><label for="socRevNote">What needs to change</label>
+              <textarea id="socRevNote" placeholder="For example: crew in photo 2 has no hard hat, or the caption names the wrong city">${esc(f.review_note)}</textarea></div>`
+            : !rev && socNeedsReview() && (p.review_status || p.review_note)
+              ? `<p class="hint" style="margin-top:10px"><b>${p.review_status==='ok'?'OK to post':p.review_status==='changes'?'Needs changes':'Waiting on review'}</b>${
+                  p.review_note ? ': ' + esc(socReviewerName(p.reviewed_by)) + ' wrote &ldquo;' + esc(p.review_note) + '&rdquo;' : ''}${
+                  p.review_status ? '' : ' Your edits sent it back for another look.'}</p>` : ''}
           ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
           ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
-          <div class="actions" style="margin-top:auto;padding-top:14px">
+          ${rev ? `<div class="actions" style="margin-top:auto;padding-top:14px">
+            ${open ? `<button class="btn" id="socRevOk" ${busy?'disabled':''}>Save and mark OK to post</button>
+            <button class="btn ghost small" id="socRevChanges" ${busy?'disabled':''}>Save and mark Needs changes</button>` : ''}
+            <button class="${open?'linkbtn':'btn'}" id="socSave" ${busy?'disabled':''}>Save edits only</button>
+          </div>` : `<div class="actions" style="margin-top:auto;padding-top:14px">
             <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
             ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
             ${p.status==='approved'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
             ${p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`:''}
             ${p.status==='draft'||p.status==='approved'||p.status==='extra'?`<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear this post</button>`:''}
-          </div>
+          </div>`}
         </div>
       </div>
     </div>
@@ -7682,7 +7730,7 @@ function socMixLine(live){
     </div>` : '';
   return `<p class="socmix"><span>${esc(socMonthLabel(S.socMonth).split(' ')[0])} mix:</span>
       ${parts.join('') || '<span>No posts tagged yet</span>'}
-      <button class="linkbtn" id="socMixOpen">${Object.keys(want).length ? 'Change target mix' : 'Set a target mix'}</button></p>${form}`;
+      ${socIsReviewer() ? '' : `<button class="linkbtn" id="socMixOpen">${Object.keys(want).length ? 'Change target mix' : 'Set a target mix'}</button>`}</p>${form}`;
 }
 async function saveSocialMix(){
   if(S.socBusy) return;
@@ -7715,34 +7763,40 @@ function pageSocial(){
   const extras = count('extra');
   const xOpen = (S.socJobs||[]).some(j => j.kind==='extras' && ['pending','running','ready'].includes(j.status));
   const approved = count('approved');
+  const sendable = all.filter(socSendable).length;
+  const waiting = approved - sendable;
   const drafts = count('draft');
+  const rev = socIsReviewer();
   const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
   const busy = !!S.socBusy;
 
   const chips = [['all','Calendar', live.length], ['draft','Drafts', drafts], ['approved','Approved', approved],
                  ['sent','In Metricool', count('sent') + count('queued')], ['results','Results', socResultGroups().length],
-                 ['extra','Extra options', extras],
-                 ['skipped','Cleared', count('skipped')]]
+                 ...(rev ? [] : [['extra','Extra options', extras], ['skipped','Cleared', count('skipped')]])]
     .map(([k,label,n])=>`<button class="fchip ${S.socFilter===k?'on':''}" data-socfilter="${k}">${label} <b>${n}</b></button>`).join('');
   const notes = socJobNote();
 
   return `<main class="page wide">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-      <div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k,l]) =>
-        `<button class="filt ${SOC_BRAND===k?'on':''}" data-socbrand="${k}" ${busy?'disabled':''}>${esc(l)}</button>`).join('')}</div>
+      ${rev ? `<span class="chip hot">${esc(SOC_BRANDS[SOC_BRAND])}</span>`
+        : `<div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k,l]) =>
+        `<button class="filt ${SOC_BRAND===k?'on':''}" data-socbrand="${k}" ${busy?'disabled':''}>${esc(l)}</button>`).join('')}</div>`}
       <button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
       <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
       <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
       <span style="flex:1"></span>
-      <button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
+      ${rev ? '' : `<button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
               title="${all.length?'This month already has posts.':'Ask for a month of posts built from the ' + SOC_BRANDS[SOC_BRAND] + ' photo archive.'}">Generate month</button>
       ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
               title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
       ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}>Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}
-      <button class="btn small" id="socSend" ${busy||!approved?'disabled':''}>Send ${approved||''} approved to Metricool</button>
+      <button class="btn small" id="socSend" ${busy||!sendable?'disabled':''}
+              ${waiting?`title="${waiting} approved post${waiting===1?' is':'s are'} waiting on review"`:''}>Send ${sendable||''} ${socNeedsReview()?'reviewed':'approved'} to Metricool</button>`}
     </div>
+    ${rev ? `<p class="hint" style="margin:0 0 14px">Look over each post before it goes out. Mark it OK to post, or Edit or flag to fix the words or say what needs to change, such as a safety issue in a photo. Only posts you OK get sent.</p>`
+      : waiting ? `<p class="hint" style="margin:0 0 14px">${waiting} approved post${waiting===1?' is':'s are'} waiting on ${esc(socReviewerName((S.socReviewers[0]||{}).email))} to review before they can be sent.</p>` : ''}
 
     ${socResultsStrip()}
     <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
@@ -7753,7 +7807,7 @@ function pageSocial(){
     ${S.socProg && !S.socOpenId?`<p class="hint" style="margin-bottom:14px">${esc(S.socProg)}</p>`:''}
     ${S.socErr && !S.socOpenId?`<p class="hint err" style="margin-bottom:14px">${esc(S.socErr)}</p>`:''}
 
-    ${all.length && openDates.length && S.socFilter !== 'results' ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
+    ${!rev && all.length && openDates.length && S.socFilter !== 'results' ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
         ${openDates.map(d=>esc(socDay(d))).join(', ')}. ${extras
           ? 'Pick an extra option and choose Use on.'
           : 'Click Get more options to have spare posts built, then assign one to each date.'}</p>` : ''}
@@ -7763,6 +7817,7 @@ function pageSocial(){
       : `<div class="empty" style="padding:44px 0">
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
            <p>${all.length?(S.socFocus!=='all'&&byStatus.length?'No ' + esc(socFocusLabel(S.socFocus)) + ' posts here. Pick another focus above.':S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
+             : rev ? 'Nothing to review this month yet. Use the arrows to look at another month.'
              :'Generate month asks for a new set built from the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' photo archive. Import folder brings in a month folder that is already built.'}</p>
          </div>`}
 
@@ -7776,17 +7831,21 @@ function socOpen(id){
   if(!p) return;
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
   S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '', focus: p.focus || '',
-                caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '' };
+                caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '',
+                review_note: p.review_note || '' };
   render();
 }
 
-async function saveSocial(status){
+async function saveSocial(status, review){
   const id = S.socOpenId;
   if(!id || S.socBusy) return;
   const f = S.socForm;
   const cur = (S.social||[]).find(x => x.id === id);
   const isExtra = cur && cur.status === 'extra';
-  if(!isExtra && !f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
+  const rev = socIsReviewer();
+  if(!rev && !isExtra && !f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
+  if(review === 'changes' && !String(f.review_note||'').trim()){
+    S.socErr = 'Say what needs to change, so it can be fixed.'; return render(); }
   S.socBusy = id; S.socErr = ''; render();
   try{
     /* An extra keeps its placeholder date until it is given a slot. Picking
@@ -7797,16 +7856,32 @@ async function saveSocial(status){
                     caption: String(f.caption||'').trim(),
                     hashtags: String(f.hashtags||'').trim() || null,
                     hashtags_li: String(f.hashtags_li||'').trim() || null };
-    if(when){ patch.post_date = when; patch.month = when.slice(0,7); }
-    if(isExtra && when) patch.status = 'draft';
-    if(status) patch.status = status;
+    if(!rev){
+      if(when){ patch.post_date = when; patch.month = when.slice(0,7); }
+      if(isExtra && when) patch.status = 'draft';
+      if(status) patch.status = status;
+    }
+    if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
     const { error } = await sb.from('social_posts').update(patch).eq('id', id);
     if(error) throw error;
-    S.socNote = isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
+    S.socNote = review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
+      : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
       : status === 'approved' ? 'Saved and approved.' : 'Saved.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = 'That did not save: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
+async function socReviewOk(id){
+  if(S.socBusy) return;
+  S.socBusy = id; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_posts').update({ review_status:'ok' }).eq('id', id);
+    if(error) throw error;
+    S.socNote = 'Marked OK to post.';
+    await reloadSocial();
+  }catch(err){ S.socErr = err.message || String(err); }
   S.socBusy = ''; render();
 }
 
@@ -7991,8 +8066,10 @@ async function requestSocialJob(kind){
   try{
     const who = await socWho();
     if(kind === 'send'){
-      const { error } = await sb.from('social_posts').update({ status:'queued' })
+      let q = sb.from('social_posts').update({ status:'queued' })
         .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'approved');
+      if(socNeedsReview()) q = q.eq('review_status', 'ok');
+      const { error } = await q;
       if(error) throw error;
     }
     const jobKind = kind === 'send' ? 'send_cloud' : kind;
@@ -8177,6 +8254,14 @@ function wireSocial(){
   if(cl) cl.addEventListener('click',()=>{ S.socOpenId = null; S.socErr = ''; render(); });
   const sv = document.getElementById('socSave');
   if(sv) sv.addEventListener('click',()=> saveSocial());
+  document.querySelectorAll('[data-soc-review]').forEach(el=>
+    el.addEventListener('click',()=> socReviewOk(el.dataset.socReview)));
+  const rn = document.getElementById('socRevNote');
+  if(rn) rn.addEventListener('input',()=>{ S.socForm.review_note = rn.value; });
+  const ro = document.getElementById('socRevOk');
+  if(ro) ro.addEventListener('click',()=> saveSocial(null, 'ok'));
+  const rc = document.getElementById('socRevChanges');
+  if(rc) rc.addEventListener('click',()=> saveSocial(null, 'changes'));
   const ap = document.getElementById('socApprove');
   if(ap) ap.addEventListener('click',()=> saveSocial('approved'));
   const ad = document.getElementById('socAdd');
@@ -9485,14 +9570,21 @@ async function boot(){
      data, but the screen should not offer what the account cannot have. */
   const email = (session.user && session.user.email || '').toLowerCase();
   S.me = WHOAMI[email];
-  if(!S.me) return renderNoAccess(email);
+  if(!S.me){
+    /* Not on the team list: maybe a social reviewer. The database only
+       lets a reviewer see their own row. */
+    const rv = await sb.from('social_reviewers').select('brand,name').eq('email', email).maybeSingle();
+    if(rv.error || !rv.data || !SOC_BRANDS[rv.data.brand]) return renderNoAccess(email);
+    S.me = 'reviewer'; S.revName = rv.data.name || email.split('@')[0];
+    SOC_BRAND = rv.data.brand; SOC_FOCUS = SOC_FOCUS_BY[SOC_BRAND];
+  }
   S.dayOwner = S.me;
   S.day = today();
   /* A tab named in the address wins. Otherwise Liam and Pat start on
      Home, and Iyanna on her own list. */
   const want = location.hash.slice(1);
   S.page = visiblePages().some(([k]) => k === want) ? want
-         : (S.me === 'iyanna' ? 'iyanna' : 'home');
+         : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? 'social' : 'home');
   try{
     await ensure(S.page);
     render();
