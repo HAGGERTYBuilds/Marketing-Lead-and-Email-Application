@@ -38,3 +38,30 @@ alter function public.unapply_classification(p_id uuid) set search_path = public
 
 revoke execute on function public.voice_edit_trend() from anon, public;
 grant execute on function public.voice_edit_trend() to authenticated;
+
+-- 2026-10-15, migration advisor_cleanup_2026_10_15 (Security Advisor review):
+-- 3. voice_edit_trend() returns nothing to social reviewers, so the reviewer
+--    login can't read outreach counts through it (it bypasses staff_only).
+-- 4. social_send_job() is a trigger function; nobody needs to call it, so
+--    signed-in users lose EXECUTE. The trigger still fires.
+-- Left on purpose: is_social_reviewer()/social_reviewer_brand() (every
+-- staff_only policy calls them as the signed-in user) and pg_trgm in public
+-- (crm_search and 5 trgm indexes use it).
+create or replace function public.voice_edit_trend()
+ returns table(week_start date, sends integer, reworked integer, sent_as_written integer, avg_kept numeric, replies integer)
+ language sql stable security definer
+ set search_path to 'public'
+as $function$
+  select date_trunc('week', sent_at)::date,
+         count(*)::int,
+         count(*) filter (where coalesce(edit_similarity, 0) < 0.9)::int,
+         count(*) filter (where edit_similarity >= 0.9)::int,
+         round(avg(edit_similarity) * 100, 0),
+         count(*) filter (where got_reply)::int
+    from voice_examples
+   where source = 'dashboard'
+     and not public.is_social_reviewer()
+   group by 1 order by 1;
+$function$;
+
+revoke execute on function public.social_send_job() from authenticated, anon, public;
