@@ -831,7 +831,7 @@
   .ec-side{align-self:stretch}
   fieldset.ec-edit{border:0;margin:0;padding:0;min-width:0}
   fieldset.ec-edit[disabled]{opacity:.6}
-  #ec-send_at{font:inherit;width:100%;padding:12px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);box-sizing:border-box}
+  #ec-send_at,#ecTagFind{font:inherit;width:100%;padding:12px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);box-sizing:border-box}
   .ec-review{border-color:var(--accent)}
   .ec-note{margin:4px 0 8px;padding:8px 10px;background:var(--wash);font-size:14px}
   .ec-sticky{position:sticky;top:14px}
@@ -1140,7 +1140,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15j';
+const BUILD = '2026-10-15k';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -9171,7 +9171,11 @@ function ecEditPage(){
   const st = EC_STATUS[c.status] || EC_STATUS.draft;
   const auds = ecAudiences();
   const aud = auds.find(a => a.list_id === c.list_id);
-  const tags = (aud && Array.isArray(aud.tags) ? aud.tags : []).slice().sort((x, y) => String(x.name).localeCompare(String(y.name)));
+  // Mailchimp keeps a tag for every import combination, most of them empty;
+  // only tags with people in them are worth picking.
+  const tags = (aud && Array.isArray(aud.tags) ? aud.tags : [])
+    .filter(t => Number(t.member_count) > 0 || String(t.id) === String(c.tag_id))
+    .sort((x, y) => String(x.name).localeCompare(String(y.name)));
   const audOpts = auds.map(a => `<option value="${esc(a.list_id)}" ${a.list_id === c.list_id ? 'selected' : ''}>${esc(a.name)} (${num(a.subscribed)})</option>`).join('');
   const seedOnly = auds.length && auds.every(a => String(a.list_id).startsWith('seed-'));
   const rev = ecIsRev();
@@ -9200,6 +9204,7 @@ function ecEditPage(){
               <select id="ec-list" data-ec-set="list_id"><option value="">Pick an audience</option>${audOpts}</select>
               ${seedOnly ? `<div class="hint" style="margin-top:3px">The real audience list arrives with the first daily Mailchimp refresh.</div>` : ''}</div>
             <div class="field"><label for="ec-tag">Send to</label>
+              ${tags.length > 12 ? `<input type="search" id="ecTagFind" placeholder="Filter ${tags.length} tags" style="margin-bottom:6px;padding:8px 12px" />` : ''}
               <select id="ec-tag" data-ec-set="tag_id"><option value="">Everyone in the audience</option>${tags.map(t =>
                 `<option value="${esc(t.id)}" ${String(t.id) === String(c.tag_id) ? 'selected' : ''}>${esc(t.name)} (${num(t.member_count)})</option>`).join('')}</select></div>
           </div>
@@ -9351,6 +9356,13 @@ function wireCampaigns(){
       if(k === 'list_id') render();
       else { clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(ecPreview, 200); }
     });
+  });
+  const tagFind = document.getElementById('ecTagFind');
+  if(tagFind) tagFind.addEventListener('input', () => {
+    const q = tagFind.value.trim().toLowerCase(), sel = document.getElementById('ec-tag');
+    [...sel.options].forEach(o => { o.hidden = !(!o.value || o.selected || o.text.toLowerCase().includes(q)); });
+    // While filtering, open it as a short list so the matches show without a click.
+    sel.size = q ? Math.max(2, Math.min(8, [...sel.options].filter(o => !o.hidden).length)) : 0;
   });
   document.querySelectorAll('[data-ec-b]').forEach(el => {
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
