@@ -634,6 +634,9 @@
   .socmixform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--slate)}
   .socmixform input{width:100%;font-family:var(--body);font-size:14px;color:var(--ink);
       background:var(--paper);border:1px solid var(--rule);padding:5px 8px}
+  .socmixform textarea{width:100%;min-height:96px;font-family:var(--body);font-size:14px;color:var(--ink);
+      background:var(--paper);border:1px solid var(--rule);padding:7px 9px;margin:8px 0 10px;resize:vertical}
+  .socside textarea.edit{min-height:96px}
   .fchips.focus .fchip{border-style:dashed}
   .fchips.focus .fchip.on{border-style:solid}
   .socthumb{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:0;padding:0;
@@ -1140,7 +1143,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15j';
+const BUILD = '2026-10-15k';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1163,6 +1166,7 @@ const S = {
   /* social calendar */
   social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
   socFocus:'all', socMix:{}, socMixOpen:false, socMixForm:{},
+  socStyle:'', socStyleOpen:false, socStyleForm:'',
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* permits */
@@ -7456,7 +7460,7 @@ async function loadSocial(){
   S.social = data || [];
   const j = await sb.from('social_jobs').select('*')
     .eq('brand', SOC_BRAND).eq('month', S.socMonth)
-    .order('created_at', { ascending:false }).limit(8);
+    .order('created_at', { ascending:false }).limit(30);
   if(j.error) throw j.error;
   S.socJobs = j.data || [];
   /* Results come from Metricool through the daily refresh. A failed read
@@ -7466,8 +7470,9 @@ async function loadSocial(){
     .eq('brand', SOC_BRAND).gte('post_date', since)
     .order('post_date', { ascending:false });
   S.socResults = r.error ? [] : (r.data || []);
-  const st = await sb.from('social_settings').select('focus_mix').eq('brand', SOC_BRAND).maybeSingle();
+  const st = await sb.from('social_settings').select('focus_mix, video_style').eq('brand', SOC_BRAND).maybeSingle();
   S.socMix = (!st.error && st.data && st.data.focus_mix) || {};
+  S.socStyle = (!st.error && st.data && st.data.video_style) || '';
   /* A brand with a reviewer needs their OK before Send takes a post. */
   const rv = await sb.from('social_reviewers').select('email,name').eq('brand', SOC_BRAND);
   S.socReviewers = rv.error ? [] : (rv.data || []);
@@ -7600,6 +7605,28 @@ function socReviewLine(p){
   return `<span class="why">${esc(socReviewerName(p.reviewed_by))}: ${esc(p.review_note)}</span>`;
 }
 
+/* ---- video edits ----
+   The laptop task cuts each video itself: it picks clips from the archive,
+   trims them, crops to vertical and joins them (reel_sources.json in the
+   month folder records the cuts). Two things steer it: the brand's video
+   style (social_settings.video_style, sent on every generate, extras and
+   re-edit job) and a post's own edit notes (social_posts.edit_notes).
+   Re-edit queues a 'reedit' job for one post; the laptop saves the new cut
+   in the month folder and marks the job ready, then Replace on the video
+   brings it in. See sql/social_video_edit.sql. */
+function socIsVideo(p){ return p.format === 'video' || socMedia(p).some(m => m.kind === 'video'); }
+function socReeditJob(p){
+  return (S.socJobs || []).find(j => j.kind === 'reedit' && j.options && j.options.post_id === p.id);
+}
+function socReeditLine(p){
+  const j = socReeditJob(p);
+  if(!j || j.status === 'done') return '';
+  return j.status === 'pending' ? 'Re-edit requested. The laptop picks it up within the hour on weekdays while it is on.'
+    : j.status === 'running' ? 'The video is being re-edited now.'
+    : j.status === 'ready' ? 'New cut ready' + (j.note ? ': ' + j.note : '') + '. Click Replace on the video and pick it.'
+    : 'The re-edit did not finish' + (j.note ? ': ' + j.note : '.');
+}
+
 function socCard(p){
   const media = socMedia(p);
   const busy = S.socBusy === p.id;
@@ -7620,6 +7647,7 @@ function socCard(p){
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
       ${socReviewLine(p)}
+      ${socIsReviewer() ? '' : (() => { const l = socReeditLine(p); return l ? `<span class="why">${esc(l)}</span>` : ''; })()}
     </div>
     ${(() => { const r = (S.socResults || []).filter(x => x.social_post_id === p.id);
        return r.length ? socResLines(r.find(x => x.network === 'instagram'), r.find(x => x.network === 'linkedin')) : ''; })()}
@@ -7703,6 +7731,10 @@ function socSheet(){
             <input type="text" id="socTags" value="${esc(f.hashtags)}" autocomplete="off" /></div>
           <div class="field"><label for="socTagsLi">Hashtags, LinkedIn</label>
             <input type="text" id="socTagsLi" value="${esc(f.hashtags_li)}" autocomplete="off" /></div>
+          ${!rev && socIsVideo(p) ? `<div class="field"><label for="socEdit">How to edit this video</label>
+              <textarea id="socEdit" class="edit" placeholder="For example: cut the first 3 seconds and the part where the truck backs in, open on the finished kitchen, keep it under 20 seconds, no text on screen">${esc(f.edit_notes)}</textarea>
+              <span class="hint" style="margin:4px 0 0">Re-edit sends these notes${S.socStyle ? ' and the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' video style' : ''} to the laptop, which cuts a new version from the original clips.</span></div>
+              ${socReeditLine(p) ? `<p class="hint" style="margin-top:10px">${esc(socReeditLine(p))}</p>` : ''}` : ''}
           ${p.status==='skipped' && p.notes?`<p class="hint" style="margin-top:10px">Cleared: ${esc(p.notes)}</p>`:''}
           ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
           ${rev && open ? `<div class="field"><label for="socRevNote">What needs to change</label>
@@ -7720,6 +7752,7 @@ function socSheet(){
           </div>` : `<div class="actions" style="margin-top:auto;padding-top:14px">
             <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
             ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
+            ${socIsVideo(p) && p.status!=='sent' && p.status!=='queued' ? `<button class="btn ghost small" id="socReedit" ${busy||['pending','running'].includes((socReeditJob(p)||{}).status)?'disabled':''}>Save and re-edit video</button>` : ''}
             ${p.status==='approved'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
             ${p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`:''}
             ${p.status==='draft'||p.status==='approved'||p.status==='extra'?`<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear this post</button>`:''}
@@ -7771,6 +7804,9 @@ function socJobNote(){
       : x.status === 'ready' ? 'More options are ready' + (x.note ? ': ' + x.note : '') + '. Click Import folder and pick that folder.'
       : 'More options did not finish' + (x.note ? ': ' + x.note : '.'));
   }
+  const re = jobs.filter(j => j.kind === 'reedit' && ['pending','running','ready','failed'].includes(j.status));
+  const reReady = re.filter(j => j.status === 'ready').length;
+  if(reReady) out.push(`${reReady} re-edited video${reReady===1?' is':'s are'} ready. Open the post and click Replace on the video.`);
   const s = jobs.find(j => j.kind === 'send' || j.kind === 'send_cloud');
   const fresh = s && s.finished_at && (Date.now() - new Date(s.finished_at)) < 864e5;
   if(s && (s.status !== 'done' || fresh)){
@@ -7850,6 +7886,35 @@ async function saveSocialMix(){
   S.socBusy = ''; render();
 }
 
+/* The brand's standing video preferences. Every generate, extras and
+   re-edit job carries them as options.video_style. */
+function socStyleLine(){
+  const form = S.socStyleOpen ? `<div class="socmixform">
+      <b style="font-size:13px">${esc(SOC_BRANDS[SOC_BRAND])} video style</b>
+      <p class="hint" style="margin:4px 0 0">How every video should be cut unless a post says otherwise: length, pace,
+        what to leave out, music or sound, text on screen, the opening and the ending.</p>
+      <textarea id="socStyleText" placeholder="For example: 15 to 25 seconds. Open on the most dramatic shot, no slow drone intros. Cut out anyone without PPE, people's faces and house numbers. No music, natural sound only. Logo on the last 2 seconds.">${esc(S.socStyleForm)}</textarea>
+      <div class="actions"><button class="btn small" id="socStyleSave" ${S.socBusy?'disabled':''}>Save video style</button>
+        <button class="linkbtn" id="socStyleClose">Cancel</button></div>
+    </div>` : '';
+  return `<p class="socmix"><span>Video style:</span>
+      <span>${S.socStyle ? esc(S.socStyle.length > 110 ? S.socStyle.slice(0,110) + '\u2026' : S.socStyle) : 'Not set, so the laptop picks the cuts itself'}</span>
+      <button class="linkbtn" id="socStyleOpen">${S.socStyle ? 'Change' : 'Set video style'}</button></p>${form}`;
+}
+async function saveSocialStyle(){
+  if(S.socBusy) return;
+  const style = String(S.socStyleForm || '').trim();
+  S.socBusy = 'style'; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_settings').upsert({
+      brand: SOC_BRAND, video_style: style || null, updated_at: new Date().toISOString(), updated_by: await socWho() });
+    if(error) throw error;
+    S.socStyle = style; S.socStyleOpen = false;
+    S.socNote = style ? 'Video style saved. New videos and re-edits will follow it.' : 'Video style cleared.';
+  }catch(err){ S.socErr = 'The video style did not save: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
 function pageSocial(){
   if(!S.loaded.social) return loading();
   const all = S.social || [];
@@ -7900,6 +7965,7 @@ function pageSocial(){
     ${socResultsStrip()}
     <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
     ${S.socFilter !== 'results' && all.length ? socFocusChips(byStatus) + socMixLine(live) : ''}
+    ${!rev && S.socFilter !== 'results' ? socStyleLine() : ''}
 
     ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
     ${S.socNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.socNote)}</p></div>`:''}
@@ -7931,11 +7997,11 @@ function socOpen(id){
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
   S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '', focus: p.focus || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '',
-                review_note: p.review_note || '' };
+                review_note: p.review_note || '', edit_notes: p.edit_notes || '' };
   render();
 }
 
-async function saveSocial(status, review){
+async function saveSocial(status, review, reedit){
   const id = S.socOpenId;
   if(!id || S.socBusy) return;
   const f = S.socForm;
@@ -7945,6 +8011,8 @@ async function saveSocial(status, review){
   if(!rev && !isExtra && !f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
   if(review === 'changes' && !String(f.review_note||'').trim()){
     S.socErr = 'Say what needs to change, so it can be fixed.'; return render(); }
+  if(reedit && !String(f.edit_notes||'').trim() && !S.socStyle){
+    S.socErr = 'Say how the video should be edited, or set a video style for the brand.'; return render(); }
   S.socBusy = id; S.socErr = ''; render();
   try{
     /* An extra keeps its placeholder date until it is given a slot. Picking
@@ -7956,6 +8024,7 @@ async function saveSocial(status, review){
                     hashtags: String(f.hashtags||'').trim() || null,
                     hashtags_li: String(f.hashtags_li||'').trim() || null };
     if(!rev){
+      patch.edit_notes = String(f.edit_notes||'').trim() || null;
       if(when){ patch.post_date = when; patch.month = when.slice(0,7); }
       if(isExtra && when) patch.status = 'draft';
       if(status) patch.status = status;
@@ -7963,7 +8032,17 @@ async function saveSocial(status, review){
     if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
     const { error } = await sb.from('social_posts').update(patch).eq('id', id);
     if(error) throw error;
-    S.socNote = review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
+    if(reedit){
+      const vid = socMedia(cur).find(m => m.kind === 'video') || socMedia(cur)[0] || {};
+      const r = await sb.from('social_jobs').insert({
+        kind:'reedit', brand: SOC_BRAND, month: patch.month || cur.month, status:'pending', requested_by: await socWho(),
+        options: { post_id: id, folder: cur.source_key || null, file: vid.file_name || null,
+                   source_path: vid.source_path || null, storage_path: vid.storage_path || null,
+                   notes: patch.edit_notes, video_style: S.socStyle || null } });
+      if(r.error) throw r.error;
+    }
+    S.socNote = reedit ? 'Saved. Re-edit requested; the new cut shows up on this post when it is ready.'
+      : review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
       : status === 'approved' ? 'Saved and approved.' : 'Saved.';
     S.socOpenId = null;
@@ -8090,6 +8169,10 @@ async function socReplace(mediaId, file){
     /* The old file is no longer referenced. Removing it is tidy-up, so a
        failure here is not worth stopping for. */
     try{ await sb.storage.from(SOC_BUCKET).remove([m.storage_path]); }catch(e){}
+    /* A re-edit waiting to be brought in is done once its video is swapped. */
+    const rj = socReeditJob(p);
+    if(rj && rj.status === 'ready' && m.kind === 'video')
+      await sb.from('social_jobs').update({ status:'done', finished_at: new Date().toISOString() }).eq('id', rj.id);
     await socSyncFormat(p.id);
     await reloadSocial();
   }catch(err){ S.socErr = 'The swap did not go through: ' + (err.message || err); }
@@ -8174,8 +8257,13 @@ async function requestSocialJob(kind){
     const jobKind = kind === 'send' ? 'send_cloud' : kind;
     const open = (S.socJobs||[]).find(j => j.kind === jobKind && j.status === 'pending');
     if(!open){
-      const options = (kind === 'generate' || kind === 'extras') && Object.keys(socMixTargets()).length
-        ? { mix: socMixTargets() } : null;
+      let options = null;
+      if(kind === 'generate' || kind === 'extras'){
+        options = {};
+        if(Object.keys(socMixTargets()).length) options.mix = socMixTargets();
+        if(S.socStyle) options.video_style = S.socStyle;
+        if(!Object.keys(options).length) options = null;
+      }
       const { error } = await sb.from('social_jobs').insert({
         kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
       if(error) throw error;
@@ -8280,7 +8368,7 @@ function wireSocial(){
       SOC_BRAND = b; SOC_FOCUS = SOC_FOCUS_BY[b];
       try{ localStorage.setItem('socBrand', b); }catch(e){}
       Object.assign(S, { socNote:'', socErr:'', socFilter:'all', socFocus:'all', socOpenId:null,
-                         socClearId:null, socMixOpen:false });
+                         socClearId:null, socMixOpen:false, socStyleOpen:false });
       S.loaded.social = false; render();
       try{ await loadSocial(); }
       catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
@@ -8347,7 +8435,17 @@ function wireSocial(){
     el.addEventListener('input',()=>{ S.socMixForm[el.dataset.socmix] = el.value; }));
   const ms = document.getElementById('socMixSave');
   if(ms) ms.addEventListener('click', saveSocialMix);
-  bind('socTags','hashtags'); bind('socTagsLi','hashtags_li');
+  bind('socTags','hashtags'); bind('socTagsLi','hashtags_li'); bind('socEdit','edit_notes');
+  const rx = document.getElementById('socReedit');
+  if(rx) rx.addEventListener('click',()=> saveSocial(null, null, true));
+  const so = document.getElementById('socStyleOpen');
+  if(so) so.addEventListener('click',()=>{ S.socStyleOpen = !S.socStyleOpen; S.socStyleForm = S.socStyle; render(); });
+  const sc = document.getElementById('socStyleClose');
+  if(sc) sc.addEventListener('click',()=>{ S.socStyleOpen = false; render(); });
+  const st = document.getElementById('socStyleText');
+  if(st) st.addEventListener('input',()=>{ S.socStyleForm = st.value; });
+  const ss = document.getElementById('socStyleSave');
+  if(ss) ss.addEventListener('click', saveSocialStyle);
 
   const cl = document.getElementById('socClose');
   if(cl) cl.addEventListener('click',()=>{ S.socOpenId = null; S.socErr = ''; render(); });
