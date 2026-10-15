@@ -1135,7 +1135,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15i';
+const BUILD = '2026-10-15j';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -7359,12 +7359,12 @@ function wirePermits(){
    J: archive, captions written, files saved to a month folder with a
    plan.json). Import brings that folder in: media goes to the public
    social-media bucket and each post becomes a row here. From then on
-   everything is editable. Generate and Send only queue a row in
-   social_jobs. Generate and extras need the J: archive, so the scheduled
-   Claude task on the laptop picks those up. Send only needs Metricool and
-   the media already in the bucket, so it queues a 'send_cloud' job that a
-   cloud routine picks up (see sql/social_send.sql); the laptop task
-   ignores that kind.
+   everything is editable. Generate and extras only queue a row in
+   social_jobs; they need the J: archive, so the scheduled Claude task on
+   the laptop picks those up. There is no Send button: approving a post
+   (plus the reviewer's OK, for a brand with one) makes the database queue
+   it and add a 'send_cloud' job (sql/social_auto_send.sql), which a cloud
+   routine picks up (sql/social_send.sql); the laptop task ignores that kind.
    Two brands share all of this: HAGGERTY and RHINO Restores. Every row
    carries brand, the switch at the top of the tab picks which one shows,
    and each brand has its own focus list, target mix and Metricool brand
@@ -7581,9 +7581,17 @@ function socReviewerName(email){
   const r = (S.socReviewers || []).find(x => x.email === email);
   return (r && r.name) || (email ? String(email).split('@')[0] : 'Reviewer');
 }
-function socSendable(p){
-  return p.status === 'approved' && (!socNeedsReview() || p.review_status === 'ok');
+/* Approved posts go to Metricool on their own: the database queues a post
+   once it is approved, dated today or later and, for a brand with a
+   reviewer, marked OK to post (sql/social_auto_send.sql). These say why an
+   approved post is still sitting here. */
+function socPast(p){ return String(p.post_date).slice(0,10) < socTodayISO(); }
+function socTodayISO(){ return new Date().toLocaleDateString('en-CA', { timeZone:'America/Los_Angeles' }); }
+function socAwaitingReview(p){
+  return p.status === 'approved' && !socPast(p) && socNeedsReview() && p.review_status !== 'ok';
 }
+/* Not yet in Metricool: still free to change its mind. */
+function socUnsent(p){ return p.status === 'queued' && !p.metricool; }
 function socReviewChip(p){
   if(!socNeedsReview()) return '';
   if(p.review_status === 'ok') return `<span class="chip good">OK to post</span>`;
@@ -7598,7 +7606,7 @@ function socReviewLine(p){
 function socCard(p){
   const media = socMedia(p);
   const busy = S.socBusy === p.id;
-  const open = p.status === 'draft' || p.status === 'approved';
+  const open = p.status === 'draft' || p.status === 'approved' || socUnsent(p);
   return `<article class="soccard ${esc(p.status)}">
     <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit ${p.status==='extra'?'this extra option':'the post for ' + esc(socDay(p.post_date))}">
       ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
@@ -7625,7 +7633,7 @@ function socCard(p){
     </div>` : `<div class="socfoot">
       ${p.status === 'draft'
         ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
-        : p.status === 'approved'
+        : p.status === 'approved' || socUnsent(p)
           ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`
         : p.status === 'skipped'
           ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`
@@ -7651,7 +7659,7 @@ function socSheet(){
   const media = socMedia(p);
   const busy = !!S.socBusy;
   const rev = socIsReviewer();
-  const open = p.status === 'draft' || p.status === 'approved';
+  const open = p.status === 'draft' || p.status === 'approved' || socUnsent(p);
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit post">
     <div class="sheet-in soc">
       <div class="reel-head">
@@ -7715,7 +7723,7 @@ function socSheet(){
           </div>` : `<div class="actions" style="margin-top:auto;padding-top:14px">
             <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
             ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
-            ${p.status==='approved'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
+            ${p.status==='approved'||socUnsent(p)?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
             ${p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`:''}
             ${p.status==='draft'||p.status==='approved'||p.status==='extra'?`<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear this post</button>`:''}
           </div>`}
@@ -7857,8 +7865,8 @@ function pageSocial(){
   const extras = count('extra');
   const xOpen = (S.socJobs||[]).some(j => j.kind==='extras' && ['pending','running','ready'].includes(j.status));
   const approved = count('approved');
-  const sendable = all.filter(socSendable).length;
-  const waiting = approved - sendable;
+  const waiting = all.filter(socAwaitingReview).length;
+  const pastDue = all.filter(p => p.status === 'approved' && socPast(p)).length;
   const drafts = count('draft');
   const rev = socIsReviewer();
   const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
@@ -7885,12 +7893,14 @@ function pageSocial(){
               title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
-      ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}>Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}
-      <button class="btn small" id="socSend" ${busy||!sendable?'disabled':''}
-              ${waiting?`title="${waiting} approved post${waiting===1?' is':'s are'} waiting on review"`:''}>Send ${sendable||''} ${socNeedsReview()?'reviewed':'approved'} to Metricool</button>`}
+      ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}
+              title="Approved posts go to Metricool as drafts on their own${socNeedsReview()?', once reviewed':''}.">Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}`}
     </div>
-    ${rev ? `<p class="hint" style="margin:0 0 14px">Look over each post before it goes out. Mark it OK to post, or Edit or flag to fix the words or say what needs to change, such as a safety issue in a photo. Only posts you OK get sent.</p>`
-      : waiting ? `<p class="hint" style="margin:0 0 14px">${waiting} approved post${waiting===1?' is':'s are'} waiting on ${esc(socReviewerName((S.socReviewers[0]||{}).email))} to review before they can be sent.</p>` : ''}
+    ${rev ? `<p class="hint" style="margin:0 0 14px">Look over each post before it goes out. Mark it OK to post, or Edit or flag to fix the words or say what needs to change, such as a safety issue in a photo. Once a post is approved and you OK it, it goes to Metricool as a draft within the hour.</p>`
+      : `<p class="hint" style="margin:0 0 14px">Approved posts go to Metricool as drafts on their own, within the hour between 7 AM and 7 PM${
+          socNeedsReview() ? ', once ' + esc(socReviewerName((S.socReviewers[0]||{}).email)) + ' marks them OK to post' : ''}.${
+          waiting ? ` <b>${waiting} approved post${waiting===1?' is':'s are'} waiting on review.</b>` : ''}${
+          pastDue ? ` <b>${pastDue} approved post${pastDue===1?' is':'s are'} dated before today and won't go. Give ${pastDue===1?'it':'them'} a new date or clear ${pastDue===1?'it':'them'}.</b>` : ''}</p>`}
 
     ${socResultsStrip()}
     <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
@@ -7960,11 +7970,17 @@ async function saveSocial(status, review){
     if(error) throw error;
     S.socNote = review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
-      : status === 'approved' ? 'Saved and approved.' : 'Saved.';
+      : status === 'approved' ? 'Saved and approved. ' + socAfterApprove() : 'Saved.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = 'That did not save: ' + (err.message || err); }
   S.socBusy = ''; render();
+}
+
+function socAfterApprove(many){
+  return socNeedsReview()
+    ? (many ? 'Each one goes' : 'It goes') + ' to Metricool as a draft once it is marked OK to post.'
+    : (many ? 'They go to Metricool as drafts' : 'It goes to Metricool as a draft') + ' within the hour, between 7 AM and 7 PM.';
 }
 
 async function socReviewOk(id){
@@ -7985,7 +8001,7 @@ async function setSocialStatus(id, status){
   try{
     const { error } = await sb.from('social_posts').update({ status }).eq('id', id);
     if(error) throw error;
-    S.socNote = status === 'approved' ? 'Approved.' : status === 'skipped' ? 'Cleared.' : 'Back to draft.';
+    S.socNote = status === 'approved' ? 'Approved. ' + socAfterApprove() : status === 'skipped' ? 'Cleared.' : 'Back to draft.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
@@ -8044,7 +8060,7 @@ async function approveAllSocial(){
     const { error } = await sb.from('social_posts').update({ status:'approved' })
       .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'draft');
     if(error) throw error;
-    S.socNote = 'All drafts approved.';
+    S.socNote = 'All drafts approved. ' + socAfterApprove(true);
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
   S.socBusy = ''; render();
@@ -8159,20 +8175,12 @@ async function requestSocialJob(kind){
   S.socBusy = 'job'; S.socErr = ''; S.socNote = ''; render();
   try{
     const who = await socWho();
-    if(kind === 'send'){
-      let q = sb.from('social_posts').update({ status:'queued' })
-        .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'approved');
-      if(socNeedsReview()) q = q.eq('review_status', 'ok');
-      const { error } = await q;
-      if(error) throw error;
-    }
-    const jobKind = kind === 'send' ? 'send_cloud' : kind;
-    const open = (S.socJobs||[]).find(j => j.kind === jobKind && j.status === 'pending');
+    const open = (S.socJobs||[]).find(j => j.kind === kind && j.status === 'pending');
     if(!open){
       const options = (kind === 'generate' || kind === 'extras') && Object.keys(socMixTargets()).length
         ? { mix: socMixTargets() } : null;
       const { error } = await sb.from('social_jobs').insert({
-        kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
+        kind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
       if(error) throw error;
     }
     await reloadSocial();
@@ -8363,8 +8371,6 @@ function wireSocial(){
 
   const ge = document.getElementById('socGenerate');
   if(ge) ge.addEventListener('click',()=> requestSocialJob('generate'));
-  const se = document.getElementById('socSend');
-  if(se) se.addEventListener('click',()=> requestSocialJob('send'));
   const aa = document.getElementById('socApproveAll');
   if(aa) aa.addEventListener('click', approveAllSocial);
   const im = document.getElementById('socImport');
