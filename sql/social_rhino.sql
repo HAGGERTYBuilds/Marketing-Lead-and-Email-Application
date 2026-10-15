@@ -28,8 +28,14 @@ insert into public.social_settings (brand) values ('rhino') on conflict do nothi
 --    Add to its instructions:
 --      Every social_jobs row has a brand. For brand 'haggerty' keep doing
 --      what you do today. For brand 'rhino' (RHINO Restores):
---      - Pick media from the RHINO photo folder: <RHINO PHOTO FOLDER>.
---        Never use HAGGERTY photos for a RHINO post.
+--      - Pick media only from C:\Users\Liam\Documents\Ai Projects\
+--        Marketing Application\Restoration (connect it to the task). Each
+--        subfolder is one job (Colma, Mission, Mountain House, Wetzel, ...);
+--        build a post from one job's photos. Loose files at the top level
+--        are brochures, team and drone shots for people/company posts.
+--        Use .jpg/.png/.mp4/.mov only; skip .DNG, .zip and Thumbs.db.
+--        Skip a photo already used by a RHINO social_posts row
+--        (social_post_media.source_path). Never use HAGGERTY photos.
 --      - Write as RHINO Restores, a division of HAGGERTY Construction:
 --        fire, water, mold, storm and contents restoration across Northern
 --        California, the Central Valley and the Bay Area. IICRC certified,
