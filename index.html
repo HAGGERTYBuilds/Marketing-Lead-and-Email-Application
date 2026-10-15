@@ -826,6 +826,7 @@
   .ec-img{display:flex;align-items:center;gap:12px}
   .ec-img img{width:96px;height:64px;object-fit:cover;border:1px solid var(--rule);background:var(--wash)}
   .ec-upbtn{cursor:pointer}
+  textarea[data-ec-k=code]{font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre;overflow-x:auto}
   .ec-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0 30px}
   .ec-sticky{position:sticky;top:14px}
   .ec-viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
@@ -1133,7 +1134,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15f';
+const BUILD = '2026-10-15g';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -8504,9 +8505,9 @@ const EC_BRANDS = {
 };
 const EC_TYPES = {
   header:'Logo header', heading:'Heading', text:'Text', image:'Image', button:'Button',
-  spotlight:'Project spotlight', divider:'Divider', spacer:'Space', footer:'Footer'
+  spotlight:'Project spotlight', divider:'Divider', spacer:'Space', html:'Your own HTML', footer:'Footer'
 };
-const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer'];
+const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html'];
 const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], sent:['Sent','hot'] };
 const mcEditUrl = webId => 'https://us11.admin.mailchimp.com/campaigns/edit?id=' + encodeURIComponent(webId);
 
@@ -8542,6 +8543,7 @@ function ecBlock(type, brand){
   if(type === 'divider')   return { type };
   if(type === 'spacer')    return { type, size:'24' };
   if(type === 'footer')    return { type, text:b.footer };
+  if(type === 'html')      return { type, code:'' };
   return { type };
 }
 function ecStarter(brand){
@@ -8624,6 +8626,8 @@ function ecRow(b, c, accent){
     const h = Math.max(8, Math.min(80, Number(b.size) || 24));
     return `<tr><td style="height:${h}px;font-size:0;line-height:0">&nbsp;</td></tr>`;
   }
+  if(b.type === 'html')
+    return b.code && b.code.trim() ? `<tr><td>${b.code}</td></tr>` : '';
   if(b.type === 'footer')
     return `<tr><td style="background:#F4F2EE;padding:24px 32px;${F}font-size:12px;line-height:1.6;color:#6E7477;text-align:center">
       ${b.text ? `<div style="margin-bottom:8px">${ecInline(b.text, '#6E7477')}</div>` : ''}
@@ -8633,11 +8637,18 @@ function ecRow(b, c, accent){
   return '';
 }
 
+/* An HTML block holding a whole email (one that has its own <html> or
+   <body>, say from another builder) is used as the email as-is, since it
+   cannot sit inside this layout. Everything else goes into the layout. */
+function ecFullPaste(c){
+  return (c.blocks || []).find(b => b.type === 'html' && /<(html|body)[\s>]/i.test(b.code || ''));
+}
 function ecHtml(c, preview){
   const brand = EC_BRANDS[c.brand] || EC_BRANDS.haggerty;
   const accent = ecColor(c.accent, brand.accent);
+  const full = ecFullPaste(c);
   const rows = (c.blocks || []).map(b => ecRow(b, c, accent)).join('\n');
-  let html = `<!doctype html>
+  let html = full ? full.code : `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting"><title>${esc(c.subject || c.title || '')}</title>
 <style>
@@ -8901,6 +8912,9 @@ function ecBlockForm(b, i){
   if(b.type === 'spacer') return ecBField(i, 'Height', 'size', b.size, { choices:[['12','Small'],['24','Medium'],['48','Large']] });
   if(b.type === 'footer') return ecBField(i, 'Footer line', 'text', b.text)
     + `<p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
+  if(b.type === 'html') return ecBField(i, 'HTML', 'code', b.code, { area:true, rows:10,
+    hint:'Paste a section to drop in here, or a whole email from another tool. A whole email (one with &lt;html&gt; or &lt;body&gt;) replaces the layout, so it needs its own *|UNSUB|* link.' })
+    + (/<(html|body)[\s>]/i.test(b.code || '') ? `<p class="hint err">This is a whole email, so the other blocks are left out of what gets sent.</p>` : '');
   return '<p class="hint">A thin line between sections.</p>';
 }
 
@@ -9030,9 +9044,11 @@ function wireCampaigns(){
     el.addEventListener(ev, () => {
       const b = c.blocks[Number(el.dataset.ecB)];
       if(!b) return;
+      const wasFull = !!ecFullPaste(c);
       b[el.dataset.ecK] = el.value;
       ecTouch();
-      if(el.dataset.ecK === 'src' || el.dataset.ecK === 'logo'){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 600); }
+      if(el.dataset.ecK === 'code' && wasFull !== !!ecFullPaste(c)){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 400); }
+      else if(el.dataset.ecK === 'src' || el.dataset.ecK === 'logo'){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 600); }
       else { clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(ecPreview, 200); }
     });
   });
