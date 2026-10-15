@@ -43,13 +43,13 @@ insert into public.social_settings (brand) values ('rhino') on conflict do nothi
 --        team ("We Own The Job"). Plain, calm, practical: open with one short
 --        line about the loss, explain what the crew is doing and why, end
 --        with "Fire, water, mold. We answer 24/7." or the phone number
---        209-323-6200. Instagram/Facebook caption short; LinkedIn
---        (tags_li post) longer, written for property managers, adjusters
---        and commercial owners.
+--        209-323-6200. One caption serves every network, so write it
+--        for homeowners and for property managers and adjusters alike.
 --      - Hashtags: #RHINORestores plus the loss type (#FireDamage,
 --        #WaterDamage, #MoldRemediation, #StormDamage, #ContentsPackout)
 --        and place (#StocktonCA #NorCal #CentralValley).
 --      - focus is one of fire, water, mold, storm, contents, tips, people,
 --        events, holidays, company. Follow options.mix the same way.
---      - Save to a separate RHINO month folder with its own plan.json, so
---        it is imported while the Social tab is switched to RHINO.
+--      - Save the month folder (with its plan.json) apart from HAGGERTY's,
+--        under Restoration\Social\<YYYY-MM>, so it is imported while the
+--        Social tab is switched to RHINO.
