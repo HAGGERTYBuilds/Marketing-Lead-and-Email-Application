@@ -1,7 +1,9 @@
 -- Sacramento permits, for the Permits tab.
 -- Applied to Supabase on 2026-10-15 as migrations 24_permits,
--- 24b_permit_rules, 24c_permits_upsert and 24d_permit_rules_tighten.
--- Kept here as the record.
+-- 24b_permit_rules, 24c_permits_upsert and 24d_permit_rules_tighten, then
+-- 25_permit_contacts, 25b_permit_send_to_pat, 25c_v_permits_contacts and
+-- 25d_permits_enrich. Kept here as the record; the 25 changes are folded
+-- into the definitions below.
 --
 -- Source: City of Sacramento building and planning records, as the public
 -- AgencyCounter site (sacramento.agencycounter.com) shows them. The site's
@@ -13,8 +15,17 @@
 -- limit is capped at 10, so the refresh pages through it. The city files
 -- about 90 records a business day, most of them residential HVAC, roofs and
 -- water heaters. Records carry no applicant or contractor names (the detail
--- endpoint returns the same fields), so a permit is a project and an
--- address to look into, not a contact.
+-- endpoint returns the same fields).
+--
+-- Contacts come from the city's own Accela portal instead. A building
+-- record's page, https://aca-prod.accela.com/SACRAMENTO/Cap/
+-- GlobalSearchResults.aspx?QueryText=<agency_reference>, shows the job
+-- value and, once one is on file, the licensed professional (usually the
+-- contractor: company, person, address, phone, CSLB license). Owner and
+-- applicant names are not shown to the public. The n8n workflow "Haggerty
+-- Permit Contractor Lookup" reads that page for each permit
+-- permits_to_check() returns, every morning at 6:40, and saves what it
+-- finds with permits_enrich().
 --
 -- The n8n workflow "Haggerty Sacramento Permits Refresh" runs daily at
 -- 6:15 AM Pacific, reads back to 3 days before the newest record already
@@ -39,7 +50,15 @@ create table if not exists public.permits (
   parcel_id       text,
   updated_at_src  timestamptz,
   first_seen      timestamptz not null default now(),
-  last_seen       timestamptz not null default now()
+  last_seen       timestamptz not null default now(),
+  -- From the city's Accela record page (25_permit_contacts).
+  job_value       numeric,
+  pro_name        text,                    -- person on the license, when shown
+  pro_company     text,
+  pro_address     text,
+  pro_phone       text,
+  pro_license     text,                    -- CSLB license number
+  aca_checked_at  timestamptz
 );
 
 create index if not exists permits_date on public.permits (record_date desc);
@@ -50,12 +69,17 @@ drop policy if exists permits_read on public.permits;
 create policy permits_read on public.permits
   for select to authenticated using (true);
 
--- Saved or dismissed, by Liam or Pat. One row per permit.
+-- Saved, dismissed, or sent to Pat (and then contacted), by Liam or Pat.
+-- One row per permit. note, sent_by and sent_at are set by Send to Pat
+-- and kept when Pat marks it contacted.
 create table if not exists public.permit_marks (
   guid       uuid primary key,
-  state      text not null check (state in ('saved','dismissed')),
+  state      text not null check (state in ('saved','dismissed','pat','contacted')),
   marked_by  text,
-  marked_at  timestamptz not null default now()
+  marked_at  timestamptz not null default now(),
+  note       text,
+  sent_by    text,
+  sent_at    timestamptz
 );
 
 alter table public.permit_marks enable row level security;
@@ -116,13 +140,18 @@ returns text language sql immutable set search_path = '' as $$
   from (select concat_ws(' ', p_name, p_desc) as t) s
 $$;
 
+-- Columns are listed so new ones can go on the end with create or replace.
 create or replace view public.v_permits
 with (security_invoker = true) as
-select p.*,
+select p.guid, p.agency_reference, p.record_type, p.module, p.status, p.name, p.description,
+       p.address, p.record_date, p.status_date, p.plan_check_target, p.total_fee,
+       p.improved_value, p.parcel_id, p.updated_at_src, p.first_seen, p.last_seen,
        public.permit_fit(p.record_type, p.name, p.description) as fit,
        public.permit_vertical(p.name, p.description)            as vertical,
        m.state as mark, m.marked_by, m.marked_at,
-       'https://sacramento.agencycounter.com/records/guid/' || p.guid as url
+       'https://sacramento.agencycounter.com/records/guid/' || p.guid as url,
+       p.job_value, p.pro_name, p.pro_company, p.pro_address, p.pro_phone,
+       p.pro_license, p.aca_checked_at, m.note, m.sent_by, m.sent_at
   from public.permits p
   left join public.permit_marks m on m.guid = p.guid
  where public.permit_fit(p.record_type, p.name, p.description) is not null;
@@ -176,3 +205,41 @@ returns date language sql stable set search_path = '' as $$
 $$;
 
 revoke all on function public.permits_since() from public, anon, authenticated;
+
+-- Building permits on the tab that the contractor lookup should read:
+-- never checked, or checked with no contractor on file more than 3 days
+-- ago (one is often added when the permit issues).
+create or replace function public.permits_to_check()
+returns table (guid uuid, agency_reference text) language sql stable set search_path = '' as $$
+  select p.guid, p.agency_reference from public.permits p
+   where p.module = 'building'
+     and p.record_date >= current_date - 60
+     and public.permit_fit(p.record_type, p.name, p.description) is not null
+     and (p.aca_checked_at is null
+          or (p.pro_company is null and p.aca_checked_at < now() - interval '3 days'))
+   order by p.aca_checked_at nulls first, p.record_date desc
+   limit 150
+$$;
+revoke all on function public.permits_to_check() from public, anon, authenticated;
+
+-- What the lookup found, one object per permit: guid, job_value, pro_name,
+-- pro_company, pro_address, pro_phone, pro_license. A blank keeps what was
+-- there. Returns how many permits it touched.
+create or replace function public.permits_enrich(p_rows jsonb)
+returns integer language plpgsql set search_path = '' as $$
+declare n integer;
+begin
+  update public.permits t set
+    job_value   = coalesce(nullif(r->>'job_value','')::numeric, t.job_value),
+    pro_name    = coalesce(nullif(r->>'pro_name',''), t.pro_name),
+    pro_company = coalesce(nullif(r->>'pro_company',''), t.pro_company),
+    pro_address = coalesce(nullif(r->>'pro_address',''), t.pro_address),
+    pro_phone   = coalesce(nullif(r->>'pro_phone',''), t.pro_phone),
+    pro_license = coalesce(nullif(r->>'pro_license',''), t.pro_license),
+    aca_checked_at = now()
+  from jsonb_array_elements(p_rows) r
+  where t.guid = (r->>'guid')::uuid;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.permits_enrich(jsonb) from public, anon, authenticated;
