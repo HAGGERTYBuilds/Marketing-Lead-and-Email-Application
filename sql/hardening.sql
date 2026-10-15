@@ -65,3 +65,60 @@ as $function$
 $function$;
 
 revoke execute on function public.social_send_job() from authenticated, anon, public;
+
+-- 2026-10-15 performance advisor pass. Indexes applied as migration
+-- advisor_perf_fk_indexes_2026_10_15; policy split run by Liam in the SQL Editor.
+-- Note: on tables this small the new FK indexes show as "unused index" (INFO).
+create index if not exists asset_clicks_contact_id_idx on public.asset_clicks (contact_id);
+create index if not exists budget_plan_category_id_idx on public.budget_plan (category_id);
+create index if not exists calendar_events_company_id_idx on public.calendar_events (company_id);
+create index if not exists calendar_events_contact_id_idx on public.calendar_events (contact_id);
+create index if not exists deal_sources_event_invite_id_idx on public.deal_sources (event_invite_id);
+create index if not exists deals_company_id_idx on public.deals (company_id);
+create index if not exists deals_contact_id_idx on public.deals (contact_id);
+create index if not exists deals_vertical_id_idx on public.deals (vertical_id);
+create index if not exists email_queue_vertical_id_idx on public.email_queue (vertical_id);
+create index if not exists email_sends_queue_id_idx on public.email_sends (queue_id);
+create index if not exists expenses_category_id_idx on public.expenses (category_id);
+create index if not exists marketing_assets_vertical_id_idx on public.marketing_assets (vertical_id);
+create index if not exists pipedrive_labels_vertical_id_idx on public.pipedrive_labels (vertical_id);
+create index if not exists reminders_owner_idx on public.reminders (owner);
+create index if not exists reminders_task_id_idx on public.reminders (task_id);
+create index if not exists sms_log_reminder_id_idx on public.sms_log (reminder_id);
+create index if not exists sms_log_task_id_idx on public.sms_log (task_id);
+create index if not exists tasks_company_id_idx on public.tasks (company_id);
+create index if not exists tasks_contact_id_idx on public.tasks (contact_id);
+begin;
+
+-- 1. Reviewer rule: read the login once per query, not once per row.
+alter policy social_reviewers_read on public.social_reviewers
+  using ((not (select public.is_social_reviewer()))
+         or email = lower(coalesce((select auth.jwt()) ->> 'email', '')));
+
+-- 2. Public request form: the "anyone can submit" rule only needs to cover
+--    signed-out visitors; signed-in staff are already covered by the staff rule.
+alter policy requests_insert_public on public.requests to anon;
+alter policy request_files_insert_public on public.request_files to anon;
+
+-- 3. deal_sources / hot_lead_done / permit_marks: everyone signed in can read,
+--    only Liam and Pat (is_budget_user) can write. Same rules, split per action
+--    so reads aren't checked twice.
+drop policy deal_sources_write on public.deal_sources;
+create policy deal_sources_insert on public.deal_sources for insert to authenticated with check (public.is_budget_user());
+create policy deal_sources_update on public.deal_sources for update to authenticated using (public.is_budget_user()) with check (public.is_budget_user());
+create policy deal_sources_delete on public.deal_sources for delete to authenticated using (public.is_budget_user());
+
+drop policy hot_lead_done_write on public.hot_lead_done;
+create policy hot_lead_done_insert on public.hot_lead_done for insert to authenticated with check (public.is_budget_user());
+create policy hot_lead_done_update on public.hot_lead_done for update to authenticated using (public.is_budget_user()) with check (public.is_budget_user());
+create policy hot_lead_done_delete on public.hot_lead_done for delete to authenticated using (public.is_budget_user());
+
+drop policy permit_marks_write on public.permit_marks;
+create policy permit_marks_insert on public.permit_marks for insert to authenticated with check (public.is_budget_user());
+create policy permit_marks_update on public.permit_marks for update to authenticated using (public.is_budget_user()) with check (public.is_budget_user());
+create policy permit_marks_delete on public.permit_marks for delete to authenticated using (public.is_budget_user());
+
+-- 4. Last missing index on a table link.
+create index if not exists email_sends_draft_id_idx on public.email_sends (draft_id);
+
+commit;
