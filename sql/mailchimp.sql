@@ -85,3 +85,51 @@ on conflict (list_id) do nothing;
 --      GET /lists/{id}/members?status=unsubscribed&since_last_changed=<last run>
 --        -> contacts.marketing_status = 'unsubscribed' where lower(email) matches
 --    is_emailable() already excludes both.
+
+-- Save step the n8n refresh calls. Applied by Liam in the SQL Editor on 2026-10-15
+-- (the Supabase connector can't run statements that change rows).
+drop function if exists public.mc_probe();
+create or replace function public.mailchimp_save(p jsonb)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare n_lists int; n_camps int; n_bounced int; n_unsub int;
+begin
+  delete from mailchimp_campaigns where campaign_id like 'seed-%';
+  delete from mailchimp_audiences where list_id like 'seed-%';
+  insert into mailchimp_audiences (list_id, name, subscribed, unsubscribed, cleaned, from_name, from_email, tags, fetched_at)
+  select l->>'id', l->>'name', (l->'stats'->>'member_count')::int,
+         (l->'stats'->>'unsubscribe_count')::int, (l->'stats'->>'cleaned_count')::int,
+         l->'campaign_defaults'->>'from_name', l->'campaign_defaults'->>'from_email',
+         coalesce(l->'tags','[]'::jsonb), now()
+    from jsonb_array_elements(coalesce(p->'lists','[]')) l
+  on conflict (list_id) do update set name = excluded.name, subscribed = excluded.subscribed,
+    unsubscribed = excluded.unsubscribed, cleaned = excluded.cleaned, from_name = excluded.from_name,
+    from_email = excluded.from_email, tags = excluded.tags, fetched_at = now();
+  get diagnostics n_lists = row_count;
+  insert into mailchimp_campaigns (campaign_id, title, subject, list_id, list_name, sent_at, send_date,
+    recipients, opens, open_rate, clicks, click_rate, unsubscribes, hard_bounces, soft_bounces, fetched_at)
+  select r->>'id', r->>'campaign_title', r->>'subject_line', r->>'list_id', r->>'list_name',
+         (r->>'send_time')::timestamptz, ((r->>'send_time')::timestamptz at time zone 'America/Los_Angeles')::date,
+         (r->>'emails_sent')::int, (r->'opens'->>'unique_opens')::int, (r->'opens'->>'open_rate')::numeric,
+         (r->'clicks'->>'unique_subscriber_clicks')::int, (r->'clicks'->>'click_rate')::numeric,
+         (r->>'unsubscribed')::int, (r->'bounces'->>'hard_bounces')::int, (r->'bounces'->>'soft_bounces')::int, now()
+    from jsonb_array_elements(coalesce(p->'reports','[]')) r
+   where coalesce(r->>'send_time','') <> ''
+  on conflict (campaign_id) do update set title = excluded.title, subject = excluded.subject,
+    list_id = excluded.list_id, list_name = excluded.list_name, sent_at = excluded.sent_at,
+    send_date = excluded.send_date, recipients = excluded.recipients, opens = excluded.opens,
+    open_rate = excluded.open_rate, clicks = excluded.clicks, click_rate = excluded.click_rate,
+    unsubscribes = excluded.unsubscribes, hard_bounces = excluded.hard_bounces,
+    soft_bounces = excluded.soft_bounces, fetched_at = now();
+  get diagnostics n_camps = row_count;
+  update contacts c set email_status = 'bounced'
+   where lower(c.email) in (select lower(e) from jsonb_array_elements_text(coalesce(p->'cleaned','[]')) e)
+     and coalesce(lower(c.email_status),'') not like 'bounce%';
+  get diagnostics n_bounced = row_count;
+  update contacts c set marketing_status = 'unsubscribed'
+   where lower(c.email) in (select lower(e) from jsonb_array_elements_text(coalesce(p->'unsubscribed','[]')) e)
+     and coalesce(lower(c.marketing_status),'') <> 'unsubscribed';
+  get diagnostics n_unsub = row_count;
+  return jsonb_build_object('lists', n_lists, 'campaigns', n_camps,
+    'contacts_bounced', n_bounced, 'contacts_unsubscribed', n_unsub);
+end $$;
+revoke all on function public.mailchimp_save(jsonb) from public, anon, authenticated;

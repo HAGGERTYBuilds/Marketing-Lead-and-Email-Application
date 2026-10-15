@@ -807,6 +807,41 @@
     .page{max-width:none;padding:0}
   }
 
+  /* ---------- email campaigns ---------- */
+  .ec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .ec-list{border:1px solid var(--rule);background:var(--card)}
+  .ec-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--rule-soft)}
+  .ec-item:first-child{border-top:0}
+  .ec-open{flex:1 1 260px;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;color:var(--ink);display:flex;flex-direction:column}
+  .ec-open b{font-size:15px}
+  .ec-open:hover b{text-decoration:underline}
+  .ec-page{max-width:1400px}
+  .ec-grid{display:grid;grid-template-columns:minmax(0,1fr) 662px;gap:22px;align-items:start}
+  .ec-h3{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px;margin:0 0 4px}
+  .ec-two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .ec-block{background:var(--card);border:1px solid var(--rule);padding:10px 14px 14px;margin-top:10px}
+  .ec-bhead{display:flex;align-items:center;gap:6px}
+  .ec-bhead .spacer{flex:1}
+  .ec-bhead .linkbtn[disabled]{opacity:.35;cursor:default}
+  .ec-img{display:flex;align-items:center;gap:12px}
+  .ec-img img{width:96px;height:64px;object-fit:cover;border:1px solid var(--rule);background:var(--wash)}
+  .ec-upbtn{cursor:pointer}
+  textarea[data-ec-k=code]{font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre;overflow-x:auto}
+  .ec-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0 30px}
+  .ec-sticky{position:sticky;top:14px}
+  .ec-viewbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .ec-frame{background:#F4F2EE;border:1px solid var(--rule);display:flex;justify-content:center;overflow-x:auto}
+  /* Wider than the email's 600px, or the phone layout would kick in. */
+  .ec-frame.desktop iframe{min-width:660px}
+  .ec-frame iframe{border:0;width:100%;height:68vh;background:#F4F2EE;display:block}
+  .ec-frame.phone iframe{width:375px;max-width:100%}
+  input[type=color]{width:64px;height:34px;padding:2px;border:1px solid var(--rule);background:var(--paper)}
+  @media (max-width:1240px){
+    .ec-grid{grid-template-columns:1fr}
+    .ec-sticky{position:static}
+    .ec-frame iframe{height:560px}
+  }
+  @media (max-width:560px){ .ec-two{grid-template-columns:1fr} }
   /* ---------- email health ---------- */
   .health{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
           border:1px solid var(--rule)}
@@ -1033,6 +1068,7 @@ const EVINVITE_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-even
 const REJECT_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-lead-reject';
 const MOVE_URL     = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-deal-move';
 const ADDDEAL_URL  = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-deal-add';
+const MCPUSH_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-mailchimp-push';
 
 /* Approving creates an organisation, a person and a note per contact, in
    sequence, behind one request. Forty leads in a single POST is a hundred
@@ -1055,7 +1091,8 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads'], ['permits','Permits']
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['campaigns','Email Campaigns'],
+  ['leads','Leads'], ['permits','Permits']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -1097,7 +1134,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15e';
+const BUILD = '2026-10-15g';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2933,6 +2970,7 @@ async function ensureOnce(page){
   if(page==='reels' && !S.loaded.reels) await loadReels();
   if(page==='social' && !S.loaded.social) await loadSocial();
   if(page==='permits' && !S.loaded.permits) await loadPermits();
+  if(page==='campaigns' && !S.loaded.ec) await loadCampaigns();
   if(page==='leads'){
     if(!S.loaded.verticals) await loadVerticals();
     if(!S.loaded.labels) await loadLabels();
@@ -2952,12 +2990,12 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
 const NAV_GROUPS = [
   ['Today',   ['home','today','approvals']],
   ['People',  ['myday','calendar','iyanna']],
-  ['Content', ['social','reels']],
+  ['Content', ['social','campaigns','reels']],
   ['Growth',  ['kpis','leads','permits']],
   ['Money',   ['budget']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
-  calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', reels:'Reels',
+  calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
   leads:'Leads', permits:'Permits', budget:'Budget' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
@@ -2973,6 +3011,7 @@ const NAV_ICON = {
   calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   social:'<path d="M4 18V9M10 18V5M16 18v-7M21 18H3"/>',
   reels:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>',
+  campaigns:'<path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/><path d="M15 18l3 3 4-5"/>',
   kpis:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
   leads:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M15 15c2.8 0 4.6 1.3 5.5 4"/>',
   budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
@@ -3127,6 +3166,7 @@ function render(){
   if(S.page==='budget')   inner = pageBudget();
   if(S.page==='reels')    inner = pageReels();
   if(S.page==='social')   inner = pageSocial();
+  if(S.page==='campaigns') inner = pageCampaigns();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
   if(S.page==='leads')    inner = pageLeads();
   if(S.page==='permits')  inner = pagePermits();
@@ -3253,6 +3293,7 @@ function wirePage(){
   wireReels();
   wirePermits();
   wireSocial();
+  wireCampaigns();
   wireBoard();
   wireLeads();
 }
@@ -8446,6 +8487,591 @@ function budCatOptions(sel, blankLabel){
   return `<option value="">${esc(blankLabel)}</option>` + S.bud.cats
     .filter(c => c.active !== false || c.key === sel)
     .map(c => `<option value="${esc(c.key)}" ${c.key === sel ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
+}
+
+/* ================= email campaigns ================= */
+/* Emails for Mailchimp, built here from blocks and pushed across as a
+   draft. The dashboard keeps the campaign in email_campaigns
+   (sql/email_builder.sql) and renders it to email HTML itself; the n8n
+   workflow "Haggerty Mailchimp Push" creates or updates the Mailchimp draft
+   from that row and can send a test to whoever clicked. Sending to the list
+   still happens in Mailchimp, so nothing reaches 16,000 people from here. */
+const EC_BUCKET = 'email-images';
+const EC_BRANDS = {
+  haggerty: { name:'HAGGERTY', accent:'#F68922', site:'https://haggertybuilds.com',
+              footer:'HAGGERTY · Commercial construction in Northern California' },
+  rhino:    { name:'RHINO Restores', accent:'#A6402C', site:'https://rhinorestores.com',
+              footer:'RHINO Restores · Fire, water and mold restoration' }
+};
+const EC_TYPES = {
+  header:'Logo header', heading:'Heading', text:'Text', image:'Image', button:'Button',
+  spotlight:'Project spotlight', divider:'Divider', spacer:'Space', html:'Your own HTML', footer:'Footer'
+};
+const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html'];
+const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], sent:['Sent','hot'] };
+const mcEditUrl = webId => 'https://us11.admin.mailchimp.com/campaigns/edit?id=' + encodeURIComponent(webId);
+
+function ecState(){
+  if(!S.ec) S.ec = { list:[], cur:null, busy:'', note:'', err:'', view: window.innerWidth < 760 ? 'phone' : 'desktop', tests:'', saved:null, dirty:false };
+  return S.ec;
+}
+
+async function loadCampaigns(){
+  const E = ecState();
+  try{
+    const [c] = await Promise.all([
+      sb.from('email_campaigns').select('id,brand,title,subject,status,mc_web_id,pushed_at,updated_at,last_error')
+        .order('updated_at', { ascending:false }).limit(100),
+      S.loaded.mc ? null : loadMailchimp()
+    ]);
+    if(c.error) throw c.error;
+    E.list = c.data || [];
+    E.loadErr = '';
+  }catch(e){ E.loadErr = e.message || String(e); }
+  S.loaded.ec = true;
+}
+
+/* ---------- blocks ---------- */
+function ecBlock(type, brand){
+  const b = EC_BRANDS[brand] || EC_BRANDS.haggerty;
+  if(type === 'header')    return { type, logo:'', bg:'#1E1D1B' };
+  if(type === 'heading')   return { type, text:'Your headline here', align:'left' };
+  if(type === 'text')      return { type, text:'Hi *|FNAME|*,\n\nWrite the body of the email here. Use **bold** for emphasis and [link text](https://example.com) for a link.' };
+  if(type === 'image')     return { type, src:'', alt:'', href:'', width:'full' };
+  if(type === 'button')    return { type, label:'See the project', href:b.site, align:'left' };
+  if(type === 'spotlight') return { type, src:'', title:'Project name', text:'A sentence or two about the job: what it was, where, and what made it hard.', href:b.site, link:'Read more' };
+  if(type === 'divider')   return { type };
+  if(type === 'spacer')    return { type, size:'24' };
+  if(type === 'footer')    return { type, text:b.footer };
+  if(type === 'html')      return { type, code:'' };
+  return { type };
+}
+function ecStarter(brand){
+  return ['header','heading','text','button','footer'].map(t => ecBlock(t, brand));
+}
+
+/* ---------- email HTML ---------- */
+/* Built the way email has to be: tables, inline styles, web-safe fonts,
+   600px wide, with a media query that stacks the spotlight on phones.
+   The preview swaps Mailchimp's merge tags for sample text; the pushed
+   copy keeps them so Mailchimp fills them in per person. */
+function ecUrl(u){
+  u = String(u || '').trim();
+  if(/^\*\|[A-Z_:]+\|\*$/.test(u)) return u;
+  if(/^(https?:|mailto:|tel:)/i.test(u)) return u;
+  if(/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(u)) return 'https://' + u;
+  return '';
+}
+function ecInline(s, accent){
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, href) => {
+      const u = ecUrl(href.replace(/&amp;/g, '&'));
+      return u ? `<a href="${esc(u)}" style="color:${accent};text-decoration:underline">${label}</a>` : label;
+    })
+    .replace(/\n/g, '<br>');
+}
+function ecParas(s, accent, style){
+  return String(s || '').split(/\n\s*\n/).filter(p => p.trim())
+    .map(p => `<p style="${style}">${ecInline(p.trim(), accent)}</p>`).join('');
+}
+function ecColor(c, fallback){ return /^#[0-9a-f]{6}$/i.test(c || '') ? c : fallback; }
+
+function ecRow(b, c, accent){
+  const F = 'font-family:Arial,Helvetica,sans-serif;';
+  const pad = 'padding:0 32px;';
+  const al = b.align === 'center' ? 'center' : 'left';
+  const brand = EC_BRANDS[c.brand] || EC_BRANDS.haggerty;
+  if(b.type === 'header'){
+    const inner = b.logo
+      ? `<img src="${esc(b.logo)}" width="180" alt="${esc(brand.name)}" style="display:block;margin:0 auto;width:180px;max-width:60%;height:auto;border:0">`
+      : `<div style="${F}font-size:24px;font-weight:bold;letter-spacing:3px;color:#FFFFFF;text-align:center">${esc(brand.name)}</div>`;
+    return `<tr><td style="background:${ecColor(b.bg, '#1E1D1B')};padding:26px 32px">${inner}</td></tr>`;
+  }
+  if(b.type === 'heading')
+    return `<tr><td style="${pad}padding-top:30px;padding-bottom:6px"><h1 style="margin:0;${F}font-size:28px;line-height:1.2;font-weight:bold;color:#1E1D1B;text-align:${al}">${ecInline(b.text, accent)}</h1></td></tr>`;
+  if(b.type === 'text')
+    return `<tr><td style="${pad}padding-top:14px">${ecParas(b.text, accent, `margin:0 0 14px;${F}font-size:16px;line-height:1.6;color:#3A3836`)}</td></tr>`;
+  if(b.type === 'image'){
+    if(!b.src) return '';
+    const full = b.width !== 'inset';
+    const w = full ? 600 : 536;
+    let img = `<img src="${esc(b.src)}" width="${w}" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:${w}px;height:auto;border:0">`;
+    const u = ecUrl(b.href);
+    if(u) img = `<a href="${esc(u)}">${img}</a>`;
+    return `<tr><td style="${full ? 'padding:14px 0' : pad + 'padding-top:14px;padding-bottom:14px'}">${img}</td></tr>`;
+  }
+  if(b.type === 'button'){
+    const u = ecUrl(b.href) || '#';
+    return `<tr><td style="${pad}padding-top:12px;padding-bottom:18px" align="${al}">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${al}"><tr>
+        <td style="background:${accent};border-radius:3px"><a href="${esc(u)}" style="display:inline-block;padding:13px 26px;${F}font-size:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#FFFFFF;text-decoration:none">${esc(b.label || 'Learn more')}</a></td>
+      </tr></table></td></tr>`;
+  }
+  if(b.type === 'spotlight'){
+    const u = ecUrl(b.href);
+    const img = b.src ? `<img src="${esc(b.src)}" width="250" alt="${esc(b.title || '')}" style="display:block;width:100%;max-width:250px;height:auto;border:0">` : '';
+    return `<tr><td style="${pad}padding-top:16px;padding-bottom:16px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        ${img ? `<td class="ec-col" width="250" valign="top" style="width:250px;padding-right:20px">${u ? `<a href="${esc(u)}">${img}</a>` : img}</td>` : ''}
+        <td class="ec-col" valign="top">
+          <h2 style="margin:0 0 8px;${F}font-size:20px;line-height:1.25;font-weight:bold;color:#1E1D1B">${esc(b.title || '')}</h2>
+          ${ecParas(b.text, accent, `margin:0 0 10px;${F}font-size:15px;line-height:1.55;color:#3A3836`)}
+          ${u ? `<a href="${esc(u)}" style="${F}font-size:14px;font-weight:bold;color:${accent};text-decoration:none">${esc(b.link || 'Read more')} &rarr;</a>` : ''}
+        </td></tr></table></td></tr>`;
+  }
+  if(b.type === 'divider')
+    return `<tr><td style="${pad}padding-top:12px;padding-bottom:12px"><div style="border-top:1px solid #E5E1DA;font-size:0;line-height:0">&nbsp;</div></td></tr>`;
+  if(b.type === 'spacer'){
+    const h = Math.max(8, Math.min(80, Number(b.size) || 24));
+    return `<tr><td style="height:${h}px;font-size:0;line-height:0">&nbsp;</td></tr>`;
+  }
+  if(b.type === 'html')
+    return b.code && b.code.trim() ? `<tr><td>${b.code}</td></tr>` : '';
+  if(b.type === 'footer')
+    return `<tr><td style="background:#F4F2EE;padding:24px 32px;${F}font-size:12px;line-height:1.6;color:#6E7477;text-align:center">
+      ${b.text ? `<div style="margin-bottom:8px">${ecInline(b.text, '#6E7477')}</div>` : ''}
+      <div>*|HTML:LIST_ADDRESS_HTML|*</div>
+      <div style="margin-top:8px"><a href="*|UPDATE_PROFILE|*" style="color:#6E7477">Update your preferences</a> &middot; <a href="*|UNSUB|*" style="color:#6E7477">Unsubscribe</a></div>
+    </td></tr>`;
+  return '';
+}
+
+/* An HTML block holding a whole email (one that has its own <html> or
+   <body>, say from another builder) is used as the email as-is, since it
+   cannot sit inside this layout. Everything else goes into the layout. */
+function ecFullPaste(c){
+  return (c.blocks || []).find(b => b.type === 'html' && /<(html|body)[\s>]/i.test(b.code || ''));
+}
+function ecHtml(c, preview){
+  const brand = EC_BRANDS[c.brand] || EC_BRANDS.haggerty;
+  const accent = ecColor(c.accent, brand.accent);
+  const full = ecFullPaste(c);
+  const rows = (c.blocks || []).map(b => ecRow(b, c, accent)).join('\n');
+  let html = full ? full.code : `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting"><title>${esc(c.subject || c.title || '')}</title>
+<style>
+  body{margin:0;padding:0;background:#F4F2EE}
+  img{-ms-interpolation-mode:bicubic}
+  @media only screen and (max-width:620px){
+    .ec-wrap{width:100%!important}
+    .ec-col{display:block!important;width:100%!important;padding-right:0!important;padding-bottom:12px}
+    .ec-col img{max-width:100%!important}
+  }
+</style></head>
+<body style="margin:0;padding:0;background:#F4F2EE">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(c.preview_text || '')}&#8203;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F2EE"><tr><td align="center" style="padding:24px 10px">
+<table role="presentation" class="ec-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFFFFF">
+${rows}
+</table></td></tr></table></body></html>`;
+  if(preview){
+    html = html
+      .replace(/\*\|FNAME\|\*/g, 'Sam').replace(/\*\|LNAME\|\*/g, 'Rivera')
+      .replace(/\*\|HTML:LIST_ADDRESS_HTML\|\*/g, 'Your mailing address from Mailchimp goes here')
+      .replace(/\*\|[A-Z_:]+\|\*/g, '#');
+  }
+  return html;
+}
+
+/* ---------- saving ---------- */
+const EC_FIELDS = ['brand','title','subject','preview_text','from_name','reply_to','list_id','tag_id','tag_name','accent','blocks'];
+let ecTimer = null;
+function ecTouch(){
+  const E = ecState();
+  E.dirty = true; E.saved = null;
+  clearTimeout(ecTimer);
+  ecTimer = setTimeout(() => ecSave(true), 1500);
+  ecStatusLine();
+}
+async function ecSave(quiet){
+  const E = ecState();
+  const c = E.cur;
+  if(!c) return true;
+  clearTimeout(ecTimer);
+  const row = {};
+  EC_FIELDS.forEach(k => { row[k] = c[k] === '' ? null : c[k]; });
+  row.html = ecHtml(c, false);
+  row.updated_at = new Date().toISOString();
+  E.saving = true; ecStatusLine();
+  const { error } = await sb.from('email_campaigns').update(row).eq('id', c.id);
+  E.saving = false;
+  if(error){ E.err = 'Could not save: ' + error.message; if(!quiet) render(); else ecStatusLine(); return false; }
+  E.dirty = false; E.saved = new Date();
+  const li = E.list.find(x => x.id === c.id);
+  if(li) Object.assign(li, { title:c.title, subject:c.subject, updated_at:row.updated_at });
+  ecStatusLine();
+  return true;
+}
+function ecStatusLine(){
+  const el = document.getElementById('ecSaved');
+  if(!el) return;
+  const E = ecState();
+  el.textContent = E.saving ? 'Saving…' : E.dirty ? 'Unsaved changes' : E.saved ? 'Saved ' + fmtTime(E.saved.toISOString()) : '';
+}
+
+async function ecNew(brand){
+  const E = ecState();
+  const a = (S.mc && S.mc.audiences || []).find(x => !String(x.list_id).startsWith('seed-')) || {};
+  const row = {
+    brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
+    subject:'', preview_text:'', from_name: a.from_name || EC_BRANDS[brand].name, reply_to: a.from_email || '',
+    list_id: a.list_id || null, accent: EC_BRANDS[brand].accent,
+    blocks: ecStarter(brand), created_by: S.me
+  };
+  E.busy = 'new'; render();
+  if(brand === 'haggerty') row.blocks[0].logo = await ecLogoUrl().catch(() => '');
+  const { data, error } = await sb.from('email_campaigns').insert(row).select('*').single();
+  E.busy = '';
+  if(error){ E.err = 'Could not start a campaign: ' + error.message; render(); return; }
+  E.list.unshift(data);
+  ecOpenRow(data);
+}
+async function ecOpen(id){
+  const E = ecState();
+  E.busy = 'open'; E.err = ''; E.note = ''; render();
+  const { data, error } = await sb.from('email_campaigns').select('*').eq('id', id).single();
+  E.busy = '';
+  if(error){ E.err = 'Could not open it: ' + error.message; render(); return; }
+  ecOpenRow(data);
+}
+function ecOpenRow(row){
+  const E = ecState();
+  E.cur = { ...row, blocks: Array.isArray(row.blocks) ? row.blocks : [] };
+  E.dirty = false; E.saved = null; E.note = ''; E.err = row.last_error ? 'Last push failed. ' + row.last_error : '';
+  render(); window.scrollTo(0, 0);
+}
+async function ecClose(){
+  const E = ecState();
+  if(E.dirty) await ecSave(true);
+  E.cur = null; E.note = ''; E.err = '';
+  render();
+}
+async function ecCopy(){
+  const E = ecState();
+  const c = E.cur;
+  if(E.dirty) await ecSave(true);
+  const row = {};
+  EC_FIELDS.forEach(k => { row[k] = c[k]; });
+  row.title = 'Copy of ' + (c.title || 'campaign');
+  row.created_by = S.me;
+  const { data, error } = await sb.from('email_campaigns').insert(row).select('*').single();
+  if(error){ E.err = 'Could not copy: ' + error.message; render(); return; }
+  E.list.unshift(data);
+  ecOpenRow(data);
+  E.note = 'This is a new copy. The original is unchanged.'; render();
+}
+async function ecRemove(){
+  const E = ecState();
+  const c = E.cur;
+  const inMc = c.mc_web_id ? ' The draft already in Mailchimp stays there; delete it in Mailchimp if you want it gone.' : '';
+  if(!confirm('Delete "' + (c.title || 'this campaign') + '" from the dashboard?' + inMc)) return;
+  const { error } = await sb.from('email_campaigns').delete().eq('id', c.id);
+  if(error){ E.err = 'Could not delete: ' + error.message; render(); return; }
+  E.list = E.list.filter(x => x.id !== c.id);
+  E.cur = null; render();
+}
+
+/* The white HAGGERTY logo is already inlined for the sidebar. Email needs a
+   public link, so the first campaign puts a copy in the email-images bucket
+   and every later one reuses it. */
+async function ecLogoUrl(){
+  const path = 'brand/haggerty-logo-white.png';
+  const url = sb.storage.from(EC_BUCKET).getPublicUrl(path).data.publicUrl;
+  const head = await fetch(url, { method:'HEAD' }).catch(() => null);
+  if(head && head.ok) return url;
+  const blob = await (await fetch(LOGO)).blob();
+  const { error } = await sb.storage.from(EC_BUCKET).upload(path, blob, { contentType:'image/png', upsert:false, cacheControl:'31536000' });
+  if(error && !/exists|duplicate/i.test(error.message || '')) throw error;
+  return url;
+}
+async function ecUpload(i, file){
+  const E = ecState();
+  const c = E.cur;
+  if(!file) return;
+  if(!/^image\/(jpeg|png|gif|webp)$/.test(file.type)){ E.err = file.name + ' is not a JPG, PNG, GIF or WebP.'; render(); return; }
+  if(file.size > 5 * 1024 * 1024){ E.err = file.name + ' is over 5 MB. Email images should be well under 1 MB.'; render(); return; }
+  const safe = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, '-').slice(-60);
+  const path = `${c.brand}/${c.id}/${Date.now()}-${safe}`;
+  E.busy = 'up' + i; E.err = ''; render();
+  const { error } = await sb.storage.from(EC_BUCKET).upload(path, file, { contentType:file.type, upsert:false, cacheControl:'31536000' });
+  E.busy = '';
+  if(error){ E.err = 'Upload failed: ' + error.message; render(); return; }
+  const b = c.blocks[i];
+  const url = sb.storage.from(EC_BUCKET).getPublicUrl(path).data.publicUrl;
+  if(b.type === 'header') b.logo = url; else b.src = url;
+  ecTouch(); render();
+}
+
+/* ---------- push ---------- */
+async function ecPush(action){
+  const E = ecState();
+  const c = E.cur;
+  if(E.busy) return;
+  E.busy = action; E.err = ''; E.note = ''; render();
+  try{
+    if(!(await ecSave(true))) throw new Error(E.err.replace(/^Could not save: /, ''));
+    const res = await fetch(MCPUSH_URL, { method:'POST', headers: await authHeaders(),
+      body: JSON.stringify({ id:c.id, action, test_emails: action === 'test' ? E.tests : '' }) });
+    const out = await res.json().catch(() => ({}));
+    if(!out.ok) throw new Error(out.error || 'The push did not go through.');
+    c.mc_campaign_id = out.mc_campaign_id; c.mc_web_id = out.mc_web_id;
+    if(c.status !== 'sent') c.status = 'pushed';
+    c.pushed_at = new Date().toISOString(); c.last_error = null;
+    const li = E.list.find(x => x.id === c.id);
+    if(li) Object.assign(li, { status:c.status, mc_web_id:c.mc_web_id, pushed_at:c.pushed_at, last_error:null });
+    E.note = action === 'test'
+      ? 'Draft updated in Mailchimp and a test sent to ' + (out.tested || []).join(', ') + '.'
+      : 'Draft is in Mailchimp. Check it there, then send or schedule it from Mailchimp.';
+  }catch(e){
+    E.err = e.message || String(e);
+    // A draft can exist even when a later step (say the test) failed.
+    const r = await sb.from('email_campaigns').select('mc_campaign_id,mc_web_id').eq('id', c.id).maybeSingle();
+    if(r.data){ c.mc_campaign_id = r.data.mc_campaign_id; c.mc_web_id = r.data.mc_web_id; }
+  }
+  E.busy = ''; render();
+}
+
+/* ---------- page ---------- */
+function ecAudiences(){ return (S.mc && S.mc.audiences) || []; }
+
+function ecListPage(){
+  const E = ecState();
+  const rows = E.list.map(c => {
+    const st = EC_STATUS[c.status] || EC_STATUS.draft;
+    return `<div class="ec-item">
+      <button class="ec-open" data-ec-open="${esc(c.id)}">
+        <b>${esc(c.title || 'Untitled campaign')}</b>
+        <span class="hint">${esc(c.subject || 'No subject yet')}</span>
+      </button>
+      <span class="chip">${esc((EC_BRANDS[c.brand] || {}).name || c.brand)}</span>
+      <span class="chip ${st[1]}">${st[0]}</span>
+      ${c.last_error ? `<span class="chip bad" title="${esc(c.last_error)}">Push failed</span>` : ''}
+      <span class="hint">${esc(shortDate(c.updated_at))}</span>
+      ${c.mc_web_id ? `<a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener" class="hint">Open in Mailchimp</a>` : ''}
+    </div>`;
+  }).join('');
+  return `<main class="page" style="max-width:1060px">
+    <div class="ec-head">
+      <div><h2 class="sec" style="margin:0">Email campaigns</h2>
+        <p class="hint" style="margin:4px 0 0">Build an email here, push it to Mailchimp as a draft, send yourself a test, then send or schedule it from Mailchimp.</p></div>
+      <div class="actions" style="margin:0">
+        <button class="btn small accent" data-ec-new="haggerty" ${E.busy ? 'disabled' : ''}>New HAGGERTY email</button>
+        <button class="btn small ghost" data-ec-new="rhino" ${E.busy ? 'disabled' : ''}>New RHINO email</button>
+      </div>
+    </div>
+    ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
+    ${E.loadErr ? `<p class="hint err">Campaigns could not load: ${esc(E.loadErr)}</p>` : ''}
+    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>No campaigns yet</h2><p>Start one with the buttons above.</p></div>`}
+  </main>`;
+}
+
+function ecField(label, key, val, opts){
+  opts = opts || {};
+  return `<div class="field"><label for="ec-${key}">${label}</label>
+    <input type="${opts.type || 'text'}" id="ec-${key}" data-ec-set="${key}" value="${esc(val ?? '')}" placeholder="${esc(opts.ph || '')}" autocomplete="off" />
+    ${opts.hint ? `<div class="hint" style="margin-top:3px">${opts.hint}</div>` : ''}</div>`;
+}
+function ecBField(i, label, key, val, opts){
+  opts = opts || {};
+  if(opts.area) return `<div class="field"><label>${label}</label>
+    <textarea data-ec-b="${i}" data-ec-k="${key}" rows="${opts.rows || 5}" style="min-height:0">${esc(val ?? '')}</textarea>
+    ${opts.hint ? `<div class="hint" style="margin-top:3px">${opts.hint}</div>` : ''}</div>`;
+  if(opts.choices) return `<div class="field"><label>${label}</label>
+    <select data-ec-b="${i}" data-ec-k="${key}">${opts.choices.map(([v, t]) =>
+      `<option value="${esc(v)}" ${String(val) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>`;
+  return `<div class="field"><label>${label}</label>
+    <input type="text" data-ec-b="${i}" data-ec-k="${key}" value="${esc(val ?? '')}" placeholder="${esc(opts.ph || '')}" autocomplete="off" /></div>`;
+}
+function ecImageField(i, key, val){
+  const E = ecState();
+  return `<div class="field"><label>Image</label>
+    <div class="ec-img">
+      ${val ? `<img src="${esc(val)}" alt="" />` : `<span class="hint">No image yet</span>`}
+      <label class="btn small ghost ec-upbtn">${E.busy === 'up' + i ? 'Uploading&hellip;' : val ? 'Replace' : 'Upload'}
+        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-ec-up="${i}" hidden /></label>
+    </div>
+    <input type="text" data-ec-b="${i}" data-ec-k="${key}" value="${esc(val || '')}" placeholder="Or paste an image link" autocomplete="off" style="margin-top:6px" /></div>`;
+}
+const EC_ALIGN = [['left','Left'],['center','Centered']];
+function ecBlockForm(b, i){
+  if(b.type === 'header') return `${ecImageField(i, 'logo', b.logo)}${ecBField(i, 'Background colour', 'bg', b.bg, { ph:'#1E1D1B' })}
+    <p class="hint">With no logo, the brand name shows in white.</p>`;
+  if(b.type === 'heading') return ecBField(i, 'Heading', 'text', b.text) + ecBField(i, 'Alignment', 'align', b.align, { choices:EC_ALIGN });
+  if(b.type === 'text') return ecBField(i, 'Text', 'text', b.text, { area:true, rows:7,
+    hint:'Leave a blank line between paragraphs. <b>**bold**</b>, [link text](https://…), and *|FNAME|* for their first name.' });
+  if(b.type === 'image') return ecImageField(i, 'src', b.src) + ecBField(i, 'Description for screen readers', 'alt', b.alt)
+    + ecBField(i, 'Link when clicked (optional)', 'href', b.href, { ph:'https://' })
+    + ecBField(i, 'Width', 'width', b.width, { choices:[['full','Edge to edge'],['inset','With margins']] });
+  if(b.type === 'button') return ecBField(i, 'Button text', 'label', b.label) + ecBField(i, 'Link', 'href', b.href, { ph:'https://' })
+    + ecBField(i, 'Alignment', 'align', b.align, { choices:EC_ALIGN });
+  if(b.type === 'spotlight') return ecImageField(i, 'src', b.src) + ecBField(i, 'Title', 'title', b.title)
+    + ecBField(i, 'Text', 'text', b.text, { area:true, rows:4 }) + ecBField(i, 'Link', 'href', b.href, { ph:'https://' })
+    + ecBField(i, 'Link text', 'link', b.link);
+  if(b.type === 'spacer') return ecBField(i, 'Height', 'size', b.size, { choices:[['12','Small'],['24','Medium'],['48','Large']] });
+  if(b.type === 'footer') return ecBField(i, 'Footer line', 'text', b.text)
+    + `<p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
+  if(b.type === 'html') return ecBField(i, 'HTML', 'code', b.code, { area:true, rows:10,
+    hint:'Paste a section to drop in here, or a whole email from another tool. A whole email (one with &lt;html&gt; or &lt;body&gt;) replaces the layout, so it needs its own *|UNSUB|* link.' })
+    + (/<(html|body)[\s>]/i.test(b.code || '') ? `<p class="hint err">This is a whole email, so the other blocks are left out of what gets sent.</p>` : '');
+  return '<p class="hint">A thin line between sections.</p>';
+}
+
+function ecEditPage(){
+  const E = ecState();
+  const c = E.cur;
+  const st = EC_STATUS[c.status] || EC_STATUS.draft;
+  const auds = ecAudiences();
+  const aud = auds.find(a => a.list_id === c.list_id);
+  const tags = (aud && Array.isArray(aud.tags) ? aud.tags : []).slice().sort((x, y) => String(x.name).localeCompare(String(y.name)));
+  const audOpts = auds.map(a => `<option value="${esc(a.list_id)}" ${a.list_id === c.list_id ? 'selected' : ''}>${esc(a.name)} (${num(a.subscribed)})</option>`).join('');
+  const seedOnly = auds.length && auds.every(a => String(a.list_id).startsWith('seed-'));
+  const blocks = c.blocks.map((b, i) => `<div class="ec-block">
+      <div class="ec-bhead"><b>${esc(EC_TYPES[b.type] || b.type)}</b><span class="spacer"></span>
+        <button class="linkbtn" data-ec-move="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">&uarr;</button>
+        <button class="linkbtn" data-ec-move="${i}" data-dir="1" ${i === c.blocks.length - 1 ? 'disabled' : ''} aria-label="Move down">&darr;</button>
+        <button class="linkbtn" data-ec-del="${i}" aria-label="Remove block">Remove</button></div>
+      ${ecBlockForm(b, i)}</div>`).join('');
+  const busy = !!E.busy;
+  return `<main class="page ec-page">
+    <div class="ec-head">
+      <div><button class="linkbtn" data-ec-back style="padding-left:0">&lsaquo; All campaigns</button>
+        <h2 class="sec" style="margin:2px 0 0">${esc(c.title || 'Untitled campaign')}</h2>
+        <div class="hint"><span class="chip ${st[1]}">${st[0]}</span> <span id="ecSaved"></span>
+          ${c.mc_web_id ? ` · <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</div></div>
+      <div class="actions" style="margin:0">
+        <button class="btn small accent" data-ec-push ${busy ? 'disabled' : ''}>${E.busy === 'push' ? 'Pushing&hellip;' : c.mc_campaign_id ? 'Update Mailchimp draft' : 'Push to Mailchimp'}</button>
+        <button class="btn small ghost" data-ec-copy ${busy ? 'disabled' : ''}>Copy</button>
+        <button class="linkbtn" data-ec-remove ${busy ? 'disabled' : ''}>Delete</button>
+      </div>
+    </div>
+    ${E.note ? `<div class="done-banner" style="margin:12px 0"><p style="margin:0">${esc(E.note)}${c.mc_web_id ? ` <a href="${esc(mcEditUrl(c.mc_web_id))}" target="_blank" rel="noopener">Open in Mailchimp</a>` : ''}</p></div>` : ''}
+    ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
+    <div class="ec-grid">
+      <div class="ec-edit">
+        <div class="panelbox" style="margin-top:0">
+          <h3 class="ec-h3">Settings</h3>
+          ${ecField('Campaign name (only you see this)', 'title', c.title)}
+          ${ecField('Subject line', 'subject', c.subject, { ph:'What the inbox shows first' })}
+          ${ecField('Preview text', 'preview_text', c.preview_text, { ph:'The grey line after the subject' })}
+          <div class="ec-two">
+            ${ecField('From name', 'from_name', c.from_name)}
+            ${ecField('Reply-to address', 'reply_to', c.reply_to, { type:'email' })}
+          </div>
+          <div class="ec-two">
+            <div class="field"><label for="ec-list">Audience</label>
+              <select id="ec-list" data-ec-set="list_id"><option value="">Pick an audience</option>${audOpts}</select>
+              ${seedOnly ? `<div class="hint" style="margin-top:3px">The real audience list arrives with the first daily Mailchimp refresh.</div>` : ''}</div>
+            <div class="field"><label for="ec-tag">Send to</label>
+              <select id="ec-tag" data-ec-set="tag_id"><option value="">Everyone in the audience</option>${tags.map(t =>
+                `<option value="${esc(t.id)}" ${String(t.id) === String(c.tag_id) ? 'selected' : ''}>${esc(t.name)} (${num(t.member_count)})</option>`).join('')}</select></div>
+          </div>
+          <div class="field"><label for="ec-accent">Button and link colour</label>
+            <input type="color" id="ec-accent" data-ec-set="accent" value="${esc(ecColor(c.accent, (EC_BRANDS[c.brand] || EC_BRANDS.haggerty).accent))}" /></div>
+        </div>
+        <h3 class="ec-h3">Content</h3>
+        ${blocks}
+        <div class="ec-add"><span class="hint">Add</span>${EC_ADD.map(t =>
+          `<button class="fchip" data-ec-add="${t}">${esc(EC_TYPES[t])}</button>`).join('')}</div>
+      </div>
+      <div class="ec-side">
+        <div class="ec-sticky">
+          <div class="ec-viewbar">
+            <button class="fchip ${E.view === 'desktop' ? 'on' : ''}" data-ec-view="desktop">Desktop</button>
+            <button class="fchip ${E.view === 'phone' ? 'on' : ''}" data-ec-view="phone">Phone</button>
+            <span class="hint">Sample name and address shown in place of Mailchimp's merge tags.</span>
+          </div>
+          <div class="ec-frame ${E.view}"><iframe id="ecFrame" title="Email preview" sandbox=""></iframe></div>
+          <div class="panelbox">
+            <h3 class="ec-h3">Send a test</h3>
+            <p class="hint" style="margin:0 0 6px">Updates the Mailchimp draft and sends a test to you. Add up to four more addresses if you like.</p>
+            <input type="text" id="ecTests" value="${esc(E.tests)}" placeholder="pat@haggertybuilds.com, …" autocomplete="off" />
+            <div class="actions"><button class="btn small" data-ec-test ${busy ? 'disabled' : ''}>${E.busy === 'test' ? 'Sending&hellip;' : 'Send test'}</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>`;
+}
+
+function pageCampaigns(){
+  if(!S.loaded.ec) return loading();
+  const E = ecState();
+  return E.cur ? ecEditPage() : ecListPage();
+}
+
+let ecPrevTimer = null;
+function ecPreview(){
+  const f = document.getElementById('ecFrame');
+  const E = ecState();
+  if(f && E.cur) f.srcdoc = ecHtml(E.cur, true);
+}
+
+function wireCampaigns(){
+  if(S.page !== 'campaigns') return;
+  const E = ecState();
+  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew)));
+  document.querySelectorAll('[data-ec-open]').forEach(b => b.addEventListener('click', () => ecOpen(b.dataset.ecOpen)));
+  if(!E.cur) return;
+  const c = E.cur;
+  ecPreview(); ecStatusLine();
+  document.querySelectorAll('[data-ec-back]').forEach(b => b.addEventListener('click', ecClose));
+  document.querySelectorAll('[data-ec-copy]').forEach(b => b.addEventListener('click', ecCopy));
+  document.querySelectorAll('[data-ec-remove]').forEach(b => b.addEventListener('click', ecRemove));
+  document.querySelectorAll('[data-ec-push]').forEach(b => b.addEventListener('click', () => ecPush('push')));
+  document.querySelectorAll('[data-ec-test]').forEach(b => b.addEventListener('click', () => ecPush('test')));
+  const tests = document.getElementById('ecTests');
+  if(tests) tests.addEventListener('input', () => { E.tests = tests.value; });
+  document.querySelectorAll('[data-ec-view]').forEach(b => b.addEventListener('click', () => { E.view = b.dataset.ecView; render(); }));
+  // Typing only refreshes the preview; re-rendering the page would drop the cursor.
+  document.querySelectorAll('[data-ec-set]').forEach(el => {
+    const k = el.dataset.ecSet;
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      if(k === 'tag_id'){
+        c.tag_id = el.value ? Number(el.value) : null;
+        c.tag_name = el.value ? el.options[el.selectedIndex].text.replace(/ \([\d,]+\)$/, '') : null;
+      } else c[k] = el.value;
+      if(k === 'list_id'){ c.tag_id = null; c.tag_name = null; }
+      ecTouch();
+      if(k === 'list_id') render();
+      else { clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(ecPreview, 200); }
+    });
+  });
+  document.querySelectorAll('[data-ec-b]').forEach(el => {
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      const b = c.blocks[Number(el.dataset.ecB)];
+      if(!b) return;
+      const wasFull = !!ecFullPaste(c);
+      b[el.dataset.ecK] = el.value;
+      ecTouch();
+      if(el.dataset.ecK === 'code' && wasFull !== !!ecFullPaste(c)){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 400); }
+      else if(el.dataset.ecK === 'src' || el.dataset.ecK === 'logo'){ clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(render, 600); }
+      else { clearTimeout(ecPrevTimer); ecPrevTimer = setTimeout(ecPreview, 200); }
+    });
+  });
+  document.querySelectorAll('[data-ec-up]').forEach(el =>
+    el.addEventListener('change', () => ecUpload(Number(el.dataset.ecUp), el.files && el.files[0])));
+  document.querySelectorAll('[data-ec-move]').forEach(b => b.addEventListener('click', () => {
+    const i = Number(b.dataset.ecMove), j = i + Number(b.dataset.dir);
+    if(j < 0 || j >= c.blocks.length) return;
+    [c.blocks[i], c.blocks[j]] = [c.blocks[j], c.blocks[i]];
+    ecTouch(); render();
+  }));
+  document.querySelectorAll('[data-ec-del]').forEach(b => b.addEventListener('click', () => {
+    const i = Number(b.dataset.ecDel);
+    if(c.blocks[i] && c.blocks[i].type === 'footer' && !confirm('Mailchimp will not send an email without the footer and its unsubscribe link. Remove it anyway?')) return;
+    c.blocks.splice(i, 1);
+    ecTouch(); render();
+  }));
+  document.querySelectorAll('[data-ec-add]').forEach(b => b.addEventListener('click', () => {
+    const at = c.blocks.findIndex(x => x.type === 'footer');
+    const nb = ecBlock(b.dataset.ecAdd, c.brand);
+    if(at < 0) c.blocks.push(nb); else c.blocks.splice(at, 0, nb);
+    ecTouch(); render();
+  }));
 }
 
 function pageBudget(){
