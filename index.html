@@ -691,6 +691,30 @@
     .socmedia{max-height:none}
   }
 
+  /* ---------- permits ---------- */
+  .permit-list{display:flex;flex-direction:column;gap:10px}
+  .permit{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--rule);
+          padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 16px}
+  .permit.project{border-left-color:var(--orange)}
+  .permit.planning{border-left-color:var(--ink)}
+  .permit.rhino{border-left-color:var(--red)}
+  .permit.dismissed{opacity:.62}
+  .permit .ptop{display:flex;gap:6px;flex-wrap:wrap;align-items:center;grid-column:1/-1}
+  .permit .ptop .m{font-family:var(--mono);font-size:11px;color:var(--slate)}
+  .permit h4{margin:2px 0 0;font-size:14.5px;font-weight:600;line-height:1.35}
+  .permit .addr{font-size:13px;color:var(--grey)}
+  .permit .desc{font-size:13px;color:var(--grey);line-height:1.5;margin:4px 0 0;
+                display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .permit .desc.open{display:block}
+  .permit .nums{font-family:var(--mono);font-size:11px;color:var(--slate);margin-top:4px}
+  .permit .acts{display:flex;flex-direction:column;gap:6px;align-items:stretch;justify-content:flex-start;
+                grid-column:2;grid-row:2/span 4;min-width:118px}
+  .permit .acts .btn{text-align:center;text-decoration:none}
+  @media (max-width:640px){
+    .permit{grid-template-columns:1fr}
+    .permit .acts{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap;min-width:0;margin-top:8px}
+  }
+
   /* ---------- reel ideas ---------- */
   .reel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
   .reelcard{background:var(--card);border:1px solid var(--rule);
@@ -1019,7 +1043,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads']
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['leads','Leads'], ['permits','Permits']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -1058,7 +1082,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15a';
+const BUILD = '2026-10-15b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1083,6 +1107,9 @@ const S = {
   socFocus:'all', socMix:{}, socMixOpen:false, socMixForm:{},
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
+  /* permits */
+  permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
+  permitBusy:'', permitErr:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -2842,6 +2869,7 @@ async function ensureOnce(page){
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
   if(page==='reels' && !S.loaded.reels) await loadReels();
   if(page==='social' && !S.loaded.social) await loadSocial();
+  if(page==='permits' && !S.loaded.permits) await loadPermits();
   if(page==='leads'){
     if(!S.loaded.verticals) await loadVerticals();
     if(!S.loaded.labels) await loadLabels();
@@ -2862,12 +2890,12 @@ const NAV_GROUPS = [
   ['Today',   ['home','today','approvals']],
   ['People',  ['myday','calendar','iyanna']],
   ['Content', ['social','reels']],
-  ['Growth',  ['kpis','leads']],
+  ['Growth',  ['kpis','leads','permits']],
   ['Money',   ['budget']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', reels:'Reels',
-  leads:'Leads', budget:'Budget' };
+  leads:'Leads', permits:'Permits', budget:'Budget' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'iyanna' ? ['iyanna','reels','social','leads']
@@ -2884,6 +2912,7 @@ const NAV_ICON = {
   kpis:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
   leads:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M15 15c2.8 0 4.6 1.3 5.5 4"/>',
   budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
 const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] || ''}</svg>`;
@@ -3036,6 +3065,7 @@ function render(){
   if(S.page==='social')   inner = pageSocial();
   if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
   if(S.page==='leads')    inner = pageLeads();
+  if(S.page==='permits')  inner = pagePermits();
   const samePage = S._lastPage === S.page;
   const sy = window.scrollY;
   const ob = document.querySelector('.board');
@@ -3157,6 +3187,7 @@ function wirePage(){
   wireApprovals();
   wireBudget();
   wireReels();
+  wirePermits();
   wireSocial();
   wireBoard();
   wireLeads();
@@ -6899,6 +6930,196 @@ function wireReels(){
       reelTimer = setTimeout(()=>{
         render();
         const el = document.getElementById('reelSearch');
+        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+      }, 250);
+    });
+  }
+}
+
+/* ================= permits ================= */
+/* City of Sacramento building and planning records, from the public
+   AgencyCounter site. The n8n workflow "Haggerty Sacramento Permits
+   Refresh" saves new ones every morning at 6:15. Which records show here,
+   and the sector guess, are decided in Supabase (permit_fit and
+   permit_vertical in sql/permits.sql), so v_permits already holds only
+   the ones worth a look. Records name no applicant or contractor; a
+   permit is a project and an address to follow up on. */
+const PERMIT_FIT = {
+  project:  ['Project',  'Commercial new building, addition, remodel or tenant improvement'],
+  planning: ['Planning', 'Zoning or design review, before a contractor is picked'],
+  small:    ['Smaller',  'Commercial repair or site work'],
+  rhino:    ['RHINO',    'Fire, water, dry rot, mold or impact damage repair']
+};
+const PERMIT_DAYS = 60;
+
+async function loadPermits(){
+  if(!S.loaded.verticals) await loadVerticals();
+  const from = new Date(Date.now() - PERMIT_DAYS * 86400000).toISOString().slice(0, 10);
+  const [rows, last] = await Promise.all([
+    sb.from('v_permits').select('*').gte('record_date', from)
+      .order('record_date', { ascending:false }).order('agency_reference', { ascending:false }).limit(2000),
+    sb.from('permits').select('last_seen').order('last_seen', { ascending:false }).limit(1)
+  ]);
+  if(rows.error) throw rows.error;
+  S.permits = rows.data || [];
+  S.permitsAt = last.data && last.data[0] ? last.data[0].last_seen : null;
+  S.loaded.permits = true;
+}
+
+function permitInView(p){
+  if(S.permitView === 'saved') return p.mark === 'saved';
+  if(S.permitView === 'dismissed') return p.mark === 'dismissed';
+  return p.mark !== 'dismissed';
+}
+
+function permitVisible(){
+  const q = String(S.permitQ||'').trim().toLowerCase();
+  return (S.permits||[]).filter(p=>{
+    if(!permitInView(p)) return false;
+    if(S.permitFit !== 'all' && p.fit !== S.permitFit) return false;
+    if(S.permitVert && (p.vertical || 'none') !== S.permitVert) return false;
+    if(q){
+      const hay = [p.name, p.description, p.address, p.agency_reference, p.record_type, p.status]
+        .filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+
+const permitDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+
+function permitCard(p){
+  const fit = PERMIT_FIT[p.fit] || [p.fit, ''];
+  const vert = (S.verticals||[]).find(v => v.slug === p.vertical);
+  const canMark = BUDGET_USERS.includes(S.me);
+  const busy = S.permitBusy === p.guid;
+  const nums = [
+    Number(p.total_fee) > 0 ? money(p.total_fee) + ' in city fees' : '',
+    Number(p.improved_value) > 0 ? 'buildings on parcel ' + moneyShort(p.improved_value) : '',
+    p.plan_check_target ? 'plan check due ' + permitDate(p.plan_check_target) : ''
+  ].filter(Boolean).join(' · ');
+  return `<article class="permit ${esc(p.fit)} ${p.mark==='dismissed'?'dismissed':''}">
+    <div class="ptop">
+      <span class="chip ${p.fit==='project'?'hot':p.fit==='rhino'?'bad':''}" title="${esc(fit[1])}">${esc(fit[0])}</span>
+      ${vert ? `<span class="chip">${esc(vert.name)}</span>` : ''}
+      ${p.mark==='saved' ? '<span class="chip good">Saved</span>' : ''}
+      <span class="m">${esc(p.agency_reference)} · ${esc(p.record_type||'')} · ${esc(p.status||'')} · ${esc(permitDate(p.record_date))}</span>
+    </div>
+    <h4>${esc(p.name || p.record_type || p.agency_reference)}</h4>
+    <div class="addr">${esc(p.address || 'No address on record')}</div>
+    ${p.description ? `<p class="desc ${S.permitOpen && S.permitOpen[p.guid] ? 'open' : ''}" data-permit-more="${esc(p.guid)}">${esc(p.description)}</p>` : ''}
+    ${nums ? `<div class="nums">${nums}</div>` : ''}
+    <div class="acts">
+      <a class="btn small ghost" href="${esc(p.url)}" target="_blank" rel="noopener">Open record</a>
+      ${canMark ? `
+        <button class="btn small ${p.mark==='saved'?'':'ghost'}" data-permit-mark="${esc(p.guid)}" data-val="saved" ${busy?'disabled':''}>${p.mark==='saved'?'Saved':'Save'}</button>
+        <button class="btn small ghost" data-permit-mark="${esc(p.guid)}" data-val="dismissed" ${busy?'disabled':''}>${p.mark==='dismissed'?'Bring back':'Not a fit'}</button>` : ''}
+    </div>
+  </article>`;
+}
+
+function pagePermits(){
+  if(!S.loaded.permits) return loading();
+  const all = S.permits || [];
+  const inView = all.filter(permitInView);
+  const rows = permitVisible();
+
+  const views = [['open','To review', all.filter(p=>p.mark!=='dismissed').length],
+                 ['saved','Saved', all.filter(p=>p.mark==='saved').length],
+                 ['dismissed','Not a fit', all.filter(p=>p.mark==='dismissed').length]]
+    .map(([k,label,n])=>`<button class="fchip ${S.permitView===k?'on':''}" data-permitview="${k}">${label} <b>${n}</b></button>`).join('');
+  const fits = [['all','All', inView.length]].concat(Object.keys(PERMIT_FIT)
+      .map(k => [k, PERMIT_FIT[k][0], inView.filter(p=>p.fit===k).length]))
+    .map(([k,label,n])=>`<button class="filt ${S.permitFit===k?'on':''}" data-permitfit="${k}" title="${esc(PERMIT_FIT[k] ? PERMIT_FIT[k][1] : '')}">${label}<b>${n}</b></button>`).join('');
+  const slugs = Array.from(new Set(inView.map(p => p.vertical || 'none')));
+  const vopts = (S.verticals||[]).filter(v => slugs.includes(v.slug))
+    .map(v => `<option value="${esc(v.slug)}" ${S.permitVert===v.slug?'selected':''}>${esc(v.name)}</option>`).join('')
+    + (slugs.includes('none') ? `<option value="none" ${S.permitVert==='none'?'selected':''}>No sector guess</option>` : '');
+
+  const newest = all.length ? all[0].record_date : null;
+  const fresh = S.permitsAt
+    ? `Checked ${new Date(S.permitsAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`
+    : 'Not checked yet';
+
+  return `<main class="page wide">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="fchips" style="margin:0">${views}</div>
+      <div class="filters">${fits}</div>
+      <select id="permitVert" style="width:auto">
+        <option value="">Every sector</option>${vopts}
+      </select>
+      <input type="text" id="permitSearch" value="${esc(S.permitQ)}"
+             placeholder="Search name, address, work"
+             style="flex:1;min-width:200px;width:auto" />
+    </div>
+    <p class="hint" style="margin:0 0 14px">City of Sacramento permits from the last ${PERMIT_DAYS} days.
+      ${esc(fresh)}${newest ? `, newest filed ${esc(permitDate(newest))}` : ''}. Refreshes every morning at 6:15.</p>
+
+    ${S.permitErr?`<p class="hint err" style="margin-bottom:14px">${esc(S.permitErr)}</p>`:''}
+
+    ${rows.length
+      ? `<div class="permit-list">${rows.map(permitCard).join('')}</div>`
+      : `<div class="empty" style="padding:44px 0">
+           <h2>${all.length ? 'Nothing matches' : 'No permits yet'}</h2>
+           <p>${all.length
+             ? 'Try another filter or clear the search.'
+             : 'The first pull from the city runs at 6:15 tomorrow morning.'}</p>
+         </div>`}
+
+    <p class="hint" style="margin-top:18px">Shown: commercial projects, zoning and design review files,
+      smaller commercial repairs, and any repair that mentions fire, water, dry rot, mold or impact damage (RHINO).
+      Residential work, HVAC and water heater swaps, signs, reroofs and fire alarm work are left out.
+      The city does not publish who applied, so Open record is the next step for a name.</p>
+  </main>`;
+}
+
+async function markPermit(guid, state){
+  if(S.permitBusy) return;
+  const p = (S.permits||[]).find(x => x.guid === guid);
+  if(!p) return;
+  S.permitBusy = guid; S.permitErr = ''; render();
+  try{
+    if(p.mark === state){
+      const { error } = await sb.from('permit_marks').delete().eq('guid', guid);
+      if(error) throw error;
+      p.mark = null;
+    } else {
+      const { error } = await sb.from('permit_marks')
+        .upsert({ guid, state, marked_by:S.me, marked_at:new Date().toISOString() });
+      if(error) throw error;
+      p.mark = state;
+    }
+  }catch(e){
+    S.permitErr = 'Could not save that: ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
+let permitTimer = null;
+
+function wirePermits(){
+  document.querySelectorAll('[data-permitview]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitView = el.dataset.permitview; render(); }));
+  document.querySelectorAll('[data-permitfit]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitFit = el.dataset.permitfit; render(); }));
+  document.querySelectorAll('[data-permit-mark]').forEach(el=>
+    el.addEventListener('click',()=>markPermit(el.dataset.permitMark, el.dataset.val)));
+  document.querySelectorAll('[data-permit-more]').forEach(el=>
+    el.addEventListener('click',()=>{
+      S.permitOpen = S.permitOpen || {};
+      S.permitOpen[el.dataset.permitMore] = !S.permitOpen[el.dataset.permitMore]; render();
+    }));
+  const pv = document.getElementById('permitVert');
+  if(pv) pv.addEventListener('change',()=>{ S.permitVert = pv.value; render(); });
+  const ps = document.getElementById('permitSearch');
+  if(ps){
+    ps.addEventListener('input',()=>{
+      S.permitQ = ps.value;
+      clearTimeout(permitTimer);
+      permitTimer = setTimeout(()=>{
+        render();
+        const el = document.getElementById('permitSearch');
         if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
       }, 250);
     });
