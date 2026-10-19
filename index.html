@@ -572,6 +572,32 @@
   .sheet-foot .btn{width:100%}
   .sheet-in.wide{max-width:580px}
 
+  /* ---------- photo approvals ---------- */
+  .pho-list{border-top:1px solid var(--rule)}
+  .pho-row{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;
+           border-bottom:1px solid var(--rule);padding:10px 4px;cursor:pointer;text-align:left;
+           font-family:var(--body);color:var(--ink)}
+  .pho-row:hover{background:var(--wash)}
+  .pho-cover{width:64px;height:48px;flex:none;background:var(--wash);overflow:hidden}
+  .pho-cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .pho-main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .pho-main b{font-weight:600;font-size:14.5px}
+  .pho-meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .pho-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .pho-tile{margin:0;background:var(--card);border:1px solid var(--rule)}
+  .pho-tile.ok{border-color:var(--green)}
+  .pho-tile.no{border-color:var(--red)}
+  .pho-tile img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--wash)}
+  .pho-tile figcaption{padding:8px 10px 10px;font-size:13px}
+  .pho-why{margin:6px 0 0;color:var(--grey)}
+  .pho-fn{display:block;margin-top:6px;font-size:11.5px;color:var(--slate);
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pho-picked{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:4px;margin-top:8px;
+              max-height:190px;overflow:auto}
+  .pho-picked span{aspect-ratio:1;background:var(--wash);overflow:hidden}
+  .pho-picked img{width:100%;height:100%;object-fit:cover;display:block}
+  @media (max-width:640px){ .pho-row{flex-wrap:wrap} .pho-meta{width:100%;justify-content:flex-start} }
+
   /* ---------- event invitations ---------- */
   .evx{margin-top:10px;padding:9px 12px;background:var(--wash);border-left:3px solid var(--slate);
        font-size:13px}
@@ -1097,7 +1123,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['campaigns','Email Campaigns'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['campaigns','Email Campaigns'],
   ['leads','Leads'], ['permits','Permits']
 ];
 
@@ -1140,7 +1166,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-19a';
+const BUILD = '2026-10-19b';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2967,6 +2993,7 @@ async function ensureOnce(page){
   if(page==='approvals' && !S.loaded.approvals) await loadApprovals();
   if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='mileage' && !S.loaded.mileage) await loadMileage();
+  if(page==='photos' && !S.loaded.photos) await loadPhotos();
   if(page==='kpis'){
     if(!S.loaded.kpis) await loadKpis();
     if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
@@ -2997,13 +3024,13 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
 const NAV_GROUPS = [
   ['Today',   ['home','today','approvals']],
   ['People',  ['myday','calendar','iyanna']],
-  ['Content', ['social','campaigns','reels']],
+  ['Content', ['social','photos','campaigns','reels']],
   ['Growth',  ['kpis','leads','permits']],
   ['Money',   ['budget','mileage']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', permits:'Permits', budget:'Budget', mileage:'Mileage' };
+  leads:'Leads', permits:'Permits', budget:'Budget', mileage:'Mileage', photos:'Photos' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
@@ -3023,6 +3050,7 @@ const NAV_ICON = {
   leads:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M15 15c2.8 0 4.6 1.3 5.5 4"/>',
   budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
   mileage:'<path d="M5 16V11l2-5h10l2 5v5z"/><path d="M5 11h14"/><circle cx="8" cy="16.5" r="1.5"/><circle cx="16" cy="16.5" r="1.5"/>',
+  photos:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
@@ -3173,6 +3201,7 @@ function render(){
   if(S.page==='approvals') inner = pageApprovals();
   if(S.page==='budget')   inner = pageBudget();
   if(S.page==='mileage')  inner = pageMileage();
+  if(S.page==='photos')   inner = pagePhotos();
   if(S.page==='reels')    inner = pageReels();
   if(S.page==='social')   inner = pageSocial();
   if(S.page==='campaigns') inner = pageCampaigns();
@@ -3300,6 +3329,7 @@ function wirePage(){
   wireApprovals();
   wireBudget();
   wireMileage();
+  wirePhotos();
   wireReels();
   wirePermits();
   wireSocial();
@@ -10164,6 +10194,327 @@ function wireMileage(){
     if(go) go.addEventListener('click', milMakePdf);
     const cl = document.getElementById('milPClose');
     if(cl) cl.addEventListener('click', () => { M.print = null; M.err = ''; render(); });
+  }
+}
+
+/* ================= photo approvals ================= */
+/* Liam uploads one job's photos, sends the PM or superintendent a link,
+   and they mark each photo Approve or Not approved, with a reason for a
+   no (photos.html). Nobody on the job signs in: the link's token is the
+   only key, and the database functions behind it see only that batch
+   (sql/photo_review.sql).
+
+   Approved photos are copied by the laptop task to
+   M:\Marketing\Photos and Videos\<folder>, the same tree the Social tab's
+   generate step picks photos from. The cloud cannot reach the M: drive,
+   so this tab only shows how far that copy has got. */
+const PHO_ROOT = 'M:\\Marketing\\Photos and Videos\\';
+const PHO_MAX_MB = 50;
+const PHO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+S.pho = { batches:[], items:[], open:null, form:null, busy:false, prog:0, err:'', note:'', loadErr:'' };
+
+/* Windows will not take these in a folder name. */
+const phoFolder = s => String(s || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+  .replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120);
+const phoLink = b => new URL('photos.html?t=' + encodeURIComponent(b.token), location.href).href;
+const phoImg = p => `${SUPABASE_URL}/storage/v1/object/public/photo-review/${p.split('/').map(encodeURIComponent).join('/')}`;
+const phoItems = id => S.pho.items.filter(i => i.batch_id === id);
+
+function phoState(b){
+  const its = phoItems(b.id);
+  const ok = its.filter(i => i.decision === 'approved');
+  const copied = ok.filter(i => i.copied_at).length;
+  const failed = ok.filter(i => !i.copied_at && i.copy_error).length;
+  if(b.status === 'open') return b.opened_at
+    ? { cls:'', label:'Opened ' + shortDate(b.opened_at) + ', not sent back' }
+    : { cls:'', label:'Waiting on ' + (b.reviewer_name || 'the reviewer').split(' ')[0] };
+  if(!ok.length) return { cls:'bad', label:'None approved' };
+  if(failed) return { cls:'bad', label:`${failed} could not be copied` };
+  if(copied < ok.length) return { cls:'hot', label:`${ok.length - copied} waiting for the M: copy` };
+  return { cls:'good', label:'On the M: drive' };
+}
+
+async function loadPhotos(){
+  const P = S.pho;
+  const [b, i] = await Promise.all([
+    sb.from('photo_batches').select('*').order('created_at', { ascending:false }).limit(200),
+    sb.from('photo_batch_items').select('id,batch_id,file_path,file_name,sort,decision,reason,decided_at,copied_at,copied_to,copy_error')
+      .order('sort').limit(5000)
+  ]);
+  const e = b.error || i.error;
+  if(e){
+    const m = e.message || String(e);
+    P.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (e.code || ''))
+      ? 'The photo tables have not been created yet. Run sql/photo_review.sql in the Supabase SQL editor, then reload.'
+      : 'Could not load the photo batches. ' + m;
+  }else{
+    P.loadErr = '';
+    P.batches = b.data || [];
+    P.items = i.data || [];
+  }
+  S.loaded.photos = true;
+}
+
+function pagePhotos(){
+  const P = S.pho;
+  if(!S.loaded.photos) return loading();
+  if(P.loadErr) return `<main class="page"><div class="empty"><h2>Photo approvals are not set up yet</h2>
+    <p>${esc(P.loadErr)}</p></div></main>`;
+  const b = P.open && P.batches.find(x => x.id === P.open);
+  return `<main class="page" style="max-width:1060px">${b ? phoDetail(b) : phoList()}</main>${phoForm()}`;
+}
+
+function phoList(){
+  const P = S.pho;
+  const waiting = P.batches.filter(b => b.status === 'open').length;
+  const back = P.batches.filter(b => b.status === 'submitted');
+  return `<div class="bud-head">
+      <h2 class="sec" style="margin:0">Photo approvals</h2>
+      <span class="spacer"></span>
+      <button class="btn small" id="phoNew">Send photos for approval</button>
+    </div>
+    ${P.note ? `<div class="done-banner"><p style="margin:0">${esc(P.note)}</p></div>` : ''}
+    ${P.err ? `<p class="hint err" style="margin-bottom:14px">${esc(P.err)}</p>` : ''}
+    <p class="hint" style="margin:0 0 20px">Upload a job's photos and send the PM or superintendent the link.
+      They approve or turn down each one, and the approved photos are copied to
+      <span class="mono">${esc(PHO_ROOT)}&lt;job&gt;</span> for the Social tab.</p>
+    ${P.batches.length ? `<div class="stat-grid" style="margin-bottom:22px">
+      <div class="stat"><div class="k">Waiting on the job</div><div class="v">${waiting}</div></div>
+      <div class="stat"><div class="k">Sent back</div><div class="v">${back.length}</div></div>
+      <div class="stat accent"><div class="k">Photos approved</div><div class="v">${
+        P.items.filter(i => i.decision === 'approved').length}</div></div>
+    </div>
+    <div class="pho-list">${P.batches.map(b => {
+      const its = phoItems(b.id), st = phoState(b);
+      const ok = its.filter(i => i.decision === 'approved').length, no = its.filter(i => i.decision === 'rejected').length;
+      const cover = its[0];
+      return `<button class="pho-row" data-pho-open="${esc(b.id)}">
+        <span class="pho-cover">${cover ? `<img src="${esc(phoImg(cover.file_path))}" alt="" loading="lazy" />` : ''}</span>
+        <span class="pho-main"><b>${esc(b.job_name)}</b>
+          <span class="hint">${esc(b.reviewer_name || 'No reviewer named')} &middot; ${its.length} photo${its.length === 1 ? '' : 's'}
+          &middot; sent ${esc(shortDate(b.created_at))}${b.brand === 'rhino' ? ' &middot; RHINO' : ''}</span></span>
+        <span class="pho-meta">${b.status === 'submitted' ? `<span class="chip good">${ok} approved</span>${
+          no ? ` <span class="chip bad">${no} not</span>` : ''}` : ''}
+          <span class="chip ${st.cls}">${esc(st.label)}</span></span>
+      </button>`;
+    }).join('')}</div>`
+    : `<div class="empty" style="padding:30px 0"><h2>No batches yet</h2>
+       <p>Use Send photos for approval to upload a job's photos and get a link for the PM or super.</p></div>`}`;
+}
+
+function phoDetail(b){
+  const P = S.pho, its = phoItems(b.id), st = phoState(b);
+  const link = phoLink(b);
+  const first = (b.reviewer_name || '').split(' ')[0];
+  const mail = 'mailto:' + encodeURIComponent(b.reviewer_email || '') +
+    '?subject=' + encodeURIComponent('Photos from ' + b.job_name + ' for your OK') +
+    '&body=' + encodeURIComponent(`Hi ${first || 'there'},\n\nI'd like to post some photos from ${b.job_name} on social media. ` +
+      `Could you go through them and mark which are OK to use? For any that aren't, a quick note on why helps.\n\n${link}\n\n` +
+      `It works on your phone and takes a couple of minutes. Thanks!`);
+  return `<p style="margin:0 0 12px"><button class="linkbtn" id="phoBack" style="padding-left:0">&lsaquo; All batches</button></p>
+    <div class="bud-head">
+      <div><h2 class="sec" style="margin:0">${esc(b.job_name)}</h2>
+        ${b.job_address ? `<p class="hint" style="margin:2px 0 0">${esc(b.job_address)}</p>` : ''}</div>
+      <span class="spacer"></span>
+      <span class="chip ${st.cls}">${esc(st.label)}</span>
+    </div>
+    ${P.note ? `<div class="done-banner"><p style="margin:0">${esc(P.note)}</p></div>` : ''}
+    ${P.err ? `<p class="hint err" style="margin-bottom:14px">${esc(P.err)}</p>` : ''}
+    <div class="panelbox" style="margin-top:0">
+      <span class="eyebrow">Link for ${esc(b.reviewer_name || 'the reviewer')}${b.reviewer_email ? ' &middot; ' + esc(b.reviewer_email) : ''}</span>
+      <input type="text" readonly id="phoLink" value="${esc(link)}" style="margin-top:8px" />
+      <div class="actions">
+        <button class="btn small" id="phoCopy">Copy link</button>
+        <a class="btn small ghost" href="${esc(mail)}" style="text-decoration:none">Write an email with the link</a>
+        <a class="linkbtn" href="${esc(link)}" target="_blank" rel="noopener">See what they see</a>
+      </div>
+      <p>Write an email opens a ready-made message in your own email app, so you can read it before it goes.</p>
+    </div>
+    <div class="panelbox">
+      <span class="eyebrow">Approved photos go to</span>
+      <div class="apv-pair" style="align-items:flex-end">
+        <div class="field" style="margin-top:6px"><input type="text" id="phoFolder" value="${esc(b.folder)}" /></div>
+        <button class="btn small ghost" id="phoFolderSave" style="margin-bottom:2px">Save</button>
+      </div>
+      <p class="mono">${esc(PHO_ROOT + b.folder)}</p>
+      <p>The laptop copies them there once the batch is sent back. Change the folder before that if needed.</p>
+    </div>
+    ${b.status === 'submitted' ? `<p class="hint" style="margin:0 0 14px">Sent back by <b>${esc(b.reviewed_by || '')}</b> on ${esc(shortDate(b.submitted_at))}.</p>` : ''}
+    <div class="pho-grid">${its.map(i => `<figure class="pho-tile ${i.decision === 'approved' ? 'ok' : i.decision === 'rejected' ? 'no' : ''}">
+      <a href="${esc(phoImg(i.file_path))}" target="_blank" rel="noopener"><img src="${esc(phoImg(i.file_path))}" alt="${esc(i.file_name)}" loading="lazy" /></a>
+      <figcaption>
+        ${i.decision === 'approved' ? `<span class="chip good">Approved</span>${i.copied_at ? ' <span class="chip">On M:</span>'
+            : i.copy_error ? ` <span class="chip bad" title="${esc(i.copy_error)}">Copy failed</span>` : ''}`
+          : i.decision === 'rejected' ? '<span class="chip bad">Not approved</span>' : '<span class="chip">Not decided</span>'}
+        ${i.decision === 'rejected' && i.reason ? `<p class="pho-why">${esc(i.reason)}</p>` : ''}
+        ${i.copy_error && !i.copied_at ? `<p class="pho-why">${esc(i.copy_error)}</p>` : ''}
+        <span class="pho-fn">${esc(i.file_name)}</span>
+      </figcaption></figure>`).join('')}</div>
+    <p class="hint" style="margin-top:22px">
+      ${b.status === 'submitted' ? `<button class="linkbtn" id="phoReopen" style="padding-left:0">Let them change their picks</button> &middot; ` : ''}
+      <button class="linkbtn" id="phoDelete" style="color:var(--red)${b.status === 'submitted' ? '' : ';padding-left:0'}">Delete this batch</button></p>`;
+}
+
+function phoForm(){
+  const P = S.pho, f = P.form;
+  if(!f) return '';
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Send photos for approval">
+    <div class="sheet-in wide">
+      <div class="sheet-head"><h2>Send photos for approval</h2>
+        <button class="linkbtn" id="phoClose" ${P.busy ? 'disabled' : ''}>Close</button></div>
+      <div class="field"><label for="phoBrand">Company</label>
+        <select id="phoBrand">${Object.entries(SOC_BRANDS).map(([k, v]) =>
+          `<option value="${k}" ${f.brand === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+      <div class="field"><label for="phoJob">Job name</label>
+        <input type="text" id="phoJob" value="${esc(f.job_name)}" placeholder="Lodi Unified Science Building" autocomplete="off" /></div>
+      <div class="field"><label for="phoAddr">Job address</label>
+        <input type="text" id="phoAddr" value="${esc(f.job_address)}" autocomplete="off" /></div>
+      <div class="apv-pair">
+        <div class="field"><label for="phoWho">PM or super</label>
+          <input type="text" id="phoWho" value="${esc(f.reviewer_name)}" placeholder="Name" autocomplete="off" /></div>
+        <div class="field"><label for="phoMail">Their email</label>
+          <input type="email" id="phoMail" value="${esc(f.reviewer_email)}" autocomplete="off" /></div>
+      </div>
+      <div class="field"><label for="phoMsg">Note for them</label>
+        <textarea id="phoMsg" style="min-height:70px" placeholder="Optional. Shown above the photos.">${esc(f.message)}</textarea></div>
+      <div class="field"><label for="phoDir">Folder on the M: drive</label>
+        <input type="text" id="phoDir" value="${esc(f.folder)}" placeholder="Same as the job name" autocomplete="off" />
+        <p class="hint mono" id="phoDirShow" style="margin:4px 0 0">${esc(PHO_ROOT + (phoFolder(f.folder || f.job_name) || '…'))}</p></div>
+      <div class="field"><label>Photos</label>
+        <input type="file" id="phoFiles" accept="${PHO_TYPES.join(',')}" multiple style="display:none" />
+        <button type="button" class="btn ghost" id="phoPick" style="width:100%">${f.files.length ? 'Add more photos' : 'Choose photos'}</button>
+        ${f.files.length ? `<p class="hint" style="margin:6px 0 0">${f.files.length} photo${f.files.length === 1 ? '' : 's'},
+          ${(f.files.reduce((s, x) => s + x.size, 0) / 1048576).toFixed(1)} MB
+          &middot; <button class="linkbtn" id="phoClear" style="padding:0">Clear</button></p>
+          <div class="pho-picked">${f.files.map((x, k) => `<span title="${esc(x.name)}"><img src="${esc(f.urls[k])}" alt="" /></span>`).join('')}</div>` : ''}
+        <p class="hint" style="margin:6px 0 0">JPG or PNG, up to ${PHO_MAX_MB} MB each. iPhone HEIC photos need saving as JPG first.</p>
+      </div>
+      ${P.err ? `<p class="hint err">${esc(P.err)}</p>` : ''}
+      <div class="sheet-foot">
+        <button class="btn" id="phoGo" ${P.busy ? 'disabled' : ''}>${P.busy ? `Uploading ${P.prog}%&hellip;` : 'Upload and get the link'}</button>
+        ${P.busy ? `<span class="prog" style="margin-top:10px"><i style="width:${P.prog}%"></i></span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function phoCreate(){
+  const P = S.pho, f = P.form;
+  const folder = phoFolder(f.folder || f.job_name);
+  P.err = '';
+  if(!f.job_name.trim()) P.err = 'Add the job name.';
+  else if(!f.files.length) P.err = 'Choose at least one photo.';
+  else if(!folder) P.err = 'The folder name is empty once the characters Windows refuses are taken out.';
+  else if(f.reviewer_email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.reviewer_email.trim())) P.err = 'That email does not look right.';
+  if(P.err) return render();
+  P.busy = true; P.prog = 0; render();
+  const ins = await sb.from('photo_batches').insert({
+    brand:f.brand, job_name:f.job_name.trim(), job_address:f.job_address.trim(),
+    reviewer_name:f.reviewer_name.trim(), reviewer_email:f.reviewer_email.trim().toLowerCase(),
+    message:f.message.trim(), folder }).select().single();
+  if(ins.error){ P.busy = false; P.err = 'Could not start the batch. ' + (ins.error.message || ''); return render(); }
+  const b = ins.data, rows = [], failed = [];
+  for(let k = 0; k < f.files.length; k++){
+    const file = f.files[k];
+    const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+    const path = `${b.id}/${String(k + 1).padStart(3, '0')}-${safe}`;
+    const up = await sb.storage.from('photo-review').upload(path, file, { contentType:file.type });
+    if(up.error) failed.push(file.name);
+    else rows.push({ batch_id:b.id, file_path:path, file_name:file.name, file_type:file.type || '', sort:k });
+    P.prog = Math.round(100 * (k + 1) / f.files.length); render();
+  }
+  const its = rows.length ? await sb.from('photo_batch_items').insert(rows).select() : { data:[] };
+  P.busy = false;
+  if(its.error){ P.err = 'The photos uploaded but could not be listed. ' + (its.error.message || ''); return render(); }
+  f.urls.forEach(u => URL.revokeObjectURL(u));
+  P.batches.unshift(b);
+  P.items.push(...(its.data || []));
+  P.form = null; P.open = b.id;
+  P.note = failed.length ? `${rows.length} uploaded. These did not: ${failed.join(', ')}.`
+                         : `${rows.length} photo${rows.length === 1 ? '' : 's'} uploaded. Copy the link and send it to ${b.reviewer_name || 'the PM or super'}.`;
+  render(); window.scrollTo(0, 0);
+}
+
+async function phoUpdate(b, patch, note){
+  const P = S.pho;
+  const { error } = await sb.from('photo_batches').update(patch).eq('id', b.id);
+  if(error){ P.err = 'Could not save. ' + (error.message || ''); return render(); }
+  Object.assign(b, patch); P.err = ''; P.note = note; render();
+}
+
+async function phoDelete(b){
+  const P = S.pho, its = phoItems(b.id);
+  if(!confirm(`Delete the ${b.job_name} batch and its ${its.length} photos? The link stops working. Photos already copied to the M: drive stay there.`)) return;
+  if(its.length) await sb.storage.from('photo-review').remove(its.map(i => i.file_path));
+  const { error } = await sb.from('photo_batches').delete().eq('id', b.id);
+  if(error){ P.err = 'Could not delete. ' + (error.message || ''); return render(); }
+  P.batches = P.batches.filter(x => x.id !== b.id);
+  P.items = P.items.filter(i => i.batch_id !== b.id);
+  P.open = null; P.note = 'Batch deleted.'; render();
+}
+
+function wirePhotos(){
+  if(S.page !== 'photos') return;
+  const P = S.pho;
+  const on = (id, fn, ev = 'click') => { const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
+  on('phoNew', () => {
+    P.err = ''; P.note = '';
+    P.form = { brand:SOC_BRAND, job_name:'', job_address:'', reviewer_name:'', reviewer_email:'',
+               message:'', folder:'', files:[], urls:[] };
+    render();
+  });
+  document.querySelectorAll('[data-pho-open]').forEach(el =>
+    el.addEventListener('click', () => { P.open = el.dataset.phoOpen; P.note = ''; P.err = ''; render(); window.scrollTo(0, 0); }));
+  on('phoBack', async () => { P.open = null; P.note = ''; P.err = ''; await loadPhotos(); render(); });
+
+  const b = P.open && P.batches.find(x => x.id === P.open);
+  if(b){
+    on('phoCopy', async () => {
+      const el = document.getElementById('phoLink');
+      try{ await navigator.clipboard.writeText(el.value); }
+      catch(e){ el.select(); document.execCommand('copy'); }
+      const btn = document.getElementById('phoCopy');
+      if(btn){ btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy link'; }, 1600); }
+    });
+    on('phoFolderSave', () => {
+      const v = phoFolder(document.getElementById('phoFolder').value);
+      if(!v){ P.err = 'The folder name cannot be empty.'; return render(); }
+      phoUpdate(b, { folder:v }, 'Folder saved. Photos not yet copied will go to ' + PHO_ROOT + v + '.');
+    });
+    on('phoReopen', () => {
+      if(confirm(`Open this batch again so ${b.reviewed_by || 'they'} can change their picks? Photos already copied to the M: drive stay there.`))
+        phoUpdate(b, { status:'open', submitted_at:null }, 'The link is open again. Their earlier picks are kept.');
+    });
+    on('phoDelete', () => phoDelete(b));
+  }
+
+  if(P.form){
+    const f = P.form;
+    [['phoJob','job_name'],['phoAddr','job_address'],['phoWho','reviewer_name'],['phoMail','reviewer_email'],
+     ['phoMsg','message'],['phoDir','folder']].forEach(([id, key]) => on(id, e => {
+      f[key] = e.target.value;
+      if(key === 'job_name' || key === 'folder'){
+        const s = document.getElementById('phoDirShow');
+        if(s) s.textContent = PHO_ROOT + (phoFolder(f.folder || f.job_name) || '…');
+      }
+    }, 'input'));
+    on('phoBrand', e => { f.brand = e.target.value; }, 'change');
+    const fi = document.getElementById('phoFiles');
+    on('phoPick', () => fi.click());
+    if(fi) fi.addEventListener('change', () => {
+      const bad = [];
+      for(const x of Array.from(fi.files || [])){
+        if(!PHO_TYPES.includes(x.type)){ bad.push(x.name + ' is not a JPG or PNG'); continue; }
+        if(x.size > PHO_MAX_MB * 1048576){ bad.push(x.name + ' is over ' + PHO_MAX_MB + ' MB'); continue; }
+        f.files.push(x); f.urls.push(URL.createObjectURL(x));
+      }
+      P.err = bad.length ? 'Left out: ' + bad.join('; ') + '.' : '';
+      fi.value = ''; render();
+    });
+    on('phoClear', () => { f.urls.forEach(u => URL.revokeObjectURL(u)); f.files = []; f.urls = []; render(); });
+    on('phoClose', () => { if(P.busy) return; f.urls.forEach(u => URL.revokeObjectURL(u)); P.form = null; P.err = ''; render(); });
+    on('phoGo', phoCreate);
   }
 }
 

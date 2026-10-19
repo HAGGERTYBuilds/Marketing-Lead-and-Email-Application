@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Photo approval</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C1B1A; --paper:#FAF9F7; --card:#FFFFFF;
+    --rule:#DFDBD4; --rule-soft:#EDEAE5; --wash:#F6F4F1;
+    --grey:#4D4D4D; --slate:#6E7477;
+    --orange:#F68922; --orange-tint:#FEF3E7;
+    --green:#3F7D5C; --green-tint:#EAF3EE; --red:#A6402C; --red-tint:#F8ECE9;
+    --display:"Barlow Condensed",system-ui,sans-serif;
+    --body:"IBM Plex Sans",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);
+       font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+       padding-bottom:env(safe-area-inset-bottom)}
+
+  .top{background:var(--card);border-bottom:1px solid var(--rule);
+       padding:16px 20px;position:sticky;top:0;z-index:10;
+       display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:21px;
+            letter-spacing:.14em;text-transform:uppercase}
+  .wordmark span{color:var(--orange)}
+  .sub{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+       font-weight:600;font-size:13px;color:var(--slate);display:block;margin-top:2px}
+  .count{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.06em;
+         color:var(--slate);white-space:nowrap}
+  .count b{color:var(--ink)}
+
+  .wrap{max-width:720px;margin:0 auto;padding:20px 18px 60px}
+  h1{font-family:var(--display);font-size:30px;line-height:1.1;margin:0 0 4px;font-weight:700}
+  .addr{color:var(--slate);font-size:14px;margin:0 0 16px}
+  .lead{color:var(--grey);font-size:15px;margin:0 0 14px}
+  .note{background:var(--card);border:1px solid var(--rule);
+        border-left:3px solid var(--orange);padding:13px 15px;margin:0 0 18px;
+        font-size:15px;color:var(--grey);white-space:pre-wrap}
+
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
+  .linkbtn{background:none;border:0;color:var(--slate);font-size:14px;cursor:pointer;
+           text-decoration:underline;padding:6px 0;font-family:var(--body)}
+
+  /* One photo per card, as wide as the phone allows, so a PM can see
+     whether a harness is clipped or a client's name is on a sign. */
+  .ph{background:var(--card);border:1px solid var(--rule);margin-bottom:18px}
+  .ph.ok{border-color:var(--green);box-shadow:inset 4px 0 0 var(--green)}
+  .ph.no{border-color:var(--red);box-shadow:inset 4px 0 0 var(--red)}
+  .ph a.img{display:block;background:var(--wash)}
+  .ph img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain}
+  .ph .body{padding:12px 14px 14px}
+  .ph .nm{font-size:12.5px;color:var(--slate);margin:0 0 10px;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .opt{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+       font-weight:600;font-size:17px;background:var(--card);border:1px solid var(--rule);
+       color:var(--grey);padding:14px 10px;cursor:pointer;text-align:center}
+  .opt.ok.on{background:var(--green);border-color:var(--green);color:#fff}
+  .opt.no.on{background:var(--red);border-color:var(--red);color:#fff}
+  .opt:active{background:var(--wash)}
+  .why{margin-top:12px}
+  .why label{display:block;font-family:var(--display);text-transform:uppercase;
+             letter-spacing:.08em;font-size:13px;color:var(--slate);font-weight:600;margin-bottom:6px}
+  .why label .req{color:var(--red)}
+  .quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .quick button{font-family:var(--body);font-size:14px;background:var(--wash);border:1px solid var(--rule);
+                color:var(--grey);padding:7px 10px;cursor:pointer}
+  .quick button:active{background:var(--rule-soft)}
+  /* 16px minimum, or iOS zooms the whole page on focus. */
+  textarea,input[type=text]{width:100%;font-family:var(--body);font-size:16px;line-height:1.5;
+    color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:0;
+    padding:11px 12px;-webkit-appearance:none;appearance:none}
+  textarea{min-height:76px;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--orange);outline-offset:-1px}
+  .why.missing textarea{border-color:var(--red)}
+  .saved{font-size:12.5px;color:var(--slate);margin:6px 0 0;min-height:1em}
+  .saved.err{color:var(--red)}
+  .ro{margin-top:10px;font-size:14.5px;color:var(--grey)}
+  .ro b{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px}
+  .ro b.ok{color:var(--green)} .ro b.no{color:var(--red)}
+
+  .finish{background:var(--card);border:1px solid var(--rule);padding:18px 16px;margin-top:8px}
+  .finish label{display:block;font-family:var(--display);text-transform:uppercase;
+                letter-spacing:.08em;font-size:13px;color:var(--slate);font-weight:600;margin-bottom:6px}
+  .hint{font-size:13.5px;color:var(--slate);margin:8px 0 0}
+  .hint.err{color:var(--red)}
+  .btn{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+       font-weight:600;font-size:17px;background:var(--ink);color:#fff;border:0;
+       padding:16px 20px;cursor:pointer;width:100%;margin-top:14px}
+  .btn:active{background:#000}
+  .btn[disabled]{opacity:.45}
+  .done{background:var(--card);border:1px solid var(--rule);
+        border-left:3px solid var(--green);padding:20px 18px;margin-bottom:22px}
+  .done h2{font-family:var(--display);font-size:26px;margin:0 0 6px;font-weight:700}
+  .done p{margin:0;color:var(--grey);font-size:15px}
+  .empty{padding:40px 0}
+  .empty h2{font-family:var(--display);font-size:26px;margin:0 0 8px}
+  .empty p{color:var(--grey)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div><span class="wordmark" id="mark">HAGGERT<span>Y</span></span>
+  <span class="sub">Photo approval</span></div>
+  <span class="count" id="count"></span>
+</header>
+<div class="wrap" id="app"><div class="empty"><h2>Loading the photos</h2></div></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+/* A PM or superintendent opens this from a link Liam sends them. Nobody
+   signs in: the t= in the link is the only key, and the database
+   functions it calls (sql/photo_review.sql) show and change only the
+   batch that key belongs to. Each decision saves the moment it is made,
+   so a dropped signal on a jobsite costs nothing. */
+const SUPABASE_URL = 'https://ekatzukprjpisdiwubjq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_bdyRB7Mx0BKzNj1EcYlRCg_8JLDXEIL';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:false } });
+const app = document.getElementById('app');
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const IMG = p => `${SUPABASE_URL}/storage/v1/object/public/photo-review/${p.split('/').map(encodeURIComponent).join('/')}`;
+/* The reasons that come up most, one tap each. The box stays editable. */
+const QUICK = ['Safety issue', 'Work not finished', 'Client or private info showing', 'Poor quality or blurry', 'Not our work'];
+
+const B = { data:null, name:'', busy:false, err:'', tried:false, saving:{}, saveErr:{}, result:null };
+
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+const items = () => (B.data && B.data.items) || [];
+const decided = () => items().filter(i => i.decision).length;
+const needsReason = i => i.decision === 'rejected' && !String(i.reason || '').trim();
+
+function header(){
+  const d = B.data;
+  document.getElementById('mark').innerHTML = d && d.brand === 'rhino'
+    ? 'RHINO <span>RESTORES</span>' : 'HAGGERT<span>Y</span>';
+  document.getElementById('count').innerHTML = d && d.status === 'open' && items().length
+    ? `<b>${decided()}</b> of ${items().length} done` : '';
+}
+
+function card(i){
+  const open = B.data.status === 'open';
+  const cls = i.decision === 'approved' ? 'ok' : i.decision === 'rejected' ? 'no' : '';
+  return `<div class="ph ${cls}" id="ph-${esc(i.id)}">
+    <a class="img" href="${esc(IMG(i.path))}" target="_blank" rel="noopener">
+      <img src="${esc(IMG(i.path))}" alt="${esc(i.name)}" loading="lazy" /></a>
+    <div class="body">
+      <p class="nm">${esc(i.name)}</p>
+      ${open ? `<div class="pick">
+          <button type="button" class="opt ok ${i.decision === 'approved' ? 'on' : ''}" data-dec="approved" data-id="${esc(i.id)}">Approve</button>
+          <button type="button" class="opt no ${i.decision === 'rejected' ? 'on' : ''}" data-dec="rejected" data-id="${esc(i.id)}">Not approved</button>
+        </div>
+        ${i.decision === 'rejected' ? `<div class="why ${B.tried && needsReason(i) ? 'missing' : ''}">
+          <label for="why-${esc(i.id)}">Why not <span class="req">*</span></label>
+          <div class="quick">${QUICK.map(q => `<button type="button" data-quick="${esc(q)}" data-id="${esc(i.id)}">${esc(q)}</button>`).join('')}</div>
+          <textarea id="why-${esc(i.id)}" data-why="${esc(i.id)}" maxlength="1000"
+            placeholder="What is wrong with this one">${esc(i.reason || '')}</textarea>
+        </div>` : ''}
+        <p class="saved ${B.saveErr[i.id] ? 'err' : ''}" id="sv-${esc(i.id)}">${
+          B.saveErr[i.id] ? esc(B.saveErr[i.id]) : B.saving[i.id] ? 'Saving&hellip;' : i.decision ? 'Saved' : ''}</p>`
+      : `<p class="ro">${i.decision === 'approved' ? '<b class="ok">Approved</b>'
+          : `<b class="no">Not approved</b>${i.reason ? ' &middot; ' + esc(i.reason) : ''}`}</p>`}
+    </div>
+  </div>`;
+}
+
+function render(){
+  header();
+  const d = B.data;
+  if(!d){
+    app.innerHTML = `<div class="empty"><h2>This link does not work</h2>
+      <p>It may have been copied only partly. Ask whoever sent it for a fresh one.</p></div>`;
+    return;
+  }
+  const open = d.status === 'open';
+  const left = items().length - decided();
+  const done = !open ? `<div class="done"><h2>Thanks${d.reviewed_by ? ', ' + esc(d.reviewed_by.split(' ')[0]) : ''}</h2>
+      <p>${B.result ? `${B.result.approved} approved and ${B.result.rejected} not approved. ` : ''}Your picks are in.
+      ${open ? '' : 'If you need to change one, reply to the message the link came in.'}</p></div>` : '';
+  app.innerHTML = `
+    ${done}
+    <h1>${esc(d.job_name)}</h1>
+    ${d.job_address ? `<p class="addr">${esc(d.job_address)}</p>` : ''}
+    ${open ? `<p class="lead">${d.reviewer_name ? 'Hi ' + esc(d.reviewer_name.split(' ')[0]) + '. ' : ''}These are photos from the job that
+      marketing would like to post on social media. Mark each one <b>Approve</b> or <b>Not approved</b>.
+      For any you turn down, say why so we know what to avoid next time.</p>` : ''}
+    ${d.message ? `<div class="note">${esc(d.message)}</div>` : ''}
+    ${open && left > 1 ? `<div class="bar"><button class="linkbtn" id="all">Approve the ${left} still undecided</button></div>` : ''}
+    ${items().length ? items().map(card).join('') : '<p class="lead">There are no photos in this batch.</p>'}
+    ${open ? `<div class="finish">
+      <label for="nm">Your name</label>
+      <input type="text" id="nm" maxlength="120" autocomplete="name" value="${esc(B.name)}" />
+      ${B.err ? `<p class="hint err">${esc(B.err)}</p>` : `<p class="hint">${left
+        ? `${left} photo${left === 1 ? '' : 's'} still to decide.`
+        : 'All decided. Send them back when you are ready.'}</p>`}
+      <button class="btn" id="go" ${B.busy ? 'disabled' : ''}>${B.busy ? 'Sending&hellip;' : 'Send my picks'}</button>
+    </div>` : ''}`;
+  wire();
+}
+
+function wire(){
+  app.querySelectorAll('[data-dec]').forEach(el => el.addEventListener('click', () => {
+    const i = items().find(x => x.id === el.dataset.id);
+    if(!i) return;
+    /* Tapping the chosen one again clears it. */
+    i.decision = i.decision === el.dataset.dec ? null : el.dataset.dec;
+    if(i.decision !== 'rejected') i.reason = null;
+    B.err = '';
+    save(i); render();
+    if(i.decision === 'rejected') focusWhy(i);
+  }));
+  app.querySelectorAll('[data-quick]').forEach(el => el.addEventListener('click', () => {
+    const i = items().find(x => x.id === el.dataset.id);
+    if(!i) return;
+    const cur = String(i.reason || '').trim();
+    i.reason = cur ? (cur.includes(el.dataset.quick) ? cur : cur + '. ' + el.dataset.quick) : el.dataset.quick;
+    save(i); render(); focusWhy(i);
+  }));
+  app.querySelectorAll('[data-why]').forEach(el => {
+    let t = null;
+    el.addEventListener('input', () => {
+      const i = items().find(x => x.id === el.dataset.why);
+      if(!i) return;
+      i.reason = el.value;
+      clearTimeout(t); t = setTimeout(() => save(i, true), 700);
+    });
+    el.addEventListener('blur', () => {
+      const i = items().find(x => x.id === el.dataset.why);
+      if(i){ clearTimeout(t); save(i, true); }
+    });
+  });
+  const all = document.getElementById('all');
+  if(all) all.addEventListener('click', () => {
+    items().filter(i => !i.decision).forEach(i => { i.decision = 'approved'; save(i); });
+    render();
+  });
+  const nm = document.getElementById('nm');
+  if(nm) nm.addEventListener('input', () => { B.name = nm.value; });
+  const go = document.getElementById('go');
+  if(go) go.addEventListener('click', finish);
+}
+
+/* Puts the cursor at the end of the reason, ready to add to it. */
+function focusWhy(i){
+  const t = document.getElementById('why-' + i.id);
+  if(!t) return;
+  t.focus({ preventScroll:true });
+  t.setSelectionRange(t.value.length, t.value.length);
+}
+
+/* Saves one photo's decision. quiet=true updates only its status line,
+   so typing a reason does not redraw the page under the keyboard. */
+async function save(i, quiet){
+  B.saving[i.id] = true; delete B.saveErr[i.id];
+  if(quiet) line(i);
+  const { error } = await sb.rpc('photo_review_decide', {
+    p_token:TOKEN, p_item:i.id, p_decision:i.decision, p_reason:i.reason || null });
+  delete B.saving[i.id];
+  if(error) B.saveErr[i.id] = 'Not saved: ' + (error.message || error) + ' Tap again to retry.';
+  line(i);
+  header();
+}
+function line(i){
+  const el = document.getElementById('sv-' + i.id);
+  if(!el) return;
+  el.className = 'saved' + (B.saveErr[i.id] ? ' err' : '');
+  el.textContent = B.saveErr[i.id] || (B.saving[i.id] ? 'Saving…' : i.decision ? 'Saved' : '');
+}
+
+async function finish(){
+  if(B.busy) return;
+  B.tried = true;
+  const left = items().filter(i => !i.decision);
+  const why = items().filter(needsReason);
+  if(left.length) B.err = `${left.length} photo${left.length === 1 ? '' : 's'} still need${left.length === 1 ? 's' : ''} Approve or Not approved.`;
+  else if(why.length) B.err = `Say why for ${why.length === 1 ? 'the photo' : 'each of the ' + why.length + ' photos'} you did not approve.`;
+  else if(!B.name.trim()) B.err = 'Add your name so we know who signed off.';
+  else B.err = '';
+  if(B.err){
+    render();
+    const first = left[0] || why[0];
+    if(first) document.getElementById('ph-' + first.id).scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+  B.busy = true; render();
+  /* Any reason still being typed goes in before the batch is closed. */
+  await Promise.all(items().filter(i => i.decision === 'rejected').map(i =>
+    sb.rpc('photo_review_decide', { p_token:TOKEN, p_item:i.id, p_decision:i.decision, p_reason:i.reason })));
+  const { data, error } = await sb.rpc('photo_review_finish', { p_token:TOKEN, p_name:B.name.trim() });
+  B.busy = false;
+  if(error){ B.err = 'That did not send: ' + (error.message || error) + ' Your picks are saved, so try again.'; return render(); }
+  B.result = data;
+  B.data.status = 'submitted'; B.data.reviewed_by = B.name.trim();
+  render(); window.scrollTo(0, 0);
+}
+
+async function boot(){
+  if(TOKEN){
+    const { data, error } = await sb.rpc('photo_review_get', { p_token:TOKEN });
+    if(error){
+      app.innerHTML = `<div class="empty"><h2>Could not load the photos</h2>
+        <p>${esc(error.message || error)}</p><p>Check the signal and reload the page.</p></div>`;
+      return;
+    }
+    B.data = data;
+    if(data) B.name = data.reviewed_by || data.reviewer_name || '';
+    if(data && data.job_name) document.title = 'Photos: ' + data.job_name;
+  }
+  render();
+}
+boot();
+</script>
+</body>
+</html>
