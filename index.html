@@ -1096,7 +1096,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
-  ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['myday',"Liam's Day"],
+  ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['campaigns','Email Campaigns'],
   ['leads','Leads'], ['permits','Permits']
 ];
@@ -1140,7 +1140,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-15k';
+const BUILD = '2026-10-19a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2966,6 +2966,7 @@ async function ensureOnce(page){
   if(page==='calendar' && !S.loaded.invites) await loadInvites();
   if(page==='approvals' && !S.loaded.approvals) await loadApprovals();
   if(page==='budget' && !S.loaded.budget) await loadBudget();
+  if(page==='mileage' && !S.loaded.mileage) await loadMileage();
   if(page==='kpis'){
     if(!S.loaded.kpis) await loadKpis();
     if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
@@ -2998,11 +2999,11 @@ const NAV_GROUPS = [
   ['People',  ['myday','calendar','iyanna']],
   ['Content', ['social','campaigns','reels']],
   ['Growth',  ['kpis','leads','permits']],
-  ['Money',   ['budget']]
+  ['Money',   ['budget','mileage']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', permits:'Permits', budget:'Budget' };
+  leads:'Leads', permits:'Permits', budget:'Budget', mileage:'Mileage' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
@@ -3021,6 +3022,7 @@ const NAV_ICON = {
   kpis:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
   leads:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M15 15c2.8 0 4.6 1.3 5.5 4"/>',
   budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  mileage:'<path d="M5 16V11l2-5h10l2 5v5z"/><path d="M5 11h14"/><circle cx="8" cy="16.5" r="1.5"/><circle cx="16" cy="16.5" r="1.5"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
@@ -3170,6 +3172,7 @@ function render(){
   if(S.page==='kpis')     inner = pageKpis();
   if(S.page==='approvals') inner = pageApprovals();
   if(S.page==='budget')   inner = pageBudget();
+  if(S.page==='mileage')  inner = pageMileage();
   if(S.page==='reels')    inner = pageReels();
   if(S.page==='social')   inner = pageSocial();
   if(S.page==='campaigns') inner = pageCampaigns();
@@ -3296,6 +3299,7 @@ function wirePage(){
   wireRequests();
   wireApprovals();
   wireBudget();
+  wireMileage();
   wireReels();
   wirePermits();
   wireSocial();
@@ -9820,6 +9824,347 @@ function wireBudget(){
   if(sv) sv.addEventListener('click', saveBudExpense);
   const dl = document.getElementById('budDel');
   if(dl) dl.addEventListener('click', deleteBudExpense);
+}
+
+/* ================= mileage ================= */
+/* Everyone except social reviewers logs their own drives here and prints
+   them onto the company Mileage Reimbursement Form
+   (forms/mileage-reimbursement-2026.pdf). Rows belong to the email that
+   wrote them and nobody sees anyone else's (sql/mileage.sql).
+
+   The PDF has its own form fields: 20 trip rows, a name, and total
+   mileage and total reimbursement. More than 20 trips print as more
+   pages, each with its own totals. */
+const MIL_RATE = 0.70;
+const MIL_ROWS = 20;
+const MIL_FORM = 'forms/mileage-reimbursement-2026.pdf';
+const PDFLIB_SRC = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+
+S.mil = { month:today().slice(0, 7), trips:[], name:'', form:null, print:null,
+          saving:false, err:'', note:'', loadErr:'' };
+
+const milNum = v => { if(v === null || v === undefined || String(v).trim() === '') return null;
+  const n = parseFloat(String(v).replace(/[,$\s]/g, '')); return isFinite(n) ? n : null; };
+const milMi = n => (Math.round(Number(n || 0) * 10) / 10).toLocaleString('en-US');
+const milOdo = n => n === null || n === undefined ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits:1 });
+const milCost = t => Math.round(Number(t.miles || 0) * Number(t.rate ?? MIL_RATE) * 100) / 100;
+const milMDY = ymd => { const [y, m, d] = ymd.split('-').map(Number); return `${m}/${d}/${y}`; };
+const milMonthName = ym => new Date(ym + '-15T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
+const milMonthEnd = ym => { const [y, m] = ym.split('-').map(Number);
+  return ym + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0'); };
+const milShift = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+
+async function loadMileage(){
+  const M = S.mil;
+  let who = '';
+  try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
+  const [t, d] = await Promise.all([
+    sb.from('mileage_trips').select('*').order('trip_date').order('created_at'),
+    who ? sb.from('staff_directory').select('name').ilike('email', who).limit(1) : Promise.resolve({ data:[] })
+  ]);
+  if(t.error){
+    const m = t.error.message || String(t.error);
+    M.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (t.error.code || ''))
+      ? 'The mileage table has not been created yet. Run sql/mileage.sql in the Supabase SQL editor, then reload.'
+      : 'Could not load your trips. ' + m;
+    S.loaded.mileage = true;
+    return;
+  }
+  M.loadErr = '';
+  M.trips = t.data || [];
+  M.name = (d.data && d.data[0] && d.data[0].name) || who;
+  S.loaded.mileage = true;
+}
+
+function milBlankForm(over){
+  /* A new trip starts where the last one ended. */
+  const last = S.mil.trips.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).pop();
+  const day = S.mil.month === today().slice(0, 7) ? today() : S.mil.month + '-01';
+  return Object.assign({ id:null, trip_date:day, start_loc:last ? last.destination : '', destination:'',
+    purpose:'', odo_start:last && last.odo_end != null ? String(last.odo_end) : '', odo_end:'', miles:'' }, over || {});
+}
+
+function pageMileage(){
+  const M = S.mil;
+  if(!S.loaded.mileage) return loading();
+  if(M.loadErr) return `<main class="page"><div class="empty"><h2>Mileage is not set up yet</h2>
+    <p>${esc(M.loadErr)}</p></div></main>`;
+  const shown = M.trips.filter(t => String(t.trip_date).slice(0, 7) === M.month);
+  const miles = shown.reduce((s, t) => s + Number(t.miles || 0), 0);
+  const owed = shown.reduce((s, t) => s + milCost(t), 0);
+  return `<main class="page" style="max-width:1060px">
+    <div class="bud-head">
+      <div class="bud-year">
+        <button class="linkbtn" data-mil-month="-1" aria-label="Previous month">&lsaquo;</button>
+        <h2>${esc(milMonthName(M.month))}</h2>
+        <button class="linkbtn" data-mil-month="1" aria-label="Next month">&rsaquo;</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn small ghost" id="milPrint">Print the form</button>
+      <button class="btn small" id="milAdd">Add a trip</button>
+    </div>
+    ${M.note ? `<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(M.note)}</p></div>` : ''}
+    ${M.err && !M.form ? `<p class="hint err" style="margin-bottom:14px">${esc(M.err)}</p>` : ''}
+    <div class="stat-grid" style="margin-bottom:10px">
+      <div class="stat"><div class="k">Trips</div><div class="v">${shown.length}</div></div>
+      <div class="stat"><div class="k">Miles</div><div class="v">${esc(milMi(miles))}</div></div>
+      <div class="stat accent"><div class="k">Reimbursement</div><div class="v">${esc(apvMoney(owed))}</div></div>
+    </div>
+    <p class="hint" style="margin:0 0 24px">${esc(apvMoney(MIL_RATE))} a mile. Only you can see your trips.</p>
+    <div class="block"><h2 class="sec">Trips</h2>
+    ${shown.length ? `<div class="bud-scroll"><table class="bud-log"><thead><tr><th style="width:90px">Date</th>
+      <th>From</th><th>To</th><th>Job # / what for</th><th class="num" style="width:150px">Odometer</th>
+      <th class="num" style="width:80px">Miles</th><th class="num" style="width:100px">Amount</th><th style="width:60px"></th></tr></thead><tbody>
+      ${shown.map(t => `<tr>
+        <td class="mono">${esc(shortDate(t.trip_date + 'T12:00:00'))}</td>
+        <td>${esc(t.start_loc)}</td><td>${esc(t.destination)}</td><td>${esc(t.purpose)}</td>
+        <td class="num mono">${t.odo_start != null || t.odo_end != null ? esc(milOdo(t.odo_start) + ' – ' + milOdo(t.odo_end)) : ''}</td>
+        <td class="num">${esc(milMi(t.miles))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
+        <td style="text-align:right"><button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button></td></tr>`).join('')}
+      <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
+      </tbody></table></div>`
+    : `<div class="empty" style="padding:30px 0"><h2>No trips yet</h2><p>Nothing logged for ${esc(milMonthName(M.month))}. Use Add a trip after each drive.</p></div>`}
+    </div>
+  </main>${milForm()}${milPrintSheet()}`;
+}
+
+function milForm(){
+  const M = S.mil, f = M.form;
+  if(!f) return '';
+  const places = [...new Set(M.trips.slice().reverse().flatMap(t => [t.destination, t.start_loc]).filter(Boolean))].slice(0, 40);
+  const a = milNum(f.odo_start), b = milNum(f.odo_end), auto = a !== null && b !== null;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Trip">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>${f.id ? 'Edit trip' : 'Add a trip'}</h2>
+        <button class="linkbtn" id="milClose">Close</button></div>
+      <datalist id="milPlaces">${places.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+      <div class="field"><label for="milDate">Date</label>
+        <input type="date" id="milDate" value="${esc(f.trip_date)}" /></div>
+      <div class="field"><label for="milFrom">Starting location</label>
+        <input type="text" id="milFrom" list="milPlaces" value="${esc(f.start_loc)}" placeholder="Office" autocomplete="off" /></div>
+      <div class="field"><label for="milTo">Destination address</label>
+        <input type="text" id="milTo" list="milPlaces" value="${esc(f.destination)}" placeholder="Where you drove to" autocomplete="off" /></div>
+      <div class="field"><label for="milWhy">Job # or what for</label>
+        <input type="text" id="milWhy" value="${esc(f.purpose)}" placeholder="Site visit, client meeting, event setup" autocomplete="off" /></div>
+      <div class="apv-pair">
+        <div class="field"><label for="milOs">Odometer start</label>
+          <input type="text" inputmode="decimal" id="milOs" value="${esc(f.odo_start)}" placeholder="Optional" autocomplete="off" /></div>
+        <div class="field"><label for="milOe">Odometer end</label>
+          <input type="text" inputmode="decimal" id="milOe" value="${esc(f.odo_end)}" placeholder="Optional" autocomplete="off" /></div>
+      </div>
+      <div class="field"><label for="milMiles">Miles</label>
+        <input type="text" inputmode="decimal" id="milMiles" value="${esc(f.miles)}" placeholder="0.0" autocomplete="off" ${auto ? 'readonly' : ''} /></div>
+      <p class="hint" id="milSum">${esc(milSumLine(f))}</p>
+      ${M.err ? `<p class="hint err">${esc(M.err)}</p>` : ''}
+      <div class="sheet-foot">
+        <button class="btn" id="milSave" ${M.saving ? 'disabled' : ''}>${M.saving ? 'Saving&hellip;' : 'Save'}</button>
+        <p style="margin:12px 0 0;text-align:center">
+          <button class="linkbtn" id="milReturn" ${M.saving ? 'disabled' : ''}>Save and add the drive back</button>
+          ${f.id ? ` &middot; <button class="linkbtn" id="milDel" style="color:var(--red)">Delete this trip</button>` : ''}</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+function milSumLine(f){
+  const n = milNum(f.miles);
+  return n ? `${milMi(n)} miles × ${apvMoney(MIL_RATE)} = ${apvMoney(Math.round(n * MIL_RATE * 100) / 100)}`
+           : 'Enter both odometer readings, or just the miles.';
+}
+
+function milPrintSheet(){
+  const M = S.mil, p = M.print;
+  if(!p) return '';
+  const ts = milPicked();
+  const pages = Math.ceil(ts.length / MIL_ROWS);
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Print the mileage form">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>Print the mileage form</h2>
+        <button class="linkbtn" id="milPClose">Close</button></div>
+      <p class="hint" style="margin-top:10px">Fills in the company Mileage Reimbursement Form. Each page holds 20 trips and has its own totals. The signature lines stay blank for signing.</p>
+      <div class="apv-pair">
+        <div class="field"><label for="milPA">From</label><input type="date" id="milPA" value="${esc(p.from)}" /></div>
+        <div class="field"><label for="milPB">To</label><input type="date" id="milPB" value="${esc(p.to)}" /></div>
+      </div>
+      <div class="field"><label for="milPName">Employee name</label>
+        <input type="text" id="milPName" value="${esc(p.name)}" autocomplete="off" /></div>
+      <p class="hint">${ts.length ? `${ts.length} trip${ts.length === 1 ? '' : 's'}, ${esc(milMi(ts.reduce((s, t) => s + Number(t.miles || 0), 0)))} miles, ${
+        esc(apvMoney(ts.reduce((s, t) => s + milCost(t), 0)))} on ${pages} page${pages === 1 ? '' : 's'}.` : 'No trips in these dates.'}</p>
+      ${M.err ? `<p class="hint err">${esc(M.err)}</p>` : ''}
+      <div class="sheet-foot">
+        ${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;text-align:center">Open the form to print</a>
+          <p style="margin:12px 0 0;text-align:center"><a class="linkbtn" href="${esc(p.url)}" download="${esc(p.file)}">Save the PDF</a></p>`
+        : `<button class="btn" id="milPGo" ${M.saving || !ts.length ? 'disabled' : ''}>${M.saving ? 'Filling in&hellip;' : 'Fill in the form'}</button>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function milPicked(){
+  const p = S.mil.print;
+  return S.mil.trips.filter(t => t.trip_date >= p.from && t.trip_date <= p.to)
+    .sort((a, b) => String(a.trip_date).localeCompare(String(b.trip_date)) || String(a.created_at).localeCompare(String(b.created_at)));
+}
+
+let pdfLibP = null;
+function loadPdfLib(){
+  if(window.PDFLib) return Promise.resolve(window.PDFLib);
+  return pdfLibP = pdfLibP || new Promise((ok, no) => {
+    const s = document.createElement('script');
+    s.src = PDFLIB_SRC;
+    s.onload = () => ok(window.PDFLib);
+    s.onerror = () => { pdfLibP = null; no(new Error('Could not load the PDF tools. Check the connection and try again.')); };
+    document.head.appendChild(s);
+  });
+}
+
+/* Fills the form's own fields, then flattens each page so it prints the
+   same in every viewer. Every row is set, blanks too, so each field gets
+   a clean appearance when it is flattened. */
+async function milPdf(trips, name){
+  const PL = await loadPdfLib();
+  const r = await fetch(MIL_FORM);
+  if(!r.ok) throw new Error('Could not load the mileage form.');
+  const tpl = await r.arrayBuffer();
+  const out = await PL.PDFDocument.create();
+  const cols = ['DateRow','Starting LocationRow','Destination AddressRow','DescriptionNotesRow',
+                'Odometer StartRow','Odometer EndRow','MileageRow','ExpenseRow'];
+  for(let i = 0; i < trips.length; i += MIL_ROWS){
+    const doc = await PL.PDFDocument.load(tpl), form = doc.getForm(), part = trips.slice(i, i + MIL_ROWS);
+    const set = (n, v) => { try{ form.getTextField(n).setText(v == null ? '' : String(v)); }catch(e){} };
+    set('Employee Name', name);
+    for(let n = 1; n <= MIL_ROWS; n++) cols.forEach(c => set(c + n, ''));
+    part.forEach((t, k) => {
+      const n = k + 1;
+      set('DateRow' + n, milMDY(t.trip_date));
+      set('Starting LocationRow' + n, t.start_loc);
+      set('Destination AddressRow' + n, t.destination);
+      set('DescriptionNotesRow' + n, t.purpose);
+      set('Odometer StartRow' + n, milOdo(t.odo_start));
+      set('Odometer EndRow' + n, milOdo(t.odo_end));
+      set('MileageRow' + n, milMi(t.miles));
+      set('ExpenseRow' + n, apvMoney(milCost(t)));
+    });
+    /* 0575Row1 and 0575Row2 are Total Mileage and Total Reimbursement. */
+    set('0575Row1', milMi(part.reduce((s, t) => s + Number(t.miles || 0), 0)));
+    set('0575Row2', apvMoney(part.reduce((s, t) => s + milCost(t), 0)));
+    form.updateFieldAppearances(await doc.embedFont(PL.StandardFonts.Helvetica));
+    form.flatten();
+    (await out.copyPages(doc, doc.getPageIndices())).forEach(pg => out.addPage(pg));
+  }
+  out.setTitle('Mileage Reimbursement - ' + name);
+  return out.save();
+}
+
+async function milMakePdf(){
+  const M = S.mil, p = M.print, ts = milPicked();
+  if(!ts.length) return;
+  M.saving = true; M.err = ''; render();
+  try{
+    const bytes = await milPdf(ts, p.name.trim());
+    if(p.url) URL.revokeObjectURL(p.url);
+    p.url = URL.createObjectURL(new Blob([bytes], { type:'application/pdf' }));
+    p.file = `Mileage ${p.from} to ${p.to} - ${p.name.trim()}.pdf`;
+  }catch(err){ M.err = err.message || String(err); }
+  M.saving = false; render();
+}
+
+async function milSave(andReturn){
+  const M = S.mil, f = M.form;
+  const a = milNum(f.odo_start), b = milNum(f.odo_end);
+  const miles = a !== null && b !== null ? Math.round((b - a) * 10) / 10 : milNum(f.miles);
+  M.err = '';
+  if(!f.trip_date) M.err = 'Pick the date of the trip.';
+  else if(a !== null && b !== null && b < a) M.err = 'The odometer end is lower than the start.';
+  else if(!miles || miles <= 0) M.err = 'Enter the miles, or both odometer readings.';
+  if(M.err) return render();
+  const row = { trip_date:f.trip_date, start_loc:f.start_loc.trim(), destination:f.destination.trim(),
+    purpose:f.purpose.trim(), odo_start:a, odo_end:b, miles, updated_at:new Date().toISOString() };
+  M.saving = true; render();
+  const res = f.id ? await sb.from('mileage_trips').update(row).eq('id', f.id).select().single()
+                   : await sb.from('mileage_trips').insert(row).select().single();
+  M.saving = false;
+  if(res.error){ M.err = 'Could not save the trip. ' + (res.error.message || ''); return render(); }
+  const i = M.trips.findIndex(t => t.id === res.data.id);
+  if(i >= 0) M.trips[i] = res.data; else M.trips.push(res.data);
+  M.month = res.data.trip_date.slice(0, 7);
+  M.form = andReturn ? milBlankForm({ trip_date:row.trip_date, start_loc:row.destination, destination:row.start_loc,
+      purpose:row.purpose, odo_start:b !== null ? String(b) : '', miles:b !== null ? '' : String(miles) }) : null;
+  M.note = andReturn ? '' : 'Trip saved.';
+  render();
+}
+
+async function milDelete(){
+  const M = S.mil, f = M.form;
+  if(!f || !f.id || !confirm('Delete this trip?')) return;
+  const { error } = await sb.from('mileage_trips').delete().eq('id', f.id);
+  if(error){ M.err = 'Could not delete the trip. ' + (error.message || ''); return render(); }
+  M.trips = M.trips.filter(t => t.id !== f.id);
+  M.form = null; M.note = 'Trip deleted.';
+  render();
+}
+
+function wireMileage(){
+  if(S.page !== 'mileage') return;
+  const M = S.mil;
+  document.querySelectorAll('[data-mil-month]').forEach(el =>
+    el.addEventListener('click', () => { M.month = milShift(M.month, Number(el.dataset.milMonth)); M.note = ''; render(); }));
+  const ad = document.getElementById('milAdd');
+  if(ad) ad.addEventListener('click', () => { M.err = ''; M.note = ''; M.form = milBlankForm(); render(); });
+  document.querySelectorAll('[data-mil-open]').forEach(el =>
+    el.addEventListener('click', () => {
+      const t = M.trips.find(t => t.id === el.dataset.milOpen);
+      if(!t) return;
+      M.err = ''; M.note = '';
+      M.form = { id:t.id, trip_date:t.trip_date, start_loc:t.start_loc, destination:t.destination, purpose:t.purpose,
+        odo_start:t.odo_start == null ? '' : String(t.odo_start), odo_end:t.odo_end == null ? '' : String(t.odo_end), miles:String(t.miles) };
+      render();
+    }));
+  const pr = document.getElementById('milPrint');
+  if(pr) pr.addEventListener('click', () => {
+    M.err = ''; M.note = '';
+    M.print = { from:M.month + '-01', to:milMonthEnd(M.month), name:M.name, url:null, file:'' };
+    render();
+  });
+
+  if(M.form){
+    const f = M.form;
+    const sum = () => {
+      const a = milNum(f.odo_start), b = milNum(f.odo_end), mi = document.getElementById('milMiles');
+      if(mi){ mi.readOnly = a !== null && b !== null;
+        if(mi.readOnly && b >= a){ f.miles = String(Math.round((b - a) * 10) / 10); mi.value = f.miles; } }
+      const s = document.getElementById('milSum'); if(s) s.textContent = milSumLine(f);
+    };
+    [['milDate','trip_date'],['milFrom','start_loc'],['milTo','destination'],['milWhy','purpose'],
+     ['milOs','odo_start'],['milOe','odo_end'],['milMiles','miles']].forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('input', () => { f[key] = el.value; sum(); });
+    });
+    const cl = document.getElementById('milClose');
+    if(cl) cl.addEventListener('click', () => { M.form = null; M.err = ''; render(); });
+    const sv = document.getElementById('milSave');
+    if(sv) sv.addEventListener('click', () => milSave(false));
+    const rt = document.getElementById('milReturn');
+    if(rt) rt.addEventListener('click', () => milSave(true));
+    const dl = document.getElementById('milDel');
+    if(dl) dl.addEventListener('click', milDelete);
+  }
+
+  if(M.print){
+    const p = M.print;
+    [['milPA','from'],['milPB','to']].forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('change', () => { p[key] = el.value; p.url = null; render(); });
+    });
+    const nm = document.getElementById('milPName');
+    if(nm) nm.addEventListener('input', () => { p.name = nm.value; });
+    nm && nm.addEventListener('change', () => { p.url = null; render(); });
+    const go = document.getElementById('milPGo');
+    if(go) go.addEventListener('click', milMakePdf);
+    const cl = document.getElementById('milPClose');
+    if(cl) cl.addEventListener('click', () => { M.print = null; M.err = ''; render(); });
+  }
 }
 
 /* ================= marketing return ================= */
