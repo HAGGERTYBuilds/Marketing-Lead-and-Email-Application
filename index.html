@@ -1162,11 +1162,11 @@ const CARRY_DAYS = 7;
 /* How many open contacts the Outreach list shows at once. The rest wait
    their turn and slide in as these are sent or skipped, so Pat works a
    short list instead of scrolling a long one. */
-const BOARD_CAP = 5;
+const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-19b';
+const BUILD = '2026-10-20';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3247,13 +3247,13 @@ function wirePage(){
   const sn = document.getElementById('sentToggle');
   if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
-    el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
+    el.addEventListener('click',()=>generate(Number(el.dataset.gen), BOARD_CAP)));
   const all = document.getElementById('genAll');
   if(all) all.addEventListener('click', generateAcross);
   const gf = document.getElementById('goldFilt');
   if(gf) gf.addEventListener('click',()=>{ S.goldOnly=!S.goldOnly; render(); });
   const gg = document.getElementById('genGold');
-  if(gg) gg.addEventListener('click',()=>generate(null, 5, true));
+  if(gg) gg.addEventListener('click',()=>generate(null, BOARD_CAP, true));
   const add = document.getElementById('addTask');
   if(add) add.addEventListener('click', addTask);
   const ti = document.getElementById('taskTitle');
@@ -3384,7 +3384,7 @@ function pageToday(){
     return sectorBar() + `<div class="page cols3"><div>
       <div class="empty" style="padding:34px 0">
         <h2>Nothing on the list</h2>
-        <p>The list fills when you ask it to. Click Generate 5 on a sector above and five contacts from it land here with drafts ready.</p>
+        <p>The list fills when you ask it to. Click Generate 10 on a sector above and ten contacts from it land here with drafts ready.</p>
       </div></div><div>${side}</div></div>`;
   }
 
@@ -3421,7 +3421,7 @@ function pageToday(){
         stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
           stillOpen} still open from earlier</span>`:''}</div>
       ${capped.map(rowHtml).join('')}
-      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Click Generate 5 on a sector above for five more.</p>` : ''}
+      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Click Generate 10 on a sector above for ten more.</p>` : ''}
       ${waiting > 0 ? `<p class="hint" style="padding:11px 17px;margin:0">${waiting} more waiting. The next one comes up as you clear these.</p>` : ''}
       ${sentRows.length?`<div class="skipgroup">
         <button class="skiphead" id="sentToggle" aria-expanded="${S.sentOpen?'true':'false'}">
@@ -3781,7 +3781,7 @@ function sectorBar(){
         <h4>Pat's Gold</h4>
         <div class="n">${num(pool)}<small> ready</small>${
           onBoard?`<small> &middot; ${num(onBoard)} today</small>`:''}</div>
-        <button class="btn small" id="genGold" ${(!pool||S.busy)?'disabled':''}>Generate 5</button>
+        <button class="btn small" id="genGold" ${(!pool||S.busy)?'disabled':''}>Generate ${BOARD_CAP}</button>
         ${onBoard?`<button class="btn small ghost" id="goldFilt" style="margin-top:4px">${
           S.goldOnly?'Show all':'Only these'}</button>`:''}
       </div>`;
@@ -3792,7 +3792,7 @@ function sectorBar(){
         <h4>${esc(t.vertical)}${t.has_proof?'':' <span style="color:var(--red)">&bull;</span>'}</h4>
         <div class="n">${num(t.pool)}<small> ready</small>${
           Number(t.queued_today)?`<small> &middot; ${num(t.queued_today)} today</small>`:''}</div>
-        <button class="btn small" data-gen="${t.vertical_id}" ${(!live||S.busy)?'disabled':''}>Generate 5</button>
+        <button class="btn small" data-gen="${t.vertical_id}" ${(!live||S.busy)?'disabled':''}>Generate ${BOARD_CAP}</button>
       </div>`;
     }).join('')}
   </div>${S.gen?`<p class="hint" style="padding:9px 26px 0;margin:0">${esc(S.gen)}</p>`:''}`;
