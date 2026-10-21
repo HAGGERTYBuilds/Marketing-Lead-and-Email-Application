@@ -4,7 +4,7 @@
 -- Photo approvals: Liam uploads a batch of job photos, sends the PM or
 -- superintendent a link, and they mark each photo Approve or Not approved
 -- (with a reason). The laptop task then copies the approved ones to
--- M:\Marketing\Photos and Videos\<folder>, where the Social tab's
+-- M:\Photos\<folder>, where the Social tab's
 -- generate step already picks its photos from.
 --
 -- PMs and supers do not sign in. The link carries a long random token, and
@@ -39,7 +39,7 @@ create table if not exists public.photo_batches (
   reviewer_name  text not null default '',
   reviewer_email text not null default '',
   message        text not null default '',
-  folder         text not null,                -- subfolder under M:\Marketing\Photos and Videos
+  folder         text not null,                -- subfolder under M:\Photos
   status         text not null default 'open' check (status in ('open','submitted')),
   opened_at      timestamptz,                  -- first time the link was opened
   reviewed_by    text,                         -- name typed on the review page
@@ -170,7 +170,9 @@ grant execute on function public.photo_review_finish(text, text) to anon, authen
 
 -- 5. What the laptop task needs. The cloud cannot reach the M: drive, so
 --    the Cowork task on Liam's laptop does the copy. Add to its
---    instructions (the M: drive must be connected to the task):
+--    instructions (M:\Photos must be connected to the task). Until
+--    2026-10-21 the folder was M:\Marketing\Photos and Videos; the M:
+--    drive now has M:\Photos and M:\Videos at the top.
 --
 --      Photo approvals. Each run, before anything else, find approved job
 --      photos that are not on the M: drive yet:
@@ -180,7 +182,7 @@ grant execute on function public.photo_review_finish(text, text) to anon, authen
 --           and i.copied_at is null;
 --      For each row, download
 --        https://ekatzukprjpisdiwubjq.supabase.co/storage/v1/object/public/photo-review/<file_path>
---      and save it as M:\Marketing\Photos and Videos\<folder>\<file_name>,
+--      and save it as M:\Photos\<folder>\<file_name>,
 --      creating the folder if needed. If a different file already has that
 --      name, add " (2)", " (3)" and so on before the extension; never
 --      overwrite. Then set copied_at = now(), copied_to = the full path
@@ -189,4 +191,4 @@ grant execute on function public.photo_review_finish(text, text) to anon, authen
 --      Never copy a photo whose decision is 'rejected' or empty.
 --      These photos were approved by the job's PM or superintendent, so
 --      generate may use them for posts like any other photo in
---      M:\Marketing\Photos and Videos.
+--      M:\Photos.

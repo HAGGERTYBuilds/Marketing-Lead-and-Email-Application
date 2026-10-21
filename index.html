@@ -1166,7 +1166,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-19b';
+const BUILD = '2026-10-21a';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -10205,10 +10205,10 @@ function wireMileage(){
    (sql/photo_review.sql).
 
    Approved photos are copied by the laptop task to
-   M:\Marketing\Photos and Videos\<folder>, the same tree the Social tab's
+   M:\Photos\<folder>, the same tree the Social tab's
    generate step picks photos from. The cloud cannot reach the M: drive,
    so this tab only shows how far that copy has got. */
-const PHO_ROOT = 'M:\\Marketing\\Photos and Videos\\';
+const PHO_ROOT = 'M:\\Photos\\';
 const PHO_MAX_MB = 50;
 const PHO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
