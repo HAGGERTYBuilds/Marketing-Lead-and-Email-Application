@@ -598,6 +598,55 @@
   .pho-picked img{width:100%;height:100%;object-fit:cover;display:block}
   @media (max-width:640px){ .pho-row{flex-wrap:wrap} .pho-meta{width:100%;justify-content:flex-start} }
 
+  /* ---------- executive voices ---------- */
+  .exv-seg{display:inline-flex;border:1px solid var(--rule)}
+  .exv-seg button{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-weight:600;
+                  font-size:12.5px;background:var(--card);border:0;color:var(--slate);padding:6px 11px;cursor:pointer}
+  .exv-seg button + button{border-left:1px solid var(--rule)}
+  .exv-seg button.on{background:var(--ink);color:var(--on-ink)}
+  .exv-views{margin:-2px 0 16px;border-bottom:1px solid var(--rule)}
+  .exv-q{font-family:var(--display);font-size:28px;line-height:1.15;font-weight:700;margin:0 0 10px}
+  .exv-people{border-top:1px solid var(--rule)}
+  .exv-person{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 2px;border-bottom:1px solid var(--rule)}
+  .exv-who{flex:1;min-width:200px;display:flex;flex-direction:column}
+  .exv-who b{font-weight:600}
+  .exv-angle{font-size:12.5px;color:var(--grey);margin-top:2px}
+  .exv-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .exv-ans,.exv-piece{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--orange);
+                      padding:13px 15px;margin-bottom:14px}
+  .exv-ans.bad{border-left-color:var(--red)}
+  .exv-ans.dim{opacity:.6;border-left-color:var(--rule)}
+  .exv-piece{border-left-color:var(--ink)}
+  .exv-ans-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .exv-ans audio{width:100%;max-width:520px;margin:4px 0 8px;display:block}
+  .exv-photo img{max-width:220px;max-height:160px;display:block;border:1px solid var(--rule);margin:4px 0 8px}
+  .exv-quote{margin:6px 0 12px;padding:4px 0 4px 14px;border-left:3px solid var(--orange);
+             font-family:var(--display);font-size:20px;line-height:1.3;color:var(--ink)}
+  .exv-check{background:var(--orange-tint);padding:9px 12px;margin:0 0 12px;font-size:13px}
+  .exv-check ul{margin:4px 0 0;padding-left:18px}
+  .exv-check p{margin:4px 0 0}
+  .exv-tabs{display:flex;gap:2px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--rule-soft);margin-bottom:8px}
+  .exv-tabs button:not(.linkbtn),.exv-use button{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-weight:600;
+       font-size:12px;background:none;border:0;border-bottom:2px solid transparent;color:var(--slate);padding:6px 9px;cursor:pointer}
+  .exv-tabs button.on{color:var(--ink);border-bottom-color:var(--orange)}
+  .exv-use{display:inline-flex;border:1px solid var(--rule)}
+  .exv-use button{border:0;padding:4px 9px}
+  .exv-use button.on{background:var(--ink);color:var(--on-ink)}
+  .exv-text{white-space:pre-wrap;font-size:14px;line-height:1.6;max-height:420px;overflow:auto;color:var(--ink)}
+  .exv-ptable{display:grid;gap:12px}
+  .exv-prow{background:var(--card);border:1px solid var(--rule);padding:4px 15px 13px}
+  .exv-prow.dim{opacity:.6}
+  .exv-prow > .eyebrow{display:block;margin-top:10px}
+  .exv-check-l{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--grey)}
+  .exv-check-l input{width:auto}
+  .exv-pick{border:1px solid var(--rule);max-height:340px;overflow:auto}
+  .exv-pick-row{padding:8px 10px;border-bottom:1px solid var(--rule-soft)}
+  .exv-pick-row:last-child{border-bottom:0}
+  .exv-pick-row.on{background:var(--orange-tint)}
+  .exv-pick-row label{display:flex;align-items:baseline;gap:7px;cursor:pointer;font-size:14px}
+  .exv-pick-row label input{width:auto}
+  .exv-pick-row input[type=text]{margin-top:6px;font-size:13px;padding:6px 9px}
+
   /* ---------- event invitations ---------- */
   .evx{margin-top:10px;padding:9px 12px;background:var(--wash);border-left:3px solid var(--slate);
        font-size:13px}
@@ -1123,7 +1172,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['campaigns','Email Campaigns'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits']
 ];
 
@@ -1166,7 +1215,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-21b';
+const BUILD = '2026-10-22v';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -2994,6 +3043,7 @@ async function ensureOnce(page){
   if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='mileage' && !S.loaded.mileage) await loadMileage();
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
+  if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='kpis'){
     if(!S.loaded.kpis) await loadKpis();
     if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
@@ -3025,13 +3075,13 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
 const NAV_GROUPS = [
   ['Today',   ['home','today','approvals']],
   ['People',  ['myday','calendar','iyanna']],
-  ['Content', ['social','photos','campaigns','reels']],
+  ['Content', ['social','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','leads','bulk','permits']],
   ['Money',   ['budget','mileage']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', budget:'Budget', mileage:'Mileage', photos:'Photos' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
@@ -3052,6 +3102,7 @@ const NAV_ICON = {
   budget:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
   mileage:'<path d="M5 16V11l2-5h10l2 5v5z"/><path d="M5 11h14"/><circle cx="8" cy="16.5" r="1.5"/><circle cx="16" cy="16.5" r="1.5"/>',
   photos:'<rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/>',
+  voices:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   bulk:'<path d="M3 11 21 3l-6 18-4-7z"/><path d="M11 14 21 3"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
@@ -3064,6 +3115,7 @@ const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] 
    not the count, is the to-do. */
 function navCount(k){
   if(k === 'approvals' && S.loaded.approvals) return { n:apvPendingCount() };
+  if(k === 'voices' && S.loaded.voices) return { n:S.exv.answers.filter(a => a.status === 'ready' && a.use_status === 'new').length };
   if(k === 'today' && S.me === 'pat' && S.loaded.board) return { n:homeBoardCounts().open.length, quiet:true };
   return { n:0 };
 }
@@ -3204,6 +3256,7 @@ function render(){
   if(S.page==='budget')   inner = pageBudget();
   if(S.page==='mileage')  inner = pageMileage();
   if(S.page==='photos')   inner = pagePhotos();
+  if(S.page==='voices')   inner = pageVoices();
   if(S.page==='reels')    inner = pageReels();
   if(S.page==='social')   inner = pageSocial();
   if(S.page==='campaigns') inner = pageCampaigns();
@@ -3333,6 +3386,7 @@ function wirePage(){
   wireBudget();
   wireMileage();
   wirePhotos();
+  wireVoices();
   wireReels();
   wirePermits();
   wireSocial();
@@ -10929,6 +10983,623 @@ function wirePhotos(){
     on('phoClose', () => { if(P.busy) return; f.urls.forEach(u => URL.revokeObjectURL(u)); P.form = null; P.err = ''; render(); });
     on('phoGo', phoCreate);
   }
+}
+
+/* ================= executive voices ================= */
+/* Liam asks Ryan, Hugo, the supers and the rest a question for a blog
+   post. Each person gets their own link (voices.html), which Liam texts
+   from his phone with the Text it button, and they record a voice note or
+   type. The answer comes back here transcribed, with a pull quote and
+   drafts (n8n "Haggerty Executive Voices"). One question can go to
+   several people; Write the blog post weaves every usable answer into one
+   post for WordPress and LinkedIn. Anything quoting someone marked Needs
+   their OK (Ryan) goes to them by link before it can be marked published.
+   Tables, bucket and link functions: sql/executive_voices.sql. */
+const EXV_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices';
+/* Days after the text before the ask shows as overdue with a reminder. */
+const EXV_NUDGE_DAYS = 4;
+
+S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[],
+          audio:{}, form:null, busy:'', err:'', note:'', loadErr:'', show:{}, draftTab:{}, timer:null };
+
+const exvLink = token => new URL('voices.html?t=' + encodeURIComponent(token), location.href).href;
+const exvOkLink = token => new URL('voices.html?ok=' + encodeURIComponent(token), location.href).href;
+const exvFirst = p => String((p && p.name) || '').trim().split(' ')[0];
+const exvPerson = id => S.exv.people.find(p => p.id === id);
+const exvReqs = askId => S.exv.reqs.filter(r => r.ask_id === askId)
+  .sort((a, b) => ((exvPerson(a.person_id) || {}).sort || 0) - ((exvPerson(b.person_id) || {}).sort || 0));
+const exvAnswersFor = reqId => S.exv.answers.filter(a => a.request_id === reqId);
+const exvAskAnswers = askId => exvReqs(askId).flatMap(r => exvAnswersFor(r.id));
+const exvPieces = askId => S.exv.pieces.filter(p => p.ask_id === askId);
+const exvDays = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : 0;
+/* Messages app with the text filled in. The ?& form is the one both
+   iPhones and Android phones read. */
+const exvSms = (phone, body) => 'sms:' + String(phone || '').replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(body);
+
+function exvAskText(p, r){
+  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}`;
+}
+function exvNudgeText(p, r){
+  return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}`;
+}
+
+/* Where one person's link stands. */
+function exvReqState(r){
+  const n = exvAnswersFor(r.id).length;
+  if(n) return { cls:'good', label:n > 1 ? `${n} answers` : 'Answered' };
+  if(!r.sent_at) return { cls:'', label:'Not sent yet' };
+  const late = exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
+  if(r.opened_at) return { cls:late ? 'hot' : '', label:'Opened ' + shortDate(r.opened_at) };
+  return { cls:late ? 'hot' : '', label:(r.reminded_at ? 'Nudged ' + shortDate(r.reminded_at) : 'Sent ' + shortDate(r.sent_at)) };
+}
+
+/* The ask's headline status, for the list. */
+function exvAskState(k){
+  const ps = exvPieces(k.id), blog = ps.find(p => p.kind === 'blog');
+  if(blog){
+    if(blog.status === 'published') return { cls:'good', label:'Published' };
+    if(blog.status === 'needs_ok') return { cls:'hot', label:`Waiting on ${exvFirst(exvPerson(blog.approver_id)) || 'an OK'}` };
+    if(blog.status === 'changes') return { cls:'bad', label:'Changes asked' };
+    if(blog.status === 'approved') return { cls:'good', label:'Approved, not posted' };
+    return { cls:'', label:'Blog draft' };
+  }
+  const rs = exvReqs(k.id);
+  const answered = rs.filter(r => exvAnswersFor(r.id).length).length;
+  if(!rs.length) return { cls:'', label:'Nobody asked' };
+  if(!rs.some(r => r.sent_at)) return { cls:'hot', label:'Not sent yet' };
+  return { cls:answered ? 'good' : '', label:`${answered} of ${rs.length} answered` };
+}
+
+async function loadVoices(){
+  const E = S.exv;
+  const [pe, pr, ak, rq, an, pc] = await Promise.all([
+    sb.from('exv_people').select('*').order('sort').order('name'),
+    sb.from('exv_prompts').select('*').order('created_at'),
+    sb.from('exv_asks').select('*').order('created_at', { ascending:false }).limit(300),
+    sb.from('exv_requests').select('*').limit(3000),
+    sb.from('exv_answers').select('*').order('created_at').limit(3000),
+    sb.from('exv_pieces').select('*').order('created_at').limit(1000)
+  ]);
+  const e = pe.error || pr.error || ak.error || rq.error || an.error || pc.error;
+  if(e){
+    const m = e.message || String(e);
+    E.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (e.code || ''))
+      ? 'The Executive Voices tables have not been created yet. Run sql/executive_voices.sql in the Supabase SQL editor, then reload.'
+      : 'Could not load Executive Voices. ' + m;
+  }else{
+    E.loadErr = '';
+    E.people = pe.data || []; E.prompts = pr.data || []; E.asks = ak.data || [];
+    E.reqs = rq.data || []; E.answers = an.data || []; E.pieces = pc.data || [];
+  }
+  S.loaded.voices = true;
+}
+
+/* Recordings are private; the player gets a link good for an hour. */
+async function exvLoadAudio(askId){
+  const E = S.exv;
+  const paths = [];
+  exvAskAnswers(askId).forEach(a => {
+    [a.audio_path, a.photo_path].forEach(p => { if(p && !E.audio[p]) paths.push(p); });
+  });
+  if(!paths.length) return;
+  const { data } = await sb.storage.from('voices').createSignedUrls(paths, 3600);
+  (data || []).forEach(x => { if(x && x.signedUrl && x.path) E.audio[x.path] = x.signedUrl; });
+}
+
+/* While an answer is being transcribed, check back every 15 seconds. */
+function exvPoll(){
+  const E = S.exv;
+  clearTimeout(E.timer);
+  if(S.page !== 'voices' || !E.open) return;
+  if(!exvAskAnswers(E.open).some(a => a.status === 'new' || a.status === 'processing')) return;
+  E.timer = setTimeout(async () => {
+    if(S.page !== 'voices' || document.querySelector('.exv-edit:focus')) return exvPoll();
+    await loadVoices(); await exvLoadAudio(E.open); render();
+  }, 15000);
+}
+
+function pageVoices(){
+  const E = S.exv;
+  if(!S.loaded.voices) return loading();
+  if(E.loadErr) return `<main class="page"><div class="empty"><h2>Executive Voices is not set up yet</h2>
+    <p>${esc(E.loadErr)}</p></div></main>`;
+  const k = E.view === 'ask' && E.open && E.asks.find(x => x.id === E.open);
+  const body = k ? exvDetail(k) : E.view === 'people' ? exvPeopleView() : E.view === 'bank' ? exvBankView() : exvList();
+  return `<main class="page" style="max-width:1060px">${body}</main>${exvForm()}`;
+}
+
+function exvTop(){
+  const E = S.exv;
+  return `<div class="bud-head">
+      <h2 class="sec" style="margin:0">Executive Voices</h2>
+      <span class="spacer"></span>
+      <span class="exv-seg">${Object.entries(SOC_BRANDS).map(([b, v]) =>
+        `<button class="${E.brand === b ? 'on' : ''}" data-exv-brand="${b}">${esc(v)}</button>`).join('')}</span>
+      <button class="btn small" id="exvNew">Ask a question</button>
+    </div>
+    <div class="exv-views">${[['asks','Questions'],['people','People'],['bank','Question bank']].map(([v, l]) =>
+      `<button class="tab ${E.view === v || (v === 'asks' && E.view === 'ask') ? 'on' : ''}" data-exv-view="${v}">${l}</button>`).join('')}</div>
+    ${E.note ? `<div class="done-banner"><p style="margin:0">${esc(E.note)}</p></div>` : ''}
+    ${E.err ? `<p class="hint err" style="margin-bottom:14px">${esc(E.err)}</p>` : ''}`;
+}
+
+function exvList(){
+  const E = S.exv;
+  const asks = E.asks.filter(k => k.brand === E.brand);
+  const fresh = E.answers.filter(a => a.status === 'ready' && a.use_status === 'new' &&
+    asks.some(k => exvReqs(k.id).some(r => r.id === a.request_id))).length;
+  const waiting = asks.flatMap(k => exvReqs(k.id)).filter(r => r.sent_at && !exvAnswersFor(r.id).length).length;
+  const posted = E.pieces.filter(p => p.kind === 'blog' && p.status === 'published' && asks.some(k => k.id === p.ask_id)).length;
+  return `${exvTop()}
+    <p class="hint" style="margin:0 0 20px">Ask one question of one person or several. Each gets a link you text from your phone;
+      they talk or type their answer, and it lands here transcribed with drafts. With two or more answers,
+      Write the blog post weaves them into one piece.</p>
+    ${asks.length ? `<div class="stat-grid" style="margin-bottom:22px">
+      <div class="stat accent"><div class="k">New answers</div><div class="v">${fresh}</div></div>
+      <div class="stat"><div class="k">Waiting on people</div><div class="v">${waiting}</div></div>
+      <div class="stat"><div class="k">Posts published</div><div class="v">${posted}</div></div>
+    </div>
+    <div class="pho-list">${asks.map(k => {
+      const rs = exvReqs(k.id), st = exvAskState(k);
+      const fr = exvAskAnswers(k.id).filter(a => a.status === 'ready' && a.use_status === 'new').length;
+      return `<button class="pho-row" data-exv-open="${esc(k.id)}">
+        <span class="pho-main"><b>${esc(k.question)}</b>
+          <span class="hint">${rs.map(r => { const p = exvPerson(r.person_id);
+            return esc(exvFirst(p)) + (exvAnswersFor(r.id).length ? ' &#10003;' : ''); }).join(', ') || 'Nobody yet'}
+          &middot; asked ${esc(shortDate(k.created_at))}${k.status === 'closed' ? ' &middot; closed' : ''}</span></span>
+        <span class="pho-meta">${fr ? `<span class="chip hot">${fr} new</span>` : ''}<span class="chip ${st.cls}">${esc(st.label)}</span></span>
+      </button>`;
+    }).join('')}</div>`
+    : `<div class="empty" style="padding:30px 0"><h2>No questions yet</h2>
+       <p>Use Ask a question, or pick one from the Question bank.</p></div>`}`;
+}
+
+function exvDetail(k){
+  const E = S.exv, rs = exvReqs(k.id), answers = exvAskAnswers(k.id);
+  const usable = answers.filter(a => a.status === 'ready' && a.use_status !== 'not_usable');
+  const pieces = exvPieces(k.id);
+  const notAsked = E.people.filter(p => p.active && p.brand === k.brand && !rs.some(r => r.person_id === p.id));
+  return `<p style="margin:0 0 12px"><button class="linkbtn" id="exvBack" style="padding-left:0">&lsaquo; All questions</button></p>
+    ${E.note ? `<div class="done-banner"><p style="margin:0">${esc(E.note)}</p></div>` : ''}
+    ${E.err ? `<p class="hint err" style="margin-bottom:14px">${esc(E.err)}</p>` : ''}
+    <p class="eyebrow" style="margin:0 0 4px">${esc(SOC_BRANDS[k.brand] || '')} &middot; asked ${esc(shortDate(k.created_at))}${k.status === 'closed' ? ' &middot; closed' : ''}</p>
+    <h1 class="exv-q">${esc(k.question)}</h1>
+    ${k.help ? `<p class="hint" style="margin:-4px 0 14px">${esc(k.help)}</p>` : ''}
+
+    <h2 class="sec" style="margin-top:22px">Who is being asked</h2>
+    <div class="exv-people">${rs.map(r => exvReqRow(k, r)).join('')}</div>
+    ${notAsked.length && k.status === 'open' ? `<div class="actions" style="margin-top:10px">
+      <select id="exvAddWho" style="width:auto;min-width:220px"><option value="">Add someone to this question&hellip;</option>
+        ${notAsked.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.title ? ' (' + esc(p.title) + ')' : ''}</option>`).join('')}</select>
+      <button class="btn small ghost" id="exvAddGo">Add</button></div>` : ''}
+    <p class="hint" style="margin-top:8px">Text it opens your phone's Messages with the note and the link filled in, and marks it sent.
+      On a computer, Copy link and send it however you like.</p>
+
+    <h2 class="sec" style="margin-top:30px">Answers</h2>
+    ${answers.length ? rs.map(r => exvAnswersFor(r.id).map(a => exvAnswerCard(r, a)).join('')).join('')
+      : `<p class="hint">Nothing back yet. Answers show here a minute or two after someone sends one.</p>`}
+
+    <h2 class="sec" style="margin-top:30px">Blog post</h2>
+    <div class="actions" style="margin-top:0">
+      <button class="btn small accent" id="exvCombine" ${usable.length && !E.busy ? '' : 'disabled'}>${
+        E.busy === 'combine' ? 'Writing&hellip; about a minute'
+        : pieces.length ? 'Write it again from ' + usable.length + ' answer' + (usable.length === 1 ? '' : 's')
+        : 'Write the blog post from ' + usable.length + ' answer' + (usable.length === 1 ? '' : 's')}</button>
+      <span class="hint">${usable.length ? (usable.length > 1 ? 'Every usable answer is woven into one post, quoting each person by name.'
+        : 'One answer makes a post too; more answers make a richer one.') : 'Needs at least one transcribed answer.'}
+        ${pieces.some(p => p.status !== 'draft') ? 'Writing again keeps anything already sent for an OK or published.' : ''}</span>
+    </div>
+    ${pieces.filter(p => p.kind === 'blog').map(exvPieceCard).join('')}
+    ${pieces.filter(p => p.kind === 'linkedin').map(exvPieceCard).join('')}
+
+    <p class="hint" style="margin-top:30px">
+      ${k.status === 'open' ? `<button class="linkbtn" id="exvClose" style="padding-left:0">Close this question</button> (links stop taking answers)`
+        : `<button class="linkbtn" id="exvReopen" style="padding-left:0">Reopen this question</button>`}
+      &middot; <button class="linkbtn" id="exvDelete" style="color:var(--red)">Delete it</button></p>`;
+}
+
+function exvReqRow(k, r){
+  const p = exvPerson(r.person_id) || { name:'(removed)' };
+  const st = exvReqState(r);
+  const answered = exvAnswersFor(r.id).length;
+  const late = !answered && r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
+  const mail = 'mailto:' + encodeURIComponent(p.email || '') + '?subject=' + encodeURIComponent('A quick question for a blog post') +
+    '&body=' + encodeURIComponent(`Hi ${exvFirst(p) || 'there'},\n\nCould you answer this question for a blog I'm putting together?\n\n"${k.question}"\n\n` +
+      `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\nThanks!\nLiam`);
+  return `<div class="exv-person">
+    <div class="exv-who"><b>${esc(p.name)}</b>${p.title ? `<span class="hint">${esc(p.title)}</span>` : ''}
+      ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}</div>
+    <span class="chip ${st.cls}">${esc(st.label)}</span>
+    ${k.status === 'open' && !answered ? `<span class="exv-acts">
+      <a class="btn small ${r.sent_at && !late ? 'ghost' : ''}" href="${esc(exvSms(p.phone, late ? exvNudgeText(p, r) : exvAskText(p, r)))}"
+         data-exv-sent="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}" style="text-decoration:none">${late ? 'Text a nudge' : r.sent_at ? 'Text again' : 'Text it'}</a>
+      <a class="btn small ghost" href="${esc(mail)}" data-exv-sent="${esc(r.id)}" data-exv-kind="ask" style="text-decoration:none">Email</a>
+      <button class="btn small ghost" data-exv-copy="${esc(exvLink(r.token))}">Copy link</button>
+      ${!p.phone ? `<span class="hint">No cell on file, <button class="linkbtn" data-exv-view="people" style="padding:0">add it</button></span>` : ''}
+      ${!r.sent_at ? `<button class="linkbtn" data-exv-mark="${esc(r.id)}">Mark sent</button>` : ''}
+      <button class="linkbtn" data-exv-unask="${esc(r.id)}" title="Take ${esc(exvFirst(p))} off this question">Remove</button>
+    </span>` : `<span class="exv-acts"><a class="linkbtn" href="${esc(exvLink(r.token))}" target="_blank" rel="noopener">See their page</a></span>`}
+  </div>`;
+}
+
+function exvAnswerCard(r, a){
+  const E = S.exv, p = exvPerson(r.person_id) || { name:'' };
+  const d = a.drafts || {};
+  const tab = E.draftTab[a.id] || 'answer';
+  const head = `<div class="exv-ans-head"><b>${esc(p.name)}</b>
+      <span class="hint">${a.kind === 'voice' ? 'Voice note' + (a.duration_s ? ', ' + Math.floor(a.duration_s / 60) + ':' + String(a.duration_s % 60).padStart(2, '0') : '') : 'Typed'}
+        &middot; ${esc(shortDate(a.created_at))}</span>
+      <span class="spacer"></span>
+      ${a.status === 'ready' ? `<span class="exv-use">${[['new','New'],['used','Used'],['not_usable','Not usable']].map(([v, l]) =>
+        `<button class="${a.use_status === v ? 'on' : ''}" data-exv-use="${esc(a.id)}" data-v="${v}">${l}</button>`).join('')}</span>` : ''}
+    </div>`;
+  const media = `${a.audio_path ? (E.audio[a.audio_path] ? `<audio controls preload="none" src="${esc(E.audio[a.audio_path])}"></audio>` : '<p class="hint">Loading the recording&hellip;</p>') : ''}
+    ${a.photo_path && E.audio[a.photo_path] ? `<a href="${esc(E.audio[a.photo_path])}" target="_blank" rel="noopener" class="exv-photo"><img src="${esc(E.audio[a.photo_path])}" alt="Photo sent with the answer" /></a>` : ''}`;
+  if(a.status === 'new' || a.status === 'processing') return `<div class="exv-ans">${head}${media}
+    <p class="hint">Transcribing and drafting. This takes a minute or two; the page checks back on its own.</p></div>`;
+  if(a.status === 'error') return `<div class="exv-ans bad">${head}${media}
+    <p class="hint err">${esc(a.error || 'Something went wrong.')}</p>
+    ${a.transcript ? `<div class="exv-text">${esc(a.transcript)}</div>` : ''}
+    <div class="actions"><button class="btn small ghost" data-exv-retry="${esc(a.id)}" ${E.busy ? 'disabled' : ''}>Try again</button></div></div>`;
+  const tabs = [['answer','Their answer'],['linkedin','LinkedIn post'],['blog','Blog section'],['transcript','Word for word']];
+  const text = tab === 'answer' ? a.answer_clean : tab === 'transcript' ? a.transcript : d[tab];
+  return `<div class="exv-ans ${a.use_status === 'not_usable' ? 'dim' : ''}">${head}${media}
+    ${d.quote ? `<blockquote class="exv-quote">${esc(d.quote)}</blockquote>` : ''}
+    ${(d.check || []).length ? `<div class="exv-check"><span class="eyebrow">Check before posting</span>
+      <ul>${d.check.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
+    <div class="exv-tabs">${tabs.map(([v, l]) => `<button class="${tab === v ? 'on' : ''}" data-exv-tab="${esc(a.id)}" data-v="${v}">${l}</button>`).join('')}
+      <span class="spacer"></span><button class="linkbtn" data-exv-copytext="${esc(a.id)}" data-v="${tab}">Copy</button></div>
+    <div class="exv-text">${esc(text || '')}</div>
+  </div>`;
+}
+
+function exvPieceCard(pc){
+  const E = S.exv, ap = exvPerson(pc.approver_id);
+  const blog = pc.kind === 'blog';
+  const needsOk = !!ap;
+  const okTxt = ap ? `Hey ${exvFirst(ap)}, it's Liam. Here's the ${blog ? 'blog post' : 'LinkedIn post'} with your answer in it. Could you give it a quick read and OK it? ${exvOkLink(pc.approve_token)}` : '';
+  const st = pc.status === 'published' ? { cls:'good', label:'Published ' + shortDate(pc.published_at) }
+    : pc.status === 'approved' ? { cls:'good', label:`${exvFirst(ap) || 'They'} approved ${shortDate(pc.approved_at)}` }
+    : pc.status === 'changes' ? { cls:'bad', label:`${exvFirst(ap) || 'They'} asked for changes` }
+    : pc.status === 'needs_ok' ? { cls:'hot', label:`Waiting on ${exvFirst(ap) || 'an OK'}` }
+    : { cls:'', label:needsOk ? `Draft, needs ${exvFirst(ap)}'s OK` : 'Draft' };
+  const canPublish = pc.status !== 'published' && (!needsOk || pc.status === 'approved');
+  return `<div class="exv-piece">
+    <div class="exv-ans-head"><span class="eyebrow">${blog ? 'Website blog post' : 'LinkedIn post'}</span><span class="spacer"></span>
+      <span class="chip ${st.cls}">${esc(st.label)}</span></div>
+    ${pc.status === 'changes' && pc.approve_note ? `<div class="exv-check"><span class="eyebrow">${esc(exvFirst(ap))} said</span><p>${esc(pc.approve_note)}</p></div>` : ''}
+    ${blog ? `<div class="field"><label for="exvT-${esc(pc.id)}">Title</label>
+      <input type="text" class="exv-edit" id="exvT-${esc(pc.id)}" value="${esc(pc.title)}" /></div>
+      <div class="field"><label for="exvX-${esc(pc.id)}">Excerpt</label>
+      <input type="text" class="exv-edit" id="exvX-${esc(pc.id)}" value="${esc(pc.excerpt)}" /></div>` : ''}
+    <div class="field"><label for="exvB-${esc(pc.id)}">${blog ? 'Post' : 'Text'}</label>
+      <textarea class="exv-edit" id="exvB-${esc(pc.id)}" style="min-height:${blog ? 420 : 200}px">${esc(pc.body)}</textarea></div>
+    <p class="hint" style="margin:4px 0 0">${blog ? 'Lines starting with ## become headings and lines starting with &gt; become quotes when you copy it for WordPress.' : ''}
+      ${needsOk && ['approved','changes','needs_ok'].includes(pc.status) ? ' Saving an edit means it goes back for another OK.' : ''}</p>
+    <div class="actions">
+      <button class="btn small ghost" data-exv-save="${esc(pc.id)}">Save edits</button>
+      ${blog ? `<button class="btn small ghost" data-exv-wp="${esc(pc.id)}">Copy for WordPress</button>` : ''}
+      <button class="btn small ghost" data-exv-plain="${esc(pc.id)}">Copy text</button>
+      ${needsOk && pc.status !== 'published' && pc.status !== 'approved' ? `<a class="btn small" href="${esc(exvSms(ap.phone, okTxt))}" data-exv-askok="${esc(pc.id)}"
+        style="text-decoration:none">${pc.status === 'needs_ok' ? 'Text ' + esc(exvFirst(ap)) + ' again' : 'Text ' + esc(exvFirst(ap)) + ' for an OK'}</a>
+        <button class="linkbtn" data-exv-copy="${esc(exvOkLink(pc.approve_token))}">Copy OK link</button>` : ''}
+    </div>
+    ${pc.status !== 'published' ? `<div class="actions" style="margin-top:10px">
+      <input type="text" id="exvU-${esc(pc.id)}" placeholder="${blog ? 'Post address on the website (optional)' : 'LinkedIn post address (optional)'}" style="max-width:380px" />
+      <button class="btn small ${canPublish ? 'accent' : 'ghost'}" data-exv-pub="${esc(pc.id)}" ${canPublish ? '' : 'disabled'}
+        title="${canPublish ? '' : 'Needs ' + esc(exvFirst(ap)) + '\'s OK first'}">Mark published</button></div>`
+      : pc.published_url ? `<p class="hint" style="margin-top:8px"><a href="${esc(pc.published_url)}" target="_blank" rel="noopener">${esc(pc.published_url)}</a></p>` : ''}
+  </div>`;
+}
+
+/* The post as WordPress takes it when pasted into the block editor:
+   paragraphs, ## headings and > quotes. */
+function exvWpHtml(pc){
+  const e = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return String(pc.body || '').replace(/\r/g, '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean).map(x => {
+    if(/^#{1,3}\s/.test(x)) return `<h2>${e(x.replace(/^#+\s*/, ''))}</h2>`;
+    if(x.startsWith('>')){
+      const lines = x.split('\n').map(l => l.replace(/^>\s?/, '').trim()).filter(Boolean);
+      const cite = lines.length > 1 && /^\(.*\)$/.test(lines[lines.length - 1]) ? lines.pop().slice(1, -1) : '';
+      return `<blockquote><p>${lines.map(e).join('<br>')}</p>${cite ? `<cite>${e(cite)}</cite>` : ''}</blockquote>`;
+    }
+    return `<p>${e(x).replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+}
+
+async function exvCopy(text, html, btn){
+  try{
+    if(html && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html':new Blob([html], { type:'text/html' }), 'text/plain':new Blob([text], { type:'text/plain' }) })]);
+    }else await navigator.clipboard.writeText(text);
+    if(btn){ const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = t; }, 1600); }
+  }catch(e){ S.exv.err = 'Copy did not work in this browser. Select the text and copy it instead.'; render(); }
+}
+
+async function exvCall(body){
+  const r = await fetch(EXV_URL, { method:'POST', headers:await authHeaders(), body:JSON.stringify(body) });
+  let j = null;
+  try{ j = await r.json(); }catch(e){}
+  if(!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('The workflow answered ' + r.status + '.'));
+  return j;
+}
+
+function exvPeopleView(){
+  const E = S.exv;
+  const ppl = E.people.filter(p => p.brand === E.brand);
+  return `${exvTop()}
+    <p class="hint" style="margin:0 0 16px">Who can be asked. Add each person's cell so Text it fills in their number.
+      Notes on how someone talks (phrases they use, what they light up on) help the drafts sound like them.
+      Needs their OK means anything quoting them goes to them before it can be marked published.</p>
+    <div class="exv-ptable">${ppl.map(p => `<div class="exv-prow ${p.active ? '' : 'dim'}" data-exv-prow="${esc(p.id)}">
+      <div class="apv-pair">
+        <div class="field"><label>Name</label><input type="text" data-k="name" value="${esc(p.name)}" /></div>
+        <div class="field"><label>Title</label><input type="text" data-k="title" value="${esc(p.title)}" /></div>
+      </div>
+      <div class="apv-pair">
+        <div class="field"><label>Cell</label><input type="text" data-k="phone" value="${esc(p.phone)}" inputmode="tel" placeholder="209-555-0123" /></div>
+        <div class="field"><label>Email</label><input type="email" data-k="email" value="${esc(p.email)}" /></div>
+      </div>
+      <div class="field"><label>How they talk</label><input type="text" data-k="notes" value="${esc(p.notes)}" placeholder="Optional" /></div>
+      <div class="actions">
+        <label class="exv-check-l"><input type="checkbox" data-k="needs_signoff" ${p.needs_signoff ? 'checked' : ''} /> Needs their OK before posting</label>
+        <label class="exv-check-l"><input type="checkbox" data-k="active" ${p.active ? 'checked' : ''} /> Active</label>
+        <span class="spacer"></span>
+        <button class="btn small ghost" data-exv-psave="${esc(p.id)}">Save</button>
+      </div>
+    </div>`).join('')}
+    <div class="exv-prow" data-exv-prow="new">
+      <span class="eyebrow">Add someone</span>
+      <div class="apv-pair">
+        <div class="field"><label>Name</label><input type="text" data-k="name" /></div>
+        <div class="field"><label>Title</label><input type="text" data-k="title" /></div>
+      </div>
+      <div class="apv-pair">
+        <div class="field"><label>Cell</label><input type="text" data-k="phone" inputmode="tel" /></div>
+        <div class="field"><label>Email</label><input type="email" data-k="email" /></div>
+      </div>
+      <div class="actions"><label class="exv-check-l"><input type="checkbox" data-k="needs_signoff" /> Needs their OK before posting</label>
+        <span class="spacer"></span><button class="btn small" data-exv-psave="new">Add to ${esc(SOC_BRANDS[E.brand])}</button></div>
+    </div></div>`;
+}
+
+function exvBankView(){
+  const E = S.exv;
+  const qs = E.prompts.filter(q => q.brand === E.brand && q.active);
+  const used = id => E.asks.filter(k => k.prompt_id === id).length;
+  const groups = [...new Set(qs.map(q => q.for_who || 'Anyone'))];
+  return `${exvTop()}
+    <p class="hint" style="margin:0 0 16px">Good questions ask for one real story, not an opinion. Ask this starts a question with it filled in.</p>
+    ${groups.map(g => `<h2 class="sec" style="margin-top:20px">${esc(g)}</h2>
+      <div class="pho-list">${qs.filter(q => (q.for_who || 'Anyone') === g).map(q => `<div class="pho-row" style="cursor:default">
+        <span class="pho-main"><b style="font-weight:500">${esc(q.question)}</b>
+          <span class="hint">${esc(q.theme || '')}${used(q.id) ? ' &middot; asked ' + used(q.id) + ' time' + (used(q.id) === 1 ? '' : 's') : ''}</span></span>
+        <span class="pho-meta"><button class="btn small ghost" data-exv-askq="${esc(q.id)}">Ask this</button>
+          <button class="linkbtn" data-exv-retire="${esc(q.id)}">Retire</button></span>
+      </div>`).join('')}</div>`).join('')}
+    <div class="panelbox"><span class="eyebrow">Add a question to the bank</span>
+      <div class="field"><textarea id="exvQNew" style="min-height:70px" placeholder="Tell me about a time..."></textarea></div>
+      <div class="apv-pair">
+        <div class="field"><label>For</label><select id="exvQFor">${['Leadership','Operations','Field','Anyone'].map(x => `<option>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Theme</label><input type="text" id="exvQTheme" placeholder="Safety, Clients, Culture..." /></div>
+      </div>
+      <div class="actions"><button class="btn small" id="exvQAdd">Add question</button></div></div>`;
+}
+
+function exvForm(){
+  const E = S.exv, f = E.form;
+  if(!f) return '';
+  const ppl = E.people.filter(p => p.brand === f.brand && p.active);
+  const bank = E.prompts.filter(q => q.brand === f.brand && q.active);
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Ask a question">
+    <div class="sheet-in wide">
+      <div class="sheet-head"><h2>Ask a question</h2><button class="linkbtn" id="exvFClose">Close</button></div>
+      <p class="hint" style="margin:6px 0 0">${esc(SOC_BRANDS[f.brand])}. Pick everyone who should answer; each gets their own link.</p>
+      <div class="field"><label for="exvFBank">From the question bank</label>
+        <select id="exvFBank"><option value="">Write my own&hellip;</option>${bank.map(q =>
+          `<option value="${esc(q.id)}" ${f.prompt_id === q.id ? 'selected' : ''}>${esc(q.question.length > 90 ? q.question.slice(0, 88) + '…' : q.question)}</option>`).join('')}</select></div>
+      <div class="field"><label for="exvFQ">The question</label>
+        <textarea id="exvFQ" style="min-height:80px">${esc(f.question)}</textarea></div>
+      <div class="field"><label for="exvFHelp">A line of help under it (optional)</label>
+        <input type="text" id="exvFHelp" value="${esc(f.help)}" placeholder="Think of one real job. What happened, what did you do, what did you learn?" /></div>
+      <div class="field"><label>Who answers</label>
+        <div class="exv-pick">${ppl.map(p => { const on = f.who[p.id] !== undefined;
+          return `<div class="exv-pick-row ${on ? 'on' : ''}">
+            <label><input type="checkbox" data-exv-fwho="${esc(p.id)}" ${on ? 'checked' : ''} /> <b>${esc(p.name)}</b> <span class="hint">${esc(p.title)}</span></label>
+            ${on ? `<input type="text" data-exv-fangle="${esc(p.id)}" value="${esc(f.who[p.id])}" placeholder="Angle for ${esc(exvFirst(p))} (optional), e.g. from the field side" />` : ''}
+          </div>`; }).join('') || '<p class="hint">Nobody active for this company yet. Add people first.</p>'}</div></div>
+      ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
+      <div class="sheet-foot"><button class="btn" id="exvFGo" ${E.busy ? 'disabled' : ''}>${E.busy ? 'Creating&hellip;' : 'Create the links'}</button></div>
+    </div></div>`;
+}
+
+async function exvCreate(){
+  const E = S.exv, f = E.form;
+  const who = Object.keys(f.who);
+  E.err = '';
+  if(f.question.trim().length < 8) E.err = 'Write the question.';
+  else if(!who.length) E.err = 'Pick at least one person.';
+  if(E.err) return render();
+  E.busy = 'create'; render();
+  const ins = await sb.from('exv_asks').insert({ brand:f.brand, question:f.question.trim(), help:f.help.trim(),
+    prompt_id:f.prompt_id || null }).select().single();
+  if(ins.error){ E.busy = ''; E.err = 'Could not save the question. ' + (ins.error.message || ''); return render(); }
+  const rq = await sb.from('exv_requests').insert(who.map(id => ({ ask_id:ins.data.id, person_id:id, angle:(f.who[id] || '').trim() }))).select();
+  E.busy = '';
+  if(rq.error){ E.err = 'The question saved but the links did not. ' + (rq.error.message || ''); return render(); }
+  E.asks.unshift(ins.data); E.reqs.push(...(rq.data || []));
+  E.form = null; E.view = 'ask'; E.open = ins.data.id;
+  E.note = `Links ready for ${who.length} ${who.length === 1 ? 'person' : 'people'}. Tap Text it on your phone to send each one.`;
+  render(); window.scrollTo(0, 0);
+}
+
+async function exvUpdate(table, id, patch, note){
+  const E = S.exv;
+  const { data, error } = await sb.from(table).update(patch).eq('id', id).select().single();
+  if(error){ E.err = 'Could not save. ' + (error.message || ''); render(); return null; }
+  const list = { exv_people:E.people, exv_prompts:E.prompts, exv_asks:E.asks, exv_requests:E.reqs, exv_answers:E.answers, exv_pieces:E.pieces }[table];
+  const i = list.findIndex(x => x.id === id);
+  if(i >= 0) list[i] = data;
+  E.err = ''; if(note !== undefined) E.note = note;
+  render();
+  return data;
+}
+
+function wireVoices(){
+  if(S.page !== 'voices') return;
+  const E = S.exv;
+  const on = (id, fn, ev = 'click') => { const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
+  const each = (sel, fn, ev = 'click') => document.querySelectorAll(sel).forEach(el => el.addEventListener(ev, e => fn(el, e)));
+
+  each('[data-exv-brand]', el => { E.brand = el.dataset.exvBrand; E.open = null; if(E.view === 'ask') E.view = 'asks'; E.note = ''; E.err = ''; render(); });
+  each('[data-exv-view]', el => { E.view = el.dataset.exvView; E.open = null; E.note = ''; E.err = ''; render(); window.scrollTo(0, 0); });
+  each('[data-exv-open]', async el => {
+    E.open = el.dataset.exvOpen; E.view = 'ask'; E.note = ''; E.err = '';
+    render(); window.scrollTo(0, 0);
+    await exvLoadAudio(E.open); render();
+  });
+  on('exvBack', async () => { E.view = 'asks'; E.open = null; E.note = ''; E.err = ''; await loadVoices(); render(); });
+  on('exvNew', () => { E.err = ''; E.note = ''; E.form = { brand:E.brand, prompt_id:'', question:'', help:'', who:{} }; render(); });
+  each('[data-exv-askq]', el => {
+    const q = E.prompts.find(x => x.id === el.dataset.exvAskq);
+    E.err = ''; E.form = { brand:E.brand, prompt_id:q.id, question:q.question, help:'', who:{} }; render();
+  });
+  each('[data-exv-copy]', (el, e) => { e.preventDefault(); exvCopy(el.dataset.exvCopy, null, el); });
+
+  /* Tapping Text it or Email opens the phone's app and marks the link sent. */
+  each('[data-exv-sent]', el => {
+    const r = E.reqs.find(x => x.id === el.dataset.exvSent);
+    if(!r) return;
+    const patch = el.dataset.exvKind === 'nudge' ? { reminded_at:new Date().toISOString() }
+      : r.sent_at ? {} : { sent_at:new Date().toISOString() };
+    if(Object.keys(patch).length) setTimeout(() => exvUpdate('exv_requests', r.id, patch), 400);
+  });
+  each('[data-exv-mark]', el => exvUpdate('exv_requests', el.dataset.exvMark, { sent_at:new Date().toISOString() }));
+  each('[data-exv-unask]', async el => {
+    const r = E.reqs.find(x => x.id === el.dataset.exvUnask), p = r && exvPerson(r.person_id);
+    if(!r || !confirm(`Take ${p ? p.name : 'them'} off this question? Their link stops working.`)) return;
+    const { error } = await sb.from('exv_requests').delete().eq('id', r.id);
+    if(error){ E.err = 'Could not remove. ' + (error.message || ''); return render(); }
+    E.reqs = E.reqs.filter(x => x.id !== r.id); render();
+  });
+  on('exvAddGo', async () => {
+    const id = document.getElementById('exvAddWho').value;
+    if(!id) return;
+    const { data, error } = await sb.from('exv_requests').insert({ ask_id:E.open, person_id:id }).select().single();
+    if(error){ E.err = 'Could not add. ' + (error.message || ''); return render(); }
+    E.reqs.push(data); E.note = `${exvPerson(id).name} added. Text them their link.`; render();
+  });
+  on('exvClose', () => exvUpdate('exv_asks', E.open, { status:'closed' }, 'Closed. The links no longer take answers.'));
+  on('exvReopen', () => exvUpdate('exv_asks', E.open, { status:'open' }, 'Open again. The same links work.'));
+  on('exvDelete', async () => {
+    const k = E.asks.find(x => x.id === E.open);
+    const n = exvAskAnswers(E.open).length;
+    if(!confirm(`Delete this question${n ? ` and its ${n} answer${n === 1 ? '' : 's'}` : ''}? The links stop working. This cannot be undone.`)) return;
+    const paths = exvAskAnswers(E.open).flatMap(a => [a.audio_path, a.photo_path]).filter(Boolean);
+    if(paths.length) await sb.storage.from('voices').remove(paths);
+    const { error } = await sb.from('exv_asks').delete().eq('id', k.id);
+    if(error){ E.err = 'Could not delete. ' + (error.message || ''); return render(); }
+    E.asks = E.asks.filter(x => x.id !== k.id); E.view = 'asks'; E.open = null; E.note = 'Question deleted.'; render();
+  });
+
+  each('[data-exv-tab]', el => { E.draftTab[el.dataset.exvTab] = el.dataset.v; render(); });
+  each('[data-exv-copytext]', el => {
+    const a = E.answers.find(x => x.id === el.dataset.exvCopytext), v = el.dataset.v;
+    const t = v === 'answer' ? a.answer_clean : v === 'transcript' ? a.transcript : (a.drafts || {})[v];
+    exvCopy(t || '', null, el);
+  });
+  each('[data-exv-use]', el => exvUpdate('exv_answers', el.dataset.exvUse, { use_status:el.dataset.v }));
+  each('[data-exv-retry]', async el => {
+    E.busy = 'retry'; E.err = ''; render();
+    try{
+      await exvCall({ action:'process', answer_id:el.dataset.exvRetry });
+      const a = E.answers.find(x => x.id === el.dataset.exvRetry); if(a){ a.status = 'new'; a.error = null; }
+    }catch(e){ E.err = 'Could not start it again. ' + e.message; }
+    E.busy = ''; render();
+  });
+  on('exvCombine', async () => {
+    E.busy = 'combine'; E.err = ''; E.note = ''; render();
+    try{
+      const j = await exvCall({ action:'combine', ask_id:E.open });
+      await loadVoices();
+      E.note = 'Blog post written' + (j.title ? ': ' + j.title : '') + '. Read it over below.' +
+        ((j.check || []).length ? ' Check before posting: ' + j.check.join('; ') : '');
+    }catch(e){ E.err = 'The blog post was not written. ' + e.message; }
+    E.busy = ''; render();
+  });
+
+  /* Pieces */
+  const pieceOf = el => E.pieces.find(x => x.id === (el.dataset.exvSave || el.dataset.exvWp || el.dataset.exvPlain || el.dataset.exvPub || el.dataset.exvAskok));
+  const readPiece = pc => {
+    const v = id => { const el = document.getElementById(id + pc.id); return el ? el.value : undefined; };
+    return { title:v('exvT-') ?? pc.title, excerpt:v('exvX-') ?? pc.excerpt, body:v('exvB-') ?? pc.body };
+  };
+  each('[data-exv-save]', el => {
+    const pc = pieceOf(el), n = readPiece(pc);
+    const changed = n.title !== pc.title || n.excerpt !== pc.excerpt || n.body !== pc.body;
+    if(!changed){ E.note = 'Nothing changed.'; return render(); }
+    const patch = { ...n, updated_at:new Date().toISOString() };
+    if(pc.approver_id && ['approved','changes','needs_ok'].includes(pc.status)) Object.assign(patch, { status:'draft', approved_at:null });
+    exvUpdate('exv_pieces', pc.id, patch, 'Saved.');
+  });
+  each('[data-exv-wp]', el => { const pc = pieceOf(el), n = readPiece(pc); exvCopy(n.body, exvWpHtml({ body:n.body }), el); });
+  each('[data-exv-plain]', el => { const pc = pieceOf(el), n = readPiece(pc); exvCopy((pc.kind === 'blog' && n.title ? n.title + '\n\n' : '') + n.body, null, el); });
+  each('[data-exv-askok]', el => {
+    const pc = pieceOf(el);
+    setTimeout(() => exvUpdate('exv_pieces', pc.id, { status:'needs_ok', approve_note:null }), 400);
+  });
+  each('[data-exv-pub]', el => {
+    const pc = pieceOf(el), u = (document.getElementById('exvU-' + pc.id) || {}).value || '';
+    exvUpdate('exv_pieces', pc.id, { status:'published', published_at:new Date().toISOString(), published_url:u.trim() || null },
+      pc.kind === 'blog' ? 'Marked published.' : 'LinkedIn post marked published.');
+    exvAskAnswers(pc.ask_id).filter(a => a.status === 'ready' && a.use_status === 'new')
+      .forEach(a => sb.from('exv_answers').update({ use_status:'used' }).eq('id', a.id).then(() => { a.use_status = 'used'; }));
+  });
+
+  /* People */
+  each('[data-exv-psave]', async el => {
+    const id = el.dataset.exvPsave, row = document.querySelector(`[data-exv-prow="${id}"]`);
+    const v = {};
+    row.querySelectorAll('[data-k]').forEach(i => { v[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.value.trim(); });
+    if(!v.name){ E.err = 'Add a name.'; return render(); }
+    if(id === 'new'){
+      const { data, error } = await sb.from('exv_people').insert({ ...v, brand:E.brand, sort:100 + E.people.length }).select().single();
+      if(error){ E.err = 'Could not add. ' + (error.message || ''); return render(); }
+      E.people.push(data); E.err = ''; E.note = data.name + ' added.'; render();
+    }else exvUpdate('exv_people', id, v, 'Saved ' + v.name + '.');
+  });
+
+  /* Question bank */
+  each('[data-exv-retire]', el => exvUpdate('exv_prompts', el.dataset.exvRetire, { active:false }, 'Retired. It no longer shows in the bank.'));
+  on('exvQAdd', async () => {
+    const q = document.getElementById('exvQNew').value.trim();
+    if(q.length < 8){ E.err = 'Write the question first.'; return render(); }
+    const { data, error } = await sb.from('exv_prompts').insert({ brand:E.brand, question:q,
+      for_who:document.getElementById('exvQFor').value, theme:document.getElementById('exvQTheme').value.trim() }).select().single();
+    if(error){ E.err = 'Could not add. ' + (error.message || ''); return render(); }
+    E.prompts.push(data); E.err = ''; E.note = 'Added to the bank.'; render();
+  });
+
+  /* The ask form */
+  if(E.form){
+    const f = E.form;
+    on('exvFClose', () => { E.form = null; E.err = ''; render(); });
+    on('exvFBank', e => {
+      const q = E.prompts.find(x => x.id === e.target.value);
+      f.prompt_id = q ? q.id : ''; if(q) f.question = q.question; render();
+    }, 'change');
+    on('exvFQ', e => { f.question = e.target.value; }, 'input');
+    on('exvFHelp', e => { f.help = e.target.value; }, 'input');
+    each('[data-exv-fwho]', el => {
+      const id = el.dataset.exvFwho;
+      if(el.checked) f.who[id] = f.who[id] || ''; else delete f.who[id];
+      render();
+    }, 'change');
+    each('[data-exv-fangle]', el => { f.who[el.dataset.exvFangle] = el.value; }, 'input');
+    on('exvFGo', exvCreate);
+  }
+  exvPoll();
 }
 
 /* ================= marketing return ================= */
