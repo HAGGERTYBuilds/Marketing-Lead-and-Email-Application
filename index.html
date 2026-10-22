@@ -1215,7 +1215,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-22v';
+const BUILD = '2026-10-22y';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -10998,6 +10998,18 @@ function wirePhotos(){
 const EXV_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices';
 /* Days after the text before the ask shows as overdue with a reminder. */
 const EXV_NUDGE_DAYS = 4;
+/* Twilio call-in line (n8n "Haggerty Voices Call-In"): they call, hear their
+   question, and talk. Blank until the number exists; the texts mention it
+   once it is set, e.g. '(209) 555-0100'. */
+const EXV_CALL_NUMBER = '';
+/* Texts sent by the dashboard through Twilio (same n8n workflow). Off until
+   the Twilio number is registered; until then Text it opens your phone. */
+const EXV_TEXT_ON = false;
+const EXV_TEXT_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-text';
+/* Until then Send emails them from Liam's Outlook (n8n "Haggerty Voices Email"). */
+const EXV_EMAIL_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-email';
+const exvCanSend = p => !!(p && (EXV_TEXT_ON ? p.phone : p.email));
+const exvCallLine = () => EXV_CALL_NUMBER ? ` Or just call ${EXV_CALL_NUMBER} and talk your answer.` : '';
 
 S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[],
           audio:{}, form:null, busy:'', err:'', note:'', loadErr:'', show:{}, draftTab:{}, timer:null };
@@ -11017,10 +11029,10 @@ const exvDays = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 :
 const exvSms = (phone, body) => 'sms:' + String(phone || '').replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(body);
 
 function exvAskText(p, r){
-  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}`;
+  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}${exvCallLine()}`;
 }
 function exvNudgeText(p, r){
-  return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}`;
+  return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}${exvCallLine()}`;
 }
 
 /* Where one person's link stands. */
@@ -11172,7 +11184,11 @@ function exvDetail(k){
       <select id="exvAddWho" style="width:auto;min-width:220px"><option value="">Add someone to this question&hellip;</option>
         ${notAsked.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.title ? ' (' + esc(p.title) + ')' : ''}</option>`).join('')}</select>
       <button class="btn small ghost" id="exvAddGo">Add</button></div>` : ''}
-    <p class="hint" style="margin-top:8px">Text it opens your phone's Messages with the note and the link filled in, and marks it sent.
+    ${k.status === 'open' && rs.filter(r => !r.sent_at && !exvAnswersFor(r.id).length && exvCanSend(exvPerson(r.person_id))).length > 1 ? `<div class="actions" style="margin-top:10px">
+      <button class="btn small" id="exvSendAll" ${E.busy ? 'disabled' : ''}>${E.busy === 'sendall' ? 'Sending&hellip;'
+        : EXV_TEXT_ON ? 'Text everyone not sent yet' : 'Email everyone not sent yet'}</button></div>` : ''}
+    <p class="hint" style="margin-top:8px">${EXV_TEXT_ON ? 'Send text texts them the note and their link from the HAGGERTY Voices number and marks it sent.'
+      : "Email it sends the question and a Tap to answer button from your Outlook, and marks it sent. Text it opens your phone's Messages with the link filled in instead."}
       On a computer, Copy link and send it however you like.</p>
 
     <h2 class="sec" style="margin-top:30px">Answers</h2>
@@ -11205,15 +11221,19 @@ function exvReqRow(k, r){
   const late = !answered && r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
   const mail = 'mailto:' + encodeURIComponent(p.email || '') + '?subject=' + encodeURIComponent('A quick question for a blog post') +
     '&body=' + encodeURIComponent(`Hi ${exvFirst(p) || 'there'},\n\nCould you answer this question for a blog I'm putting together?\n\n"${k.question}"\n\n` +
-      `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\nThanks!\nLiam`);
+      `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\n${EXV_CALL_NUMBER ? `Or call ${EXV_CALL_NUMBER}, hear the question, and talk your answer.\n\n` : ''}Thanks!\nLiam`);
   return `<div class="exv-person">
     <div class="exv-who"><b>${esc(p.name)}</b>${p.title ? `<span class="hint">${esc(p.title)}</span>` : ''}
       ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}</div>
     <span class="chip ${st.cls}">${esc(st.label)}</span>
     ${k.status === 'open' && !answered ? `<span class="exv-acts">
-      <a class="btn small ${r.sent_at && !late ? 'ghost' : ''}" href="${esc(exvSms(p.phone, late ? exvNudgeText(p, r) : exvAskText(p, r)))}"
-         data-exv-sent="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}" style="text-decoration:none">${late ? 'Text a nudge' : r.sent_at ? 'Text again' : 'Text it'}</a>
-      <a class="btn small ghost" href="${esc(mail)}" data-exv-sent="${esc(r.id)}" data-exv-kind="ask" style="text-decoration:none">Email</a>
+      ${exvCanSend(p) ? `<button class="btn small ${r.sent_at && !late ? 'ghost' : ''}" data-exv-send="${esc(r.id)}"
+         ${S.exv.busy ? 'disabled' : ''}>${S.exv.busy === 'send:' + r.id ? 'Sending&hellip;'
+           : EXV_TEXT_ON ? (late ? 'Send a nudge' : r.sent_at ? 'Send again' : 'Send text')
+           : (late ? 'Email a nudge' : r.sent_at ? 'Email again' : 'Email it')}</button>` : ''}
+      ${!EXV_TEXT_ON || !p.phone ? `<a class="btn small ${exvCanSend(p) || (r.sent_at && !late) ? 'ghost' : ''}" href="${esc(exvSms(p.phone, late ? exvNudgeText(p, r) : exvAskText(p, r)))}"
+         data-exv-sent="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}" style="text-decoration:none">${late ? 'Text a nudge' : r.sent_at ? 'Text again' : 'Text it'}</a>` : ''}
+      ${EXV_TEXT_ON && p.email ? `<a class="btn small ghost" href="${esc(mail)}" data-exv-sent="${esc(r.id)}" data-exv-kind="ask" style="text-decoration:none">Email</a>` : ''}
       <button class="btn small ghost" data-exv-copy="${esc(exvLink(r.token))}">Copy link</button>
       ${!p.phone ? `<span class="hint">No cell on file, <button class="linkbtn" data-exv-view="people" style="padding:0">add it</button></span>` : ''}
       ${!r.sent_at ? `<button class="linkbtn" data-exv-mark="${esc(r.id)}">Mark sent</button>` : ''}
@@ -11474,6 +11494,45 @@ function wireVoices(){
     const patch = el.dataset.exvKind === 'nudge' ? { reminded_at:new Date().toISOString() }
       : r.sent_at ? {} : { sent_at:new Date().toISOString() };
     if(Object.keys(patch).length) setTimeout(() => exvUpdate('exv_requests', r.id, patch), 400);
+  });
+  /* Sent by n8n: a text through Twilio, or for now an email from Liam's
+     Outlook. The number or address comes from People on the server. */
+  const exvSendOne = async r => {
+    const p = exvPerson(r.person_id);
+    const late = r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
+    const body = { request_id:r.id, kind:late ? 'nudge' : 'ask' };
+    if(EXV_TEXT_ON) body.message = late ? exvNudgeText(p, r) : exvAskText(p, r);
+    else body.link = exvLink(r.token);
+    const res = await fetch(EXV_TEXT_ON ? EXV_TEXT_URL : EXV_EMAIL_URL, { method:'POST', headers:await authHeaders(), body:JSON.stringify(body) });
+    let j = null;
+    try{ j = await res.json(); }catch(e){}
+    if(!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('The send service answered ' + res.status + '.'));
+    Object.assign(r, j.request || {});
+    return p;
+  };
+  const sentWord = () => EXV_TEXT_ON ? 'Texted' : 'Emailed';
+  each('[data-exv-send]', async el => {
+    const r = E.reqs.find(x => x.id === el.dataset.exvSend);
+    if(!r || E.busy) return;
+    E.busy = 'send:' + r.id; E.err = ''; E.note = ''; render();
+    try{ const p = await exvSendOne(r); E.note = `${sentWord()} ${exvFirst(p)}.`; }
+    catch(e){ E.err = 'It did not go out. ' + e.message; }
+    E.busy = ''; render();
+  });
+  on('exvSendAll', async () => {
+    if(E.busy) return;
+    const todo = exvReqs(E.open).filter(r => !r.sent_at && !exvAnswersFor(r.id).length && exvCanSend(exvPerson(r.person_id)));
+    if(!todo.length || !confirm(`${EXV_TEXT_ON ? 'Text' : 'Email'} ${todo.map(r => exvFirst(exvPerson(r.person_id))).join(', ')}?`)) return;
+    E.busy = 'sendall'; E.err = ''; E.note = ''; render();
+    const ok = [], bad = [];
+    for(const r of todo){
+      try{ ok.push(exvFirst(await exvSendOne(r))); }
+      catch(e){ bad.push(exvFirst(exvPerson(r.person_id)) + ' (' + e.message + ')'); }
+    }
+    E.busy = '';
+    if(ok.length) E.note = sentWord() + ' ' + ok.join(', ') + '.';
+    if(bad.length) E.err = 'Not sent: ' + bad.join('; ');
+    render();
   });
   each('[data-exv-mark]', el => exvUpdate('exv_requests', el.dataset.exvMark, { sent_at:new Date().toISOString() }));
   each('[data-exv-unask]', async el => {
