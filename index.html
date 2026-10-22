@@ -1215,7 +1215,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-22w';
+const BUILD = '2026-10-22x';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -11002,6 +11002,10 @@ const EXV_NUDGE_DAYS = 4;
    question, and talk. Blank until the number exists; the texts mention it
    once it is set, e.g. '(209) 555-0100'. */
 const EXV_CALL_NUMBER = '';
+/* Texts sent by the dashboard through Twilio (same n8n workflow). Off until
+   the Twilio number is registered; until then Text it opens your phone. */
+const EXV_TEXT_ON = false;
+const EXV_TEXT_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-text';
 const exvCallLine = () => EXV_CALL_NUMBER ? ` Or just call ${EXV_CALL_NUMBER} and talk your answer.` : '';
 
 S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[],
@@ -11177,7 +11181,10 @@ function exvDetail(k){
       <select id="exvAddWho" style="width:auto;min-width:220px"><option value="">Add someone to this question&hellip;</option>
         ${notAsked.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.title ? ' (' + esc(p.title) + ')' : ''}</option>`).join('')}</select>
       <button class="btn small ghost" id="exvAddGo">Add</button></div>` : ''}
-    <p class="hint" style="margin-top:8px">Text it opens your phone's Messages with the note and the link filled in, and marks it sent.
+    ${EXV_TEXT_ON && k.status === 'open' && rs.some(r => !r.sent_at && (exvPerson(r.person_id) || {}).phone) ? `<div class="actions" style="margin-top:10px">
+      <button class="btn small" id="exvSendAll" ${E.busy ? 'disabled' : ''}>${E.busy === 'textall' ? 'Sending&hellip;' : 'Text everyone not sent yet'}</button></div>` : ''}
+    <p class="hint" style="margin-top:8px">${EXV_TEXT_ON ? 'Send text texts them the note and their link from the HAGGERTY Voices number and marks it sent.'
+      : "Text it opens your phone's Messages with the note and the link filled in, and marks it sent."}
       On a computer, Copy link and send it however you like.</p>
 
     <h2 class="sec" style="margin-top:30px">Answers</h2>
@@ -11216,8 +11223,10 @@ function exvReqRow(k, r){
       ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}</div>
     <span class="chip ${st.cls}">${esc(st.label)}</span>
     ${k.status === 'open' && !answered ? `<span class="exv-acts">
-      <a class="btn small ${r.sent_at && !late ? 'ghost' : ''}" href="${esc(exvSms(p.phone, late ? exvNudgeText(p, r) : exvAskText(p, r)))}"
-         data-exv-sent="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}" style="text-decoration:none">${late ? 'Text a nudge' : r.sent_at ? 'Text again' : 'Text it'}</a>
+      ${EXV_TEXT_ON && p.phone ? `<button class="btn small ${r.sent_at && !late ? 'ghost' : ''}" data-exv-send="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}"
+         ${S.exv.busy ? 'disabled' : ''}>${S.exv.busy === 'text:' + r.id ? 'Sending&hellip;' : late ? 'Send a nudge' : r.sent_at ? 'Send again' : 'Send text'}</button>`
+      : `<a class="btn small ${r.sent_at && !late ? 'ghost' : ''}" href="${esc(exvSms(p.phone, late ? exvNudgeText(p, r) : exvAskText(p, r)))}"
+         data-exv-sent="${esc(r.id)}" data-exv-kind="${late ? 'nudge' : 'ask'}" style="text-decoration:none">${late ? 'Text a nudge' : r.sent_at ? 'Text again' : 'Text it'}</a>`}
       <a class="btn small ghost" href="${esc(mail)}" data-exv-sent="${esc(r.id)}" data-exv-kind="ask" style="text-decoration:none">Email</a>
       <button class="btn small ghost" data-exv-copy="${esc(exvLink(r.token))}">Copy link</button>
       ${!p.phone ? `<span class="hint">No cell on file, <button class="linkbtn" data-exv-view="people" style="padding:0">add it</button></span>` : ''}
@@ -11479,6 +11488,42 @@ function wireVoices(){
     const patch = el.dataset.exvKind === 'nudge' ? { reminded_at:new Date().toISOString() }
       : r.sent_at ? {} : { sent_at:new Date().toISOString() };
     if(Object.keys(patch).length) setTimeout(() => exvUpdate('exv_requests', r.id, patch), 400);
+  });
+  /* Texts through Twilio. The phone number comes from People on the server;
+     only the wording is sent from here. */
+  const exvSendText = async r => {
+    const p = exvPerson(r.person_id);
+    const late = r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
+    const res = await fetch(EXV_TEXT_URL, { method:'POST', headers:await authHeaders(),
+      body:JSON.stringify({ request_id:r.id, kind:late ? 'nudge' : 'ask', message:late ? exvNudgeText(p, r) : exvAskText(p, r) }) });
+    let j = null;
+    try{ j = await res.json(); }catch(e){}
+    if(!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('The text service answered ' + res.status + '.'));
+    Object.assign(r, j.request || {});
+    return p;
+  };
+  each('[data-exv-send]', async el => {
+    const r = E.reqs.find(x => x.id === el.dataset.exvSend);
+    if(!r || E.busy) return;
+    E.busy = 'text:' + r.id; E.err = ''; E.note = ''; render();
+    try{ const p = await exvSendText(r); E.note = `Texted ${exvFirst(p)}.`; }
+    catch(e){ E.err = 'The text did not go out. ' + e.message; }
+    E.busy = ''; render();
+  });
+  on('exvSendAll', async () => {
+    if(E.busy) return;
+    const todo = exvReqs(E.open).filter(r => !r.sent_at && !exvAnswersFor(r.id).length && (exvPerson(r.person_id) || {}).phone);
+    if(!todo.length || !confirm(`Text ${todo.map(r => exvFirst(exvPerson(r.person_id))).join(', ')}?`)) return;
+    E.busy = 'textall'; E.err = ''; E.note = ''; render();
+    const ok = [], bad = [];
+    for(const r of todo){
+      try{ ok.push(exvFirst(await exvSendText(r))); }
+      catch(e){ bad.push(exvFirst(exvPerson(r.person_id)) + ' (' + e.message + ')'); }
+    }
+    E.busy = '';
+    if(ok.length) E.note = 'Texted ' + ok.join(', ') + '.';
+    if(bad.length) E.err = 'Not sent: ' + bad.join('; ');
+    render();
   });
   each('[data-exv-mark]', el => exvUpdate('exv_requests', el.dataset.exvMark, { sent_at:new Date().toISOString() }));
   each('[data-exv-unask]', async el => {
