@@ -1215,7 +1215,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-22v';
+const BUILD = '2026-10-22w';
 const S = {
   page:'today', board:[], drafts:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -10998,6 +10998,11 @@ function wirePhotos(){
 const EXV_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices';
 /* Days after the text before the ask shows as overdue with a reminder. */
 const EXV_NUDGE_DAYS = 4;
+/* Twilio call-in line (n8n "Haggerty Voices Call-In"): they call, hear their
+   question, and talk. Blank until the number exists; the texts mention it
+   once it is set, e.g. '(209) 555-0100'. */
+const EXV_CALL_NUMBER = '';
+const exvCallLine = () => EXV_CALL_NUMBER ? ` Or just call ${EXV_CALL_NUMBER} and talk your answer.` : '';
 
 S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[],
           audio:{}, form:null, busy:'', err:'', note:'', loadErr:'', show:{}, draftTab:{}, timer:null };
@@ -11017,10 +11022,10 @@ const exvDays = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 :
 const exvSms = (phone, body) => 'sms:' + String(phone || '').replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(body);
 
 function exvAskText(p, r){
-  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}`;
+  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}${exvCallLine()}`;
 }
 function exvNudgeText(p, r){
-  return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}`;
+  return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}${exvCallLine()}`;
 }
 
 /* Where one person's link stands. */
@@ -11205,7 +11210,7 @@ function exvReqRow(k, r){
   const late = !answered && r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
   const mail = 'mailto:' + encodeURIComponent(p.email || '') + '?subject=' + encodeURIComponent('A quick question for a blog post') +
     '&body=' + encodeURIComponent(`Hi ${exvFirst(p) || 'there'},\n\nCould you answer this question for a blog I'm putting together?\n\n"${k.question}"\n\n` +
-      `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\nThanks!\nLiam`);
+      `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\n${EXV_CALL_NUMBER ? `Or call ${EXV_CALL_NUMBER}, hear the question, and talk your answer.\n\n` : ''}Thanks!\nLiam`);
   return `<div class="exv-person">
     <div class="exv-who"><b>${esc(p.name)}</b>${p.title ? `<span class="hint">${esc(p.title)}</span>` : ''}
       ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}</div>
