@@ -11663,9 +11663,11 @@ function wireVoices(){
 
 /* ================= marketing return ================= */
 /* What the marketing spend brought in. Pipedrive has no source on a deal,
-   so it lives in deal_sources (sql/deal_sources.sql). A deal at a company
-   the dashboard emailed before the deal was added counts as outreach
-   without anyone tagging it; a source picked by hand always wins. */
+   so it lives in deal_sources (sql/deal_sources.sql). The nightly deal sync
+   fills a source for every untagged deal from what the data says
+   (deal_sources_autofill, sql/deal_sources_auto.sql), with set_by 'auto'
+   and a note saying why. Those show as "auto" until Liam or Pat confirm or
+   change them; a source picked by hand always wins and is never replaced. */
 const RET_SOURCES = { outreach:'Outreach email', event:'Event', website:'Website or inbound',
                       social:'Social', referral:'Referral', repeat:'Repeat client', other:'Other' };
 /* The sources marketing can take credit for. Referrals and repeat
@@ -11701,13 +11703,21 @@ function retEventLabel(ev){
 }
 
 function retSourceSelect(row, id){
+  /* An auto source sits in the blank first option, so picking any real
+     option (the same one included) saves it as a person's choice. */
   const cur = row.source_auto ? '' : (row.source || '');
-  const opts = `<option value="">${row.source_auto ? 'Outreach email (worked out)' : 'Not set'}</option>` +
+  const opts = `<option value="">${row.source_auto ? esc(RET_SOURCES[row.source] || row.source) + ' (auto)' : 'Not set'}</option>` +
     Object.entries(RET_SOURCES).map(([k,l]) =>
       `<option value="${k}" ${k===cur?'selected':''}>${esc(l)}</option>`).join('');
   const busy = S.ret.busy === row.deal_id;
   let html = `<select id="${id}" data-ret-src="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
     aria-label="Where ${esc(row.title || 'this deal')} came from">${opts}</select>`;
+  if(row.source_auto){
+    html += `<div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
+      <span class="chip">auto</span>
+      ${retCanEdit() ? `<button class="btn small ghost" data-ret-ok="${esc(row.deal_id)}" ${busy ? 'disabled' : ''}>Confirm</button>` : ''}
+    </div>${row.source_note ? `<p class="hint" style="margin:3px 0 0">${esc(String(row.source_note).replace(/^Auto:\s*/, ''))}</p>` : ''}`;
+  }
   if(row.source === 'event' && !row.source_auto){
     html += `<select data-ret-ev="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
       aria-label="Which event" style="margin-top:4px">
@@ -11770,12 +11780,16 @@ function pageReturn(){
   const wonMkt = sum(wonY.filter(mkt));
   const multiple = spend ? wonMkt / spend : null;
   const untagged = wonY.filter(r => !r.source).length + open.filter(r => !r.source).length;
+  /* Auto sources nobody has confirmed yet, won this year or still open. */
+  const autoRows = wonY.filter(r => r.source_auto).concat(open.filter(r => r.source_auto))
+    .sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
 
   const stats = `<div class="stat-grid ret-stats" style="margin-bottom:22px">
     <div class="stat"><div class="k">Marketing spend ${year}</div><div class="v">${spend === null ? '&ndash;' : money(spend)}</div>
       ${spend === null ? `<p class="hint" style="margin:4px 0 0">From the Budget tab, Liam and Pat only.</p>` : ''}</div>
     <div class="stat accent"><div class="k">Won from marketing</div><div class="v">${money(wonMkt)}</div>
-      <p class="hint" style="margin:4px 0 0">${num(wonY.filter(mkt).length)} of ${num(wonY.length)} deals won this year</p></div>
+      <p class="hint" style="margin:4px 0 0">${num(wonY.filter(mkt).length)} of ${num(wonY.length)} deals won this year${
+        autoRows.length ? `, ${num(autoRows.length)} auto not yet confirmed` : ''}</p></div>
     <div class="stat"><div class="k">Return on spend</div><div class="v">${multiple === null ? '&ndash;' : (multiple >= 10 ? Math.round(multiple) : multiple.toFixed(1)) + '<small>&times;</small>'}</div>
       <p class="hint" style="margin:4px 0 0">${multiple === null ? 'Needs spend and a tagged win' : 'Won value per dollar spent'}</p></div>
     <div class="stat"><div class="k">Open from marketing</div><div class="v">${money(sum(open.filter(mkt)))}</div>
@@ -11786,8 +11800,10 @@ function pageReturn(){
   const bySource = keys.map(k => {
     const w = wonY.filter(r => (r.source || '') === k), o = open.filter(r => (r.source || '') === k);
     if(!w.length && !o.length) return '';
+    const nAuto = w.concat(o).filter(r => r.source_auto).length;
     return `<tr>
-      <td>${k ? `<b>${esc(RET_SOURCES[k])}</b>${RET_MARKETING.includes(k) ? '' : ' <span class="chip">not marketing</span>'}`
+      <td>${k ? `<b>${esc(RET_SOURCES[k])}</b>${RET_MARKETING.includes(k) ? '' : ' <span class="chip">not marketing</span>'}${
+                nAuto ? ` <span class="muted">${num(nAuto)} auto</span>` : ''}`
               : `<span style="color:var(--red)">No source yet</span>`}</td>
       <td class="num">${num(w.length)}</td><td class="num"><b>${money(sum(w))}</b></td>
       <td class="num">${num(o.length)}</td><td class="num">${money(sum(o))}</td>
@@ -11830,7 +11846,8 @@ function pageReturn(){
         <th class="num">Won ${year}</th><th class="num">Won value</th>
         <th class="num">Open</th><th class="num">Open value</th></tr></thead>
         <tbody>${bySource || `<tr><td colspan="5" class="hint">No deals yet.</td></tr>`}</tbody></table></div>
-      <p class="hint">Deals at a company Pat emailed before the deal was added count as outreach on their own.
+      <p class="hint">Sources marked auto were worked out from the data (an email or event invite before the deal,
+      an earlier deal with them, Pat's gold list or Pipedrive labels) and wait for Liam or Pat to confirm.
       Won deals count in the year of their last Pipedrive update, the same as the scorecard.</p>
     </div>
 
@@ -11841,6 +11858,20 @@ function pageReturn(){
         <tbody>${evRows}</tbody></table></div>
         <p class="hint">Spent is what the Budget tab has against the event. Tag a deal with the event below to count it here.</p>`
       : `<p class="hint">No events marked going yet.</p>`}
+    </div>
+
+    <div class="block">
+      <h2 class="sec">Auto, not yet confirmed${autoRows.length ? ` (${autoRows.length})` : ''}</h2>
+      ${autoRows.length ? `<div style="overflow-x:auto"><table><thead><tr><th>Deal</th><th class="num">Value</th><th>Came from</th></tr></thead>
+        <tbody>${autoRows.map((r, i) => `<tr>
+          <td><b>${esc(r.title || 'Untitled')}</b>${r.company_name ? ` <span class="muted">${esc(r.company_name)}</span>` : ''}
+            ${r.status === 'won' ? ' <span class="chip good">won</span>' : ''}</td>
+          <td class="num">${money(r.value)}</td>
+          <td style="min-width:190px">${retSourceSelect(r, 'retAuto' + i)}</td>
+        </tr>`).join('')}</tbody></table></div>
+        <p class="hint">${retCanEdit() ? 'Confirm keeps the auto source as yours; picking another one changes it.'
+          : 'Liam or Pat can confirm these.'} Won this year first by value, then open deals.</p>`
+      : `<p class="hint">No auto sources waiting.</p>`}
     </div>
 
     <div class="block">
@@ -11862,6 +11893,11 @@ function wireReturn(){
     }));
   document.querySelectorAll('[data-ret-ev]').forEach(el =>
     el.addEventListener('change', () => saveDealSource(el.dataset.retEv, 'event', el.value)));
+  document.querySelectorAll('[data-ret-ok]').forEach(el =>
+    el.addEventListener('click', () => {
+      const row = (S.ret.rows||[]).find(r => r.deal_id === el.dataset.retOk);
+      if(row && row.source) saveDealSource(row.deal_id, row.source, row.event_invite_id);
+    }));
 }
 
 /* ================= home ================= */
