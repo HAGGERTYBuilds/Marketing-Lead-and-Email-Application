@@ -192,3 +192,164 @@ grant execute on function public.photo_review_finish(text, text) to anon, authen
 --      These photos were approved by the job's PM or superintendent, so
 --      generate may use them for posts like any other photo in
 --      M:\Photos.
+
+-- ===== 2026-10-23 safety pass. Not applied yet when written;
+-- it is section 5 of sql/safety_2026_10_23.sql, which is the file to paste.
+
+-- Photo approvals: links expire, a sent-back batch is read-only, and
+-- photos the PM turned down leave the public bucket.
+
+-- a. 30 days from when the batch was made. Staff can extend one by
+--    setting expires_at.
+alter table public.photo_batches
+  add column if not exists expires_at timestamptz not null default now() + interval '30 days';
+-- remove_due_at is set on each Not approved photo when the batch is sent
+-- back; removed_at once n8n has deleted the file from the bucket. Batches
+-- sent back before this change never get remove_due_at, so nothing
+-- already there is touched.
+alter table public.photo_batch_items
+  add column if not exists remove_due_at timestamptz,
+  add column if not exists removed_at    timestamptz;
+create index if not exists photo_batch_items_remove_idx on public.photo_batch_items (remove_due_at)
+  where remove_due_at is not null and removed_at is null;
+
+-- b. The review page's functions check the end date. A sent-back batch
+--    shows Not approved photos without their picture.
+create or replace function public.photo_review_get(p_token text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare b public.photo_batches;
+begin
+  select * into b from public.photo_batches where token = p_token;
+  if not found then return null; end if;
+  if b.expires_at <= now() and b.status = 'open' then
+    return jsonb_build_object('expired', true, 'brand', b.brand, 'job_name', b.job_name);
+  end if;
+  if b.opened_at is null then
+    update public.photo_batches set opened_at = now() where id = b.id;
+  end if;
+  return jsonb_build_object(
+    'brand', b.brand, 'job_name', b.job_name, 'job_address', b.job_address,
+    'reviewer_name', b.reviewer_name, 'message', b.message, 'status', b.status,
+    'reviewed_by', b.reviewed_by, 'submitted_at', b.submitted_at, 'expires_at', b.expires_at,
+    'items', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', i.id,
+        'path', case when i.removed_at is not null or (b.status = 'submitted' and i.decision = 'rejected') then null
+                     else i.file_path end,
+        'name', i.file_name, 'decision', i.decision, 'reason', i.reason) order by i.sort, i.created_at)
+      from public.photo_batch_items i where i.batch_id = b.id), '[]'::jsonb));
+end $$;
+
+create or replace function public.photo_review_decide(p_token text, p_item uuid, p_decision text, p_reason text)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare b public.photo_batches;
+begin
+  select * into b from public.photo_batches where token = p_token for update;
+  if not found then raise exception 'This link is not valid.'; end if;
+  if b.status <> 'open' then raise exception 'This batch has already been sent back.'; end if;
+  if b.expires_at <= now() then raise exception 'This link has expired. Ask Liam for a fresh one.'; end if;
+  if p_decision is not null and p_decision not in ('approved','rejected') then
+    raise exception 'Unknown decision.';
+  end if;
+  update public.photo_batch_items
+     set decision = p_decision,
+         reason = case when p_decision = 'rejected' then nullif(left(trim(coalesce(p_reason, '')), 1000), '') end,
+         decided_at = case when p_decision is null then null else now() end
+   where id = p_item and batch_id = b.id;
+  if not found then raise exception 'That photo is not in this batch.'; end if;
+end $$;
+
+create or replace function public.photo_review_finish(p_token text, p_name text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare b public.photo_batches; open_n int; noreason_n int; ok_n int; no_n int;
+begin
+  select * into b from public.photo_batches where token = p_token for update;
+  if not found then raise exception 'This link is not valid.'; end if;
+  if b.status <> 'open' then raise exception 'This batch has already been sent back.'; end if;
+  if b.expires_at <= now() then raise exception 'This link has expired. Ask Liam for a fresh one.'; end if;
+  if length(trim(coalesce(p_name, ''))) = 0 then raise exception 'Please add your name.'; end if;
+  select count(*) filter (where decision is null),
+         count(*) filter (where decision = 'rejected' and coalesce(trim(reason), '') = ''),
+         count(*) filter (where decision = 'approved'),
+         count(*) filter (where decision = 'rejected')
+    into open_n, noreason_n, ok_n, no_n
+    from public.photo_batch_items where batch_id = b.id;
+  if open_n > 0 then raise exception '% photo(s) still need a decision.', open_n; end if;
+  if noreason_n > 0 then raise exception '% Not approved photo(s) still need a reason.', noreason_n; end if;
+  update public.photo_batch_items set remove_due_at = now()
+   where batch_id = b.id and decision = 'rejected' and remove_due_at is null;
+  update public.photo_batches
+     set status = 'submitted', reviewed_by = left(trim(p_name), 120), submitted_at = now()
+   where id = b.id;
+  return jsonb_build_object('approved', ok_n, 'rejected', no_n);
+end $$;
+
+revoke execute on function public.photo_review_get(text) from public;
+revoke execute on function public.photo_review_decide(text, uuid, text, text) from public;
+revoke execute on function public.photo_review_finish(text, text) from public;
+grant execute on function public.photo_review_get(text) to anon, authenticated;
+grant execute on function public.photo_review_decide(text, uuid, text, text) to anon, authenticated;
+grant execute on function public.photo_review_finish(text, text) to anon, authenticated;
+
+-- c. Once sent back, a batch is read-only: it cannot be reopened, and its
+--    photos and decisions cannot change. Only the copy record (laptop
+--    task), the removal record (n8n), the folder and the end date can.
+--    Deleting the whole batch still works.
+create or replace function public.photo_batches_guard()
+returns trigger language plpgsql set search_path = public, pg_temp as $$
+begin
+  if old.status = 'submitted'
+     and (new.status, new.token, new.reviewed_by, new.submitted_at, new.brand)
+         is distinct from (old.status, old.token, old.reviewed_by, old.submitted_at, old.brand) then
+    raise exception 'This batch has been sent back and is read-only. Send a new batch instead.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists photo_batches_guard on public.photo_batches;
+create trigger photo_batches_guard before update on public.photo_batches
+  for each row execute function public.photo_batches_guard();
+
+create or replace function public.photo_batch_items_guard()
+returns trigger language plpgsql set search_path = public, pg_temp as $$
+declare st text;
+begin
+  select b.status into st from public.photo_batches b where b.id = coalesce(new.batch_id, old.batch_id);
+  if st is distinct from 'submitted' then
+    return coalesce(new, old);
+  end if;
+  if tg_op = 'INSERT' then
+    raise exception 'This batch has been sent back. Add the photos to a new batch.';
+  elsif tg_op = 'DELETE' then
+    raise exception 'This batch has been sent back and is read-only. Delete the whole batch instead.';
+  elsif (new.batch_id, new.file_path, new.file_name, new.file_type, new.sort, new.decision, new.reason, new.decided_at, new.remove_due_at)
+        is distinct from
+        (old.batch_id, old.file_path, old.file_name, old.file_type, old.sort, old.decision, old.reason, old.decided_at, old.remove_due_at) then
+    raise exception 'This batch has been sent back and is read-only.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists photo_batch_items_guard on public.photo_batch_items;
+create trigger photo_batch_items_guard before insert or update or delete on public.photo_batch_items
+  for each row execute function public.photo_batch_items_guard();
+
+-- d. What n8n removes (see sql/safety_2026_10_23_n8n.md, "Haggerty Photo
+--    Cleanup"): Not approved photos of batches sent back from now on.
+create or replace function public.photo_review_to_remove(p_limit int default 100)
+returns table (item_id uuid, file_path text)
+language sql stable set search_path = public, pg_temp as $$
+  select i.id, i.file_path from public.photo_batch_items i
+    join public.photo_batches b on b.id = i.batch_id
+   where i.remove_due_at is not null and i.removed_at is null
+     and i.decision = 'rejected' and b.status = 'submitted'
+   order by i.remove_due_at
+   limit greatest(1, least(coalesce(p_limit, 100), 500));
+$$;
+create or replace function public.photo_review_mark_removed(p_items uuid[])
+returns int language sql volatile set search_path = public, pg_temp as $$
+  with u as (
+    update public.photo_batch_items set removed_at = now()
+     where id = any(p_items) and remove_due_at is not null and removed_at is null and decision = 'rejected'
+    returning 1)
+  select count(*)::int from u;
+$$;
+revoke execute on function public.photo_review_to_remove(int) from anon, authenticated, public;
+revoke execute on function public.photo_review_mark_removed(uuid[]) from anon, authenticated, public;

@@ -31,6 +31,9 @@
        never defined, so every border and font that used them silently
        dropped out. Pointing them at the real tokens brings them back. */
     --line:var(--rule); --sans:var(--body);
+    /* The review-card border (.ec-review) asked for --accent, which was
+       never defined, so the border silently fell back to currentColor. */
+    --accent:#F68922;
   }
   /* Dark mode. Follows the computer's setting unless someone picks Light
      or Dark in the sidebar, which sets data-theme on <html>. */
@@ -43,6 +46,7 @@
     --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
     --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
     --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    --accent:#F9A75C;
     color-scheme:dark }}
   :root[data-theme="dark"]{
     --ink:#EEEAE4; --paper:#151413; --card:#1E1D1B;
@@ -53,6 +57,7 @@
     --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
     --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
     --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    --accent:#F9A75C;
     color-scheme:dark }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -119,6 +124,8 @@
   .stat .v{font-family:var(--display);font-size:31px;font-weight:700;line-height:1.15;margin-top:2px}
   .stat .v small{font-size:15px;color:var(--slate);font-weight:600}
   .stat.accent .v{color:var(--orange-ink)}
+  /* Eight-figure dollar amounts ran past the screen edge on a phone. */
+  @media (max-width:480px){ .stat .v{font-size:24px;overflow-wrap:anywhere} }
 
   /* ---------- board ---------- */
   .split{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 54px)}
@@ -167,6 +174,8 @@
   .who .role{color:var(--grey);font-size:15px}
   .who .org-line{margin-top:2px;font-size:14px;color:var(--slate)}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:13px 0 0}
+  .clicks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 0}
+  .clicks .eyebrow{font-size:11.5px;color:var(--orange-ink)}
   .chip{font-family:var(--mono);font-size:11px;border:1px solid var(--rule);
         padding:3px 7px;color:var(--slate);background:var(--card);text-decoration:none}
   .chip.hot{border-color:var(--orange);color:var(--hot-ink);background:var(--orange-tint)}
@@ -970,6 +979,8 @@
   button.hrow{width:100%;background:none;border:0;border-bottom:1px solid var(--rule-soft);
               text-align:left;font:inherit;color:inherit;cursor:pointer}
   button.hrow:hover{background:var(--paper)}
+  a.hrow{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule-soft)}
+  a.hrow:hover{background:var(--paper)}
   .hmore{display:inline-block;margin-top:7px}
   .hotlead{padding:11px 13px;border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:3px;min-width:0}
   .hotlead:last-child{border-bottom:0}
@@ -1121,6 +1132,14 @@
   @media (max-width:1080px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width:420px){ .kpis{gap:8px} .kpi{padding:11px 12px 8px} }
   .stages{display:flex;flex-direction:column;gap:9px}
+  .cols > *,.cols3 > *{min-width:0}
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+  .scroll-x > table{min-width:460px}
+  .kpi-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:24px}
+  .kpi-charts .panel{margin:0}
+  .kpi-charts .panel-head{flex-wrap:wrap;row-gap:2px}
+  .kpi-charts .panel-head .hint{font-family:var(--mono);font-size:11.5px}
+  @media (max-width:760px){ .kpi-charts{grid-template-columns:minmax(0,1fr)} }
   .stage{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 6.5em;gap:10px;align-items:center;font-size:13px}
   .stage-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .stage-bar{height:14px;background:var(--wash);border-radius:3px;overflow:hidden}
@@ -1188,9 +1207,16 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 /* A social reviewer (sql/social_review.sql) sees the Social tab and the
    emails sent to them for review, locked to their brand. */
 const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns')
-  : (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
+  : PAGES.filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
+
+/* A day list is its owner's. Liam runs both lists, so he can see and
+   work Iyanna's; Iyanna sees only her own, and Pat neither. The handlers
+   check canEditTasks as well, so a stale tab or a hand-typed #myday
+   cannot add to or tick someone else's list. */
+function canSeeDay(owner){ return S.me === 'liam' || S.me === owner; }
+const canEditTasks = canSeeDay;
 
 /* Every n8n call carries the signed-in session, so the workflows can
    refuse anyone who is not logged in to this dashboard. */
@@ -1215,21 +1241,21 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-22y';
+const BUILD = '2026-10-23a';
 const S = {
-  page:'today', board:[], drafts:{}, activeId:null, open:{},
+  page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
   tasks:{}, seq:null, seqErr:'', skipOpen:false, sentOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
-  approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
+  approvals:null, apvAll:false, apvOlderN:0, apvFilter:'pending', apvBusy:'', apvErr:'',
   apvNote:'', apvHist:{}, apvOpen:false, apvSaving:false, apvFile:null,
   apvForm:{ title:'', kind:'design', description:'', link_url:'', due_by:'', quantity:'1', unit_cost:'' },
   apvReplyTo:null, apvReply:'',
   /* inbound requests, shown as a section on Liam's day rather than a tab */
-  requests:null, reqUrls:{}, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
+  requests:null, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
   reqShowDone:false,
   /* reel ideas */
   reels:null, reelView:'active', reelBrand:'all', reelQ:'', reelOpenId:null,
@@ -1405,11 +1431,17 @@ async function loadBoard(){
     const f = S.activeId && S.drafts[S.activeId]?.[0];
     if(f) S.open[f.id] = true;
   }
+  /* Fresh click history for the people on the board. */
+  for(const r of S.board) delete S.clicks[r.contact_id];
+  await loadClicks(S.board.map(r => r.contact_id)).catch(() => {});
   S.loaded.board = true;
 }
 
 async function loadTiles(){
-  const { data } = await sb.from('v_dash_tiles').select('*').order('sort_order');
+  /* A failed read used to look exactly like "no sectors", which hid the
+     Generate buttons with no explanation. */
+  const { data, error } = await sb.from('v_dash_tiles').select('*').order('sort_order');
+  S.tilesErr = error ? 'The sector pools could not load. ' + (error.message || '') : '';
   S.tiles = data || [];
 
   /* Gold is not a row in v_dash_tiles, because it crosses every sector.
@@ -1544,9 +1576,19 @@ function mailchimpPanel(){
 }
 
 async function loadWeek(){
-  const { data } = await sb.from('v_dash_week').select('*');
+  const { data, error } = await sb.from('v_dash_week').select('*');
+  /* Kept apart from "nothing on the calendar", which is a real answer. */
+  S.weekErr = error ? 'The calendar could not load. ' + (error.message || '') : '';
   S.week = data || [];
   S.loaded.week = true;
+}
+
+/* Today's slice of the calendar, or the reason there is none. */
+function todayCalHtml(){
+  if(S.weekErr) return `<p class="hint err">${esc(S.weekErr)}</p>`;
+  const ev = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
+  return ev.length ? `<div style="border:1px solid var(--rule)">${ev.map(evRow).join('')}</div>`
+    : `<p class="hint">Nothing on the calendar today.</p>`;
 }
 
 /* ================= marketing assets ================= */
@@ -1555,8 +1597,9 @@ async function loadWeek(){
    and drops open rates, and a link on haggertybuilds.com reads as normal
    while a tracked one tells you who looked. */
 async function loadAssets(){
-  const { data } = await sb.from('marketing_assets').select('*')
+  const { data, error } = await sb.from('marketing_assets').select('*')
     .eq('active', true).order('title');
+  S.assetsErr = error ? 'The flyers could not load. ' + (error.message || '') : '';
   S.assets = data || [];
   S.loaded.assets = true;
 }
@@ -1594,6 +1637,7 @@ function insertAsset(draftId, slug){
   const before = el.value.slice(0, start).replace(/\s+$/, '');
   const after  = el.value.slice(end).replace(/^\s+/, '');
   el.value = (before ? before + '\n\n' : '') + phrase + (after ? '\n\n' + after : '');
+  (S.dEdit[draftId] ||= {}).b = el.value;
 
   const pos = (before ? before.length + 2 : 0) + phrase.length;
   el.focus();
@@ -2365,14 +2409,7 @@ async function loadRequests(){
   S.reqFiles = {};
   for(const f of (files||[])) (S.reqFiles[f.request_id] ||= []).push(f);
 
-  S.reqUrls = {};
-  const paths = [...new Set((files||[]).map(f => f.file_path).filter(Boolean))];
-  if(paths.length){
-    try{
-      const { data:urls } = await sb.storage.from('requests').createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) S.reqUrls[u.path] = u.signedUrl;
-    }catch(e){ /* card falls back to a filename with no preview */ }
-  }
+  /* Files are signed when a card is opened (signedUrl), not all at once. */
   S.loaded.requests = true;
 }
 
@@ -2420,24 +2457,74 @@ async function setRequestStatus(id, status){
   S.reqBusy = ''; render();
 }
 
-async function loadApprovals(){
-  const { data, error } = await sb.from('approvals').select('*')
-    .order('created_at', { ascending:false });
-  if(error) throw error;
-  S.approvals = data || [];
-
-  /* Private bucket, so every file needs a signed URL. One hour is long
-     enough to review and short enough that a copied link goes stale. */
-  S.apvUrls = {};
-  const withFiles = S.approvals.filter(a => a.file_path);
-  if(withFiles.length){
-    const paths = [...new Set(withFiles.map(a => a.file_path))];
-    try{
-      const { data:urls } = await sb.storage.from('approvals')
-        .createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) S.apvUrls[u.path] = u.signedUrl;
-    }catch(e){ /* the card falls back to a filename with no preview */ }
+/* ---------- signed links ----------
+   The storage buckets are private, so every file link is a signed URL
+   that lasts an hour. They used to be made for every file the moment a
+   tab loaded, and went dead after the hour. Now a link is made the first
+   time something is drawn with it, in one batch per bucket, and a timer
+   re-signs anything still on screen ten minutes before it expires. */
+const SIGN_TTL = 3600, SIGN_EARLY = 10 * 60 * 1000;
+const SIGNED = {}, SIGN_Q = {}, SIGN_FAIL = {};
+let signTimer = null;
+function signedUrl(bucket, path){
+  if(!path) return null;
+  const m = SIGNED[bucket] ||= new Map();
+  const hit = m.get(path), now = Date.now();
+  if((!hit || hit.exp - now < SIGN_EARLY) && !(SIGN_FAIL[bucket + '/' + path] > now)){
+    (SIGN_Q[bucket] ||= new Set()).add(path);
+    if(!signTimer) signTimer = setTimeout(flushSign, 0);
   }
+  return hit && hit.exp > now ? hit.url : null;
+}
+async function flushSign(){
+  signTimer = null;
+  const jobs = Object.keys(SIGN_Q).map(b => [b, [...SIGN_Q[b]]]).filter(j => j[1].length);
+  for(const b of Object.keys(SIGN_Q)) delete SIGN_Q[b];
+  let got = false;
+  await Promise.all(jobs.map(async ([bucket, paths]) => {
+    const exp = Date.now() + SIGN_TTL * 1000;
+    try{
+      const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, SIGN_TTL);
+      if(error) throw error;
+      const ok = new Set();
+      for(const u of (data || [])) if(u && u.path && u.signedUrl){ SIGNED[bucket].set(u.path, { url:u.signedUrl, exp }); ok.add(u.path); got = true; }
+      for(const p of paths) if(!ok.has(p)) SIGN_FAIL[bucket + '/' + p] = Date.now() + 5 * 60 * 1000;
+    }catch(e){
+      /* The card falls back to the filename. Wait a minute before asking again. */
+      for(const p of paths) SIGN_FAIL[bucket + '/' + p] = Date.now() + 60 * 1000;
+    }
+  }));
+  if(got && app.querySelector('.shell')) render({ bg:true });
+}
+setInterval(() => {
+  const now = Date.now();
+  let due = false;
+  for(const m of Object.values(SIGNED)) for(const [p, h] of m){
+    if(h.exp <= now) m.delete(p);
+    else if(h.exp - now < SIGN_EARLY) due = true;
+  }
+  /* Redrawing re-asks for every link still on screen; the rest lapse. */
+  if(due && app.querySelector('.shell')) render({ bg:true });
+}, 4 * 60 * 1000);
+
+/* Everything still open, plus whatever was decided in the last
+   APV_DAYS. Older decided items wait behind "Show older" (S.apvAll), so
+   the tab does not read every approval ever made each time it opens.
+   Files are signed only when a card that shows them is drawn
+   (signedUrl), not all at once. */
+const APV_DAYS = 120;
+const APV_COLS = 'id,parent_id,version,title,kind,description,change_note,file_path,file_name,file_type,'
+  + 'link_url,requested_by,due_by,status,feedback,decided_by,decided_at,created_at,quantity,unit_cost';
+async function loadApprovals(){
+  const cut = new Date(Date.now() - APV_DAYS * 864e5).toISOString();
+  let q = sb.from('approvals').select(APV_COLS).order('created_at', { ascending:false });
+  if(!S.apvAll) q = q.or(`status.in.(pending,changes),created_at.gte.${cut}`).limit(400);
+  const [r, older] = await Promise.all([q, S.apvAll ? null
+    : sb.from('approvals').select('id', { count:'exact', head:true })
+        .lt('created_at', cut).not('status', 'in', '(pending,changes)')]);
+  if(r.error) throw r.error;
+  S.approvals = r.data || [];
+  S.apvOlderN = S.apvAll ? 0 : Number((older && older.count) || 0);
   S.loaded.approvals = true;
 }
 
@@ -2457,6 +2544,12 @@ function apvChain(row){
   let guard = 0;
   while(cur && guard++ < 40){ chain.push(cur); cur = byId.get(cur.parent_id); }
   return chain;   // newest previous version first
+}
+
+/* Nobody signs off their own request. The buttons are hidden on cards
+   the signed-in person sent, and decideApproval refuses them too. */
+function apvMine(a){
+  return !!S.email && String(a.requested_by || '').trim().toLowerCase() === S.email;
 }
 
 function apvPendingCount(){
@@ -2570,7 +2663,7 @@ async function saveApvCost(id, field, el){
 async function decideApproval(id, status){
   if(S.apvBusy) return;
   const row = (S.approvals||[]).find(a => a.id === id);
-  if(!row) return;
+  if(!row || apvMine(row)) return;
 
   let feedback = null;
   if(status === 'changes'){
@@ -2802,7 +2895,7 @@ function dayStats(owner){
 async function loadKpis(){
   const yr = new Date().getFullYear();
   const [score, quarters, monthly, outcomes, open, stages, targets, manual,
-         cols, board, users] = await Promise.all([
+         cols, board, users, config] = await Promise.all([
     sb.from('v_kpi_scorecard').select('*').order('sort_order'),
     sb.from('v_kpi_quarters').select('*').order('quarter'),
     sb.from('v_kpi_monthly').select('*').order('month'),
@@ -2813,14 +2906,16 @@ async function loadKpis(){
     sb.from('kpi_manual').select('*').eq('year', yr).order('quarter'),
     sb.from('v_board_columns').select('*').order('order_nr'),
     sb.from('v_deal_board').select('*').eq('status','open'),
-    sb.from('pipedrive_users').select('*').eq('active', true)
+    sb.from('pipedrive_users').select('*').eq('active', true),
+    sb.from('kpi_config').select('key,value')
   ]);
   S.kpi = {
     score: score.data || [], quarters: quarters.data || [],
     monthly: monthly.data || [], outcomes: outcomes.data || {},
     open: open.data || {}, stages: stages.data || [],
     targets: targets.data || [], manual: manual.data || [], year: yr,
-    cols: cols.data || [], board: board.data || [], users: users.data || []
+    cols: cols.data || [], board: board.data || [], users: users.data || [],
+    config: Object.fromEntries((config.data || []).map(r => [r.key, r.value]))
   };
   if(!S.boardPipe){
     const pref = (S.kpi.targets.find(t=>t.pipeline_name)||{}).pipeline_name;
@@ -2848,6 +2943,8 @@ async function crmSearch(q){
 
   S.crmHits = error ? [] : (data || []);
   S.crmErr  = error ? error.message : '';
+  await loadClicks(S.crmHits.filter(h => h.kind !== 'company').map(h => h.id)).catch(() => {});
+  if(seq !== S.crmSeq) return;
   S.crmBusy = false;
   S.crmFocus = true; render(); S.crmFocus = false;
 }
@@ -3045,9 +3142,12 @@ async function ensureOnce(page){
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='kpis'){
-    if(!S.loaded.kpis) await loadKpis();
-    if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
-    if(!S.loaded.metrics) await loadMetrics();
+    /* Independent reads, so they go together rather than one by one. */
+    await Promise.all([
+      !S.loaded.kpis && loadKpis(),
+      S.kpiView !== 'scorecard' && !S.loaded.ret && loadReturn(),
+      !S.loaded.metrics && loadMetrics()
+    ].filter(Boolean));
   }
   if(OWNERS[page] && !S.loaded.tasks[OWNERS[page]]) await loadTasks(OWNERS[page]);
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
@@ -3057,11 +3157,16 @@ async function ensureOnce(page){
   if(page==='campaigns' && !S.loaded.ec) await loadCampaigns();
   if(page==='bulk') await Promise.all([!S.loaded.bulk && loadBulk(), !S.loaded.labels && loadLabels()].filter(Boolean));
   if(page==='leads'){
-    if(!S.loaded.verticals) await loadVerticals();
-    if(!S.loaded.labels) await loadLabels();
-    if(S.lastApproval === null) await loadLastApproval();
-    if(!S.loaded.leads){ await loadBatches(); await loadLeadRows(); }
-    if(!S.loaded.cls) await loadClassifications();
+    /* Five reads that used to wait on each other in turn. */
+    await Promise.all([
+      !S.loaded.verticals && loadVerticals(),
+      !S.loaded.labels && loadLabels(),
+      S.lastApproval === null && loadLastApproval(),
+      !S.loaded.leads && loadBatches(),
+      !S.loaded.leads && loadLeadRows(),
+      !S.loaded.cls && loadClassifications()
+    ].filter(Boolean));
+    if(S.leads && S.leads.length) await loadClicks(S.leads.map(l => l.contact_id));
   }
 }
 
@@ -3086,6 +3191,8 @@ const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
                       : me === 'iyanna' ? ['iyanna','reels','social','leads']
+                      /* Liam's own Home and Day lead; Outreach is Pat's. */
+                      : me === 'liam'   ? ['home','myday','approvals','kpis']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
@@ -3203,80 +3310,302 @@ function topbar(){
   </header>`;
 }
 
-function wireChrome(){
-  document.querySelectorAll('[data-page]').forEach(el=>
-    el.addEventListener('click', async ()=>{
-      S.page = el.dataset.page; S.err=''; S.gen=''; S.moreOpen = false;
-      /* The tab goes in the address so a refresh, a bookmark or a link
-         sent to someone lands on the same tab. */
-      try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
-      render();
-      try{ await ensure(S.page); }
-      catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
-      render();
-    }));
-  const cq = document.getElementById('crmQ');
-  if(cq){
-    /* Waits for a pause in typing. Searching on every keystroke sent a
-       database query and rebuilt the whole page per letter. */
-    cq.addEventListener('input', ()=>{
-      S.crmQ = cq.value; S.crmOpen = true;
-      clearTimeout(crmTimer);
-      crmTimer = setTimeout(()=>crmSearch(S.crmQ), 220);
-    });
-    cq.addEventListener('focus', ()=>{ if(S.crmQ) { S.crmOpen = true; render(); } });
-    cq.addEventListener('keydown', e=>{ if(e.key==='Escape'){ S.crmOpen=false; render(); } });
-    if(S.crmFocus){
-      cq.focus();
-      const n = cq.value.length;
-      try{ cq.setSelectionRange(n, n); }catch(e){}
-    }
+/* ---------- the address bar ----------
+   The tab and its sub-view live in the hash (#kpis/board,
+   #calendar/invites, #permits/pat), and every change of either is a new
+   history entry, so Back and Forward step between tabs and views the way
+   they do on any other site. */
+const SUBVIEW = {
+  kpis:     { get:() => S.kpiView,    set:v => { if(['scorecard','board','return'].includes(v)) S.kpiView = v; }, def:'scorecard' },
+  calendar: { get:() => S.calView,    set:v => { if(['schedule','invites'].includes(v)) S.calView = v; }, def:'schedule' },
+  permits:  { get:() => S.permitView, set:v => { if(['open','saved','pat','dismissed'].includes(v)) S.permitView = v; }, def:'open' }
+};
+function parseHash(h){
+  const [p, v] = String(h || '').replace(/^#/, '').split('/');
+  try{ return { page:decodeURIComponent(p || ''), view:v ? decodeURIComponent(v) : '' }; }
+  catch(e){ return { page:'', view:'' }; }
+}
+function hashNow(){
+  const sv = SUBVIEW[S.page], v = sv && sv.get();
+  return '#' + S.page + (v && v !== sv.def ? '/' + v : '');
+}
+function syncHash(){
+  const h = hashNow();
+  if(location.hash !== h){
+    try{ history[S._hashReady ? 'pushState' : 'replaceState'](null, '', h); }catch(e){}
   }
-  const cc = document.getElementById('crmClose');
-  if(cc) cc.addEventListener('click', ()=>{ S.crmOpen=false; render(); });
-  const cx = document.getElementById('crmClear');
-  if(cx) cx.addEventListener('click', ()=>{
-    S.crmQ=''; S.crmHits=null; S.crmOpen=false; render();
-  });
+  S._hashReady = true;
+}
+const pageVisible = k => visiblePages().some(([p]) => p === k);
 
-  document.querySelectorAll('[data-signout]').forEach(b =>
-    b.addEventListener('click', async ()=>{ S.day = null; S.moreOpen = false; await sb.auth.signOut(); renderLogin(); }));
-  document.querySelectorAll('[data-theme-cycle]').forEach(b => b.addEventListener('click', cycleTheme));
-  document.querySelectorAll('[data-more]').forEach(b =>
-    b.addEventListener('click', ()=>{ S.moreOpen = !S.moreOpen; render(); }));
+/* One way into a tab, used by the sidebar, the phone bar, Home's links
+   and Back/Forward. */
+async function goPage(page){
+  if(!pageVisible(page)) return;
+  S.page = page; S.err = ''; S.gen = ''; S.moreOpen = false;
+  render();
+  try{ await ensure(S.page); }
+  catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
+  render();
 }
 
-function render(){
-  let inner = '';
-  if(S.page==='home')     inner = pageHome();
-  if(S.page==='today')    inner = pageToday();
-  if(S.page==='calendar') inner = pageCalendar();
-  if(S.page==='kpis')     inner = pageKpis();
-  if(S.page==='approvals') inner = pageApprovals();
-  if(S.page==='budget')   inner = pageBudget();
-  if(S.page==='mileage')  inner = pageMileage();
-  if(S.page==='photos')   inner = pagePhotos();
-  if(S.page==='voices')   inner = pageVoices();
-  if(S.page==='reels')    inner = pageReels();
-  if(S.page==='social')   inner = pageSocial();
-  if(S.page==='campaigns') inner = pageCampaigns();
-  if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
-  if(S.page==='leads')    inner = pageLeads();
-  if(S.page==='permits')  inner = pagePermits();
-  if(S.page==='bulk')     inner = pageBulk();
-  const samePage = S._lastPage === S.page;
-  const sy = window.scrollY;
-  const ob = document.querySelector('.board');
-  const by = ob ? ob.scrollTop : 0;
-  app.innerHTML = shell(inner);
-  wireChrome();
-  wirePage();
-  if(samePage){
-    const nb = document.querySelector('.board');
-    if(nb && by) nb.scrollTop = by;
-    if(sy) window.scrollTo(0, sy);
+window.addEventListener('hashchange', () => {
+  if(!S.day || !app.querySelector('.shell')) return;      // not signed in yet
+  const { page, view } = parseHash(location.hash);
+  if(!pageVisible(page)){ try{ history.replaceState(null, '', hashNow()); }catch(e){} return; }
+  const sv = SUBVIEW[page];
+  const same = page === S.page && (!sv || (view || sv.def) === sv.get());
+  if(same) return;
+  if(sv) sv.set(view || sv.def);
+  goPage(page);
+});
+
+/* ---------- chrome, wired once ----------
+   The sidebar, phone bar and search box are handled by listeners on the
+   document, so they are never re-attached when the page repaints. */
+document.addEventListener('click', async e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-page],[data-signout],[data-theme-cycle],[data-more],#crmClose,#crmClear') : null;
+  if(!el || !app.contains(el)) return;
+  if(el.hasAttribute('data-page')) return goPage(el.dataset.page);
+  if(el.hasAttribute('data-signout')){ S.day = null; S.moreOpen = false; liveStop(); await sb.auth.signOut(); return renderLogin(); }
+  if(el.hasAttribute('data-theme-cycle')) return cycleTheme();
+  /* Lead cards use data-more for their own toggle, so only the phone
+     bar's More button opens the sheet. */
+  if(el.hasAttribute('data-more')){ if(el.closest('.bottombar')){ S.moreOpen = !S.moreOpen; render(); } return; }
+  if(el.id === 'crmClose'){ S.crmOpen = false; return render(); }
+  if(el.id === 'crmClear'){ S.crmQ = ''; S.crmHits = null; S.crmOpen = false; return render(); }
+});
+document.addEventListener('input', e => {
+  if(!e.target || e.target.id !== 'crmQ') return;
+  /* Waits for a pause in typing. Searching on every keystroke sent a
+     database query per letter. */
+  S.crmQ = e.target.value; S.crmOpen = true;
+  clearTimeout(crmTimer);
+  crmTimer = setTimeout(() => crmSearch(S.crmQ), 220);
+});
+document.addEventListener('focusin', e => {
+  if(e.target && e.target.id === 'crmQ' && S.crmQ && !S.crmOpen){ S.crmOpen = true; render(); }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && e.target && e.target.id === 'crmQ'){ S.crmOpen = false; render(); }
+});
+
+/* Puts the cursor back in a box after a repaint, but only if it is not
+   already there: the patcher keeps the focused box in place, and moving
+   the caret to the end on every repaint would fight the typist. */
+function refocus(el){
+  if(!el || document.activeElement === el) return;
+  el.focus();
+  const n = el.value.length;
+  try{ el.setSelectionRange(n, n); }catch(e){}
+}
+
+function wireChrome(){
+  if(S.crmFocus) refocus(document.getElementById('crmQ'));
+}
+
+/* ---------- the patcher ----------
+   render() used to replace the whole page with innerHTML and re-attach
+   every handler, so each click rebuilt a few thousand nodes, dropped the
+   caret and scroll position of anything inside, and closed whatever was
+   open. It now builds the new HTML off-screen and patches the live page
+   to match: nodes are kept where they line up (by id, data-key, data-tid
+   or data-row first, then by position), and only what differs is
+   created, removed or edited.
+
+   Form fields: a repaint the person caused writes the rendered value, as
+   before. A background repaint (live updates, the periodic refresh)
+   leaves alone any field that is focused or has been typed in. A
+   <details> the person opened stays open unless the page itself changes
+   its rendered state. */
+const PATCH = { created:0, removed:0, updated:0, bg:false };
+const KEY_ATTRS = ['data-key','data-tid','data-row'];
+function morphKey(n){
+  if(n.nodeType !== 1) return '';
+  if(n.id) return '#' + n.id;
+  for(const a of KEY_ATTRS){ const v = n.getAttribute(a); if(v) return a + '=' + v; }
+  return '';
+}
+function prepNew(n){
+  if(n.nodeType !== 1){ PATCH.created++; return; }
+  PATCH.created += 1 + n.getElementsByTagName('*').length;
+  if(n.nodeName === 'DETAILS') n.__ro = n.hasAttribute('open');
+  for(const d of n.getElementsByTagName('details')) d.__ro = d.hasAttribute('open');
+}
+function countOld(n){ PATCH.removed += n.nodeType === 1 ? 1 + n.getElementsByTagName('*').length : 1; }
+function syncAttrs(a, b){
+  const skip = a.nodeName === 'DETAILS' ? 'open' : '';
+  for(const at of Array.from(a.attributes)){
+    if(at.name === skip) continue;
+    if(!b.hasAttributeNS(at.namespaceURI, at.localName)){ a.removeAttributeNS(at.namespaceURI, at.localName); PATCH.updated++; }
   }
+  for(const at of b.attributes){
+    if(at.name === skip) continue;
+    if(a.getAttributeNS(at.namespaceURI, at.localName) !== at.value){ a.setAttributeNS(at.namespaceURI, at.name, at.value); PATCH.updated++; }
+  }
+}
+function morphNode(a, b){
+  if(a.nodeType !== 1){
+    if(a.nodeValue !== b.nodeValue){ a.nodeValue = b.nodeValue; PATCH.updated++; }
+    return;
+  }
+  const tag = a.nodeName, keep = PATCH.bg && a === document.activeElement;
+  if(tag === 'INPUT'){
+    const box = a.type === 'checkbox' || a.type === 'radio';
+    const dirty = box ? a.checked !== a.defaultChecked : a.value !== a.defaultValue;
+    syncAttrs(a, b);
+    if(a.type === 'file' || (PATCH.bg && (dirty || keep))) return;
+    if(box){ const c = b.hasAttribute('checked'); if(a.checked !== c) a.checked = c; }
+    else { const v = b.getAttribute('value') || ''; if(a.value !== v) a.value = v; }
+    return;
+  }
+  if(tag === 'TEXTAREA'){
+    const v = b.textContent, dirty = a.value !== a.defaultValue;
+    syncAttrs(a, b);
+    if(a.defaultValue !== v) a.defaultValue = v;
+    if(PATCH.bg && (dirty || keep)) return;
+    if(a.value !== v){ a.value = v; PATCH.updated++; }
+    return;
+  }
+  if(tag === 'SELECT'){
+    let idx = -1;
+    Array.from(b.options).forEach((o, i) => { if(o.hasAttribute('selected')) idx = i; });
+    if(idx < 0 && b.options.length) idx = 0;
+    syncAttrs(a, b);
+    morphChildren(a, b);
+    if(!keep && !a.multiple && a.selectedIndex !== idx) a.selectedIndex = idx;
+    return;
+  }
+  syncAttrs(a, b);
+  if(tag === 'DETAILS'){
+    const o = b.hasAttribute('open');
+    if(a.__ro !== o){ a.open = o; a.__ro = o; }
+  }
+  morphChildren(a, b);
+}
+function morphChildren(from, to){
+  const keyed = new Map();
+  for(let c = from.firstChild; c; c = c.nextSibling){
+    const k = morphKey(c);
+    if(k && !keyed.has(k)) keyed.set(k, c);
+  }
+  let cur = from.firstChild, n = to.firstChild;
+  while(n){
+    const next = n.nextSibling, k = morphKey(n);
+    let m = null;
+    if(k){
+      m = keyed.get(k) || null;
+      if(m && m.nodeName === n.nodeName) keyed.delete(k); else m = null;
+    }else if(cur && !morphKey(cur) && cur.nodeType === n.nodeType && cur.nodeName === n.nodeName){
+      m = cur;
+    }
+    if(m){
+      if(m === cur) cur = cur.nextSibling; else from.insertBefore(m, cur);
+      morphNode(m, n);
+    }else{
+      prepNew(n);
+      from.insertBefore(n, cur);
+    }
+    n = next;
+  }
+  while(cur){ const nx = cur.nextSibling; countOld(cur); from.removeChild(cur); cur = nx; }
+}
+
+/* ---------- wiring, made idempotent ----------
+   The wire functions still find their elements with querySelectorAll
+   after each repaint, but now that elements survive a repaint, adding a
+   listener again would stack a second copy. While a wiring pass runs,
+   every listener it adds is recorded on its element; the next pass drops
+   the old ones before adding new ones, and anything a pass no longer
+   wires is removed. Listeners added outside a pass are untouched. A
+   repaint that changed nothing skips the pass entirely. */
+const WIRE = { gen:0, on:false, live:new Set() };
+{
+  const add = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, fn, opts){
+    if(WIRE.on && fn){
+      let w = this.__wired;
+      if(!w || w.gen !== WIRE.gen){
+        if(w) for(const x of w.list) this.removeEventListener(x[0], x[1], x[2]);
+        w = this.__wired = { gen:WIRE.gen, list:[] };
+        WIRE.live.add(this);
+      }
+      w.list.push([type, fn, opts]);
+    }
+    return add.call(this, type, fn, opts);
+  };
+}
+function wireAll(){
+  WIRE.gen++; WIRE.on = true;
+  try{ wireChrome(); wirePage(); }
+  finally{ WIRE.on = false; }
+  let n = 0;
+  for(const el of WIRE.live){
+    const w = el.__wired;
+    if(w && w.gen === WIRE.gen && el.isConnected !== false){ n += w.list.length; continue; }
+    if(w) for(const x of w.list) el.removeEventListener(x[0], x[1], x[2]);
+    el.__wired = null; WIRE.live.delete(el);
+  }
+  return n;
+}
+
+/* The last few repaints, for checking speed from the console:
+   window.__renders. */
+const RSTATS = [];
+window.__renders = RSTATS;
+
+function pageHtml(){
+  if(S.page==='home')      return pageHome();
+  if(S.page==='today')     return pageToday();
+  if(S.page==='calendar')  return pageCalendar();
+  if(S.page==='kpis')      return pageKpis();
+  if(S.page==='approvals') return pageApprovals();
+  if(S.page==='budget')    return pageBudget();
+  if(S.page==='mileage')   return pageMileage();
+  if(S.page==='photos')    return pagePhotos();
+  if(S.page==='voices')    return pageVoices();
+  if(S.page==='reels')     return pageReels();
+  if(S.page==='social')    return pageSocial();
+  if(S.page==='campaigns') return pageCampaigns();
+  if(OWNERS[S.page])       return pageDay(OWNERS[S.page]);
+  if(S.page==='leads')     return pageLeads();
+  if(S.page==='permits')   return pagePermits();
+  if(S.page==='bulk')      return pageBulk();
+  return '';
+}
+
+function render(opts){
+  const t0 = performance.now();
+  const html = shell(pageHtml());
+  const pageChanged = S._lastPage !== S.page;
+  PATCH.created = PATCH.removed = PATCH.updated = 0;
+  PATCH.bg = !!(opts && opts.bg);
+  let full = false;
+  if(!app.querySelector(':scope > .shell')){
+    app.innerHTML = html; full = true;
+    PATCH.created = app.getElementsByTagName('*').length;
+    for(const d of app.getElementsByTagName('details')) d.__ro = d.hasAttribute('open');
+  }else{
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    morphChildren(app, t.content);
+  }
+  const changed = full || PATCH.created || PATCH.removed || PATCH.updated;
+  const listeners = changed || pageChanged ? wireAll() : -1;
+  if(listeners === -1){
+    /* Nothing changed, so no wiring pass ran, but a handler may still
+       have asked for the caret back. */
+    if(S.crmFocus) refocus(document.getElementById('crmQ'));
+    if(S.taskFocus) refocus(document.getElementById('taskTitle'));
+    if(S.subFocus) refocus(document.getElementById('subInput'));
+  }
+  if(pageChanged && S._lastPage && !full) window.scrollTo(0, 0);
   S._lastPage = S.page;
+  syncHash();
+  RSTATS.push({ page:S.page, ms:Math.round((performance.now() - t0) * 10) / 10, full,
+    created:PATCH.created, removed:PATCH.removed, updated:PATCH.updated, bg:PATCH.bg,
+    total:app.getElementsByTagName('*').length, rewired:listeners });
+  if(RSTATS.length > 40) RSTATS.shift();
 }
 
 function wirePage(){
@@ -3288,6 +3617,10 @@ function wirePage(){
     }));
   document.querySelectorAll('[data-toggle]').forEach(el=>
     el.addEventListener('click',()=>{ const id=el.dataset.toggle; S.open[id]=!S.open[id]; render(); }));
+  document.querySelectorAll('[data-dsub]').forEach(el=>
+    el.addEventListener('input',()=>{ (S.dEdit[el.dataset.dsub] ||= {}).s = el.value; }));
+  document.querySelectorAll('[data-dbody]').forEach(el=>
+    el.addEventListener('input',()=>{ (S.dEdit[el.dataset.dbody] ||= {}).b = el.value; }));
   document.querySelectorAll('[data-use]').forEach(el=>
     el.addEventListener('click',()=>useDraft(el.dataset.use)));
   document.querySelectorAll('[data-asset]').forEach(el=>
@@ -3304,8 +3637,6 @@ function wirePage(){
   if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
     el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
-  const all = document.getElementById('genAll');
-  if(all) all.addEventListener('click', generateAcross);
   const gf = document.getElementById('goldFilt');
   if(gf) gf.addEventListener('click',()=>{ S.goldOnly=!S.goldOnly; render(); });
   const gg = document.getElementById('genGold');
@@ -3319,11 +3650,7 @@ function wirePage(){
        Mirroring into state is how the deal and import forms already work. */
     ti.addEventListener('input', ()=>{ S.taskDraft.title = ti.value; });
     ti.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
-    if(S.taskFocus){
-      ti.focus();
-      const n = ti.value.length;
-      try{ ti.setSelectionRange(n, n); }catch(e){}
-    }
+    if(S.taskFocus) refocus(ti);
   }
   const tc = document.getElementById('taskCat');
   if(tc) tc.addEventListener('change', ()=>{ S.taskDraft.category = tc.value; });
@@ -3359,11 +3686,7 @@ function wirePage(){
       if(e.key === 'Enter') addSubtask();
       if(e.key === 'Escape'){ S.subDraft = null; render(); }
     });
-    if(S.subFocus){
-      si.focus();
-      const n = si.value.length;
-      try{ si.setSelectionRange(n, n); }catch(e){}
-    }
+    if(S.subFocus) refocus(si);
   }
   const ss = document.getElementById('subSave');
   if(ss) ss.addEventListener('click', addSubtask);
@@ -3399,14 +3722,12 @@ function wirePage(){
 /* ================= today ================= */
 function pageToday(){
   if(!S.loaded.board) return loading();
-  const todayEvents = (S.week||[]).filter(e => dayKey(e.starts_at)===dayKey(new Date().toISOString()));
   const ds = dayStats(S.me);
 
   const side = `
     <div class="block">
       <h2 class="sec">Today's calendar</h2>
-      ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
-        : `<p class="hint">Nothing on the calendar today.</p>`}
+      ${todayCalHtml()}
     </div>
     <div class="block">
       <h2 class="sec">Email health</h2>
@@ -3570,7 +3891,7 @@ function rowHtml(r,i){
     <span class="name">${esc(r.full_name||r.email)}</span>
     ${r.handled?'<span class="tick">&#10003;</span>':''}</span>
     <span class="org">${esc(r.company_name||r.vertical)}</span>
-    ${carryTag}</button>`;
+    ${carryTag}${r.verify_missed_at ? `<span class="carry" title="${esc(r.verify_missed_reason || 'Evaboot did not answer.')}">NOT VERIFIED &middot; EVABOOT DID NOT ANSWER</span>` : ''}</button>`;
 }
 
 /* A div, not a button, because the Undo inside it is itself a button and
@@ -3739,7 +4060,8 @@ function detailHtml(){
   const head = `<div class="who"><h1>${esc(r.full_name||'Unknown contact')}</h1>
     <div class="role">${esc(r.title||'No title on file')}</div>
     <div class="org-line">${esc(r.company_name||'')} &middot; <span class="mono">${esc(r.email)}</span></div>
-    <div class="chips">${chips}${isFollow?`<span class="chip hot">Follow-up ${esc(r.touch)}</span>`:''}</div></div>
+    <div class="chips">${chips}${isFollow?`<span class="chip hot">Follow-up ${esc(r.touch)}</span>`:''}</div>
+    ${clicksHtml(r.contact_id)}</div>
     ${warnBlock(r) ? `<div style="margin-top:16px">${warnBlock(r)}</div>` : ''}
     ${prevEmail(r)}
     <div class="panelbox"><span class="eyebrow">What we know</span>
@@ -3773,6 +4095,7 @@ function detailHtml(){
 }
 
 function assetPicker(d){
+  if(S.assetsErr) return `<div class="field"><label>Attach a flyer</label><p class="hint err">${esc(S.assetsErr)}</p></div>`;
   const list = assetsFor(S.board.find(x => x.queue_id === S.activeId));
   if(!list.length) return '';
   const r = S.board.find(x => x.queue_id === S.activeId);
@@ -3794,7 +4117,10 @@ function assetPicker(d){
 
 function optHtml(d,i){
   const open = !!S.open[d.id];
-  const subject = d.edited_subject || d.subject || '';
+  /* What Pat has typed into a draft is kept in S.dEdit, so a repaint
+     (another draft opened, a live update) never puts the original back. */
+  const ed = S.dEdit[d.id] || {};
+  const subject = ed.s ?? (d.edited_subject || d.subject || '');
   return `<section class="opt ${open?'open':''}">
     <button class="opt-head" data-toggle="${d.id}">
       <span class="opt-n">${String(i+1).padStart(2,'0')}</span>
@@ -3802,9 +4128,9 @@ function optHtml(d,i){
       <span class="opt-subject">${esc(subject)}</span></button>
     ${open?`<div class="opt-body">
       <div class="field"><label for="s-${d.id}">Subject</label>
-        <input type="text" id="s-${d.id}" value="${esc(subject)}"/></div>
+        <input type="text" id="s-${d.id}" data-dsub="${d.id}" value="${esc(subject)}"/></div>
       <div class="field"><label for="b-${d.id}">Message</label>
-        <textarea id="b-${d.id}">${esc(toPlain(d.edited_body||d.body_html))}</textarea></div>
+        <textarea id="b-${d.id}" data-dbody="${d.id}">${esc(ed.b ?? toPlain(d.edited_body||d.body_html))}</textarea></div>
       ${assetPicker(d)}
       <div class="actions">
         <button class="btn" data-use="${d.id}" ${S.busy?'disabled':''}>
@@ -3821,6 +4147,7 @@ function optHtml(d,i){
    same screen. */
 function sectorBar(){
   const tiles = S.tiles || [];
+  if(S.tilesErr) return `<div class="sectorbar"><p class="hint err" style="margin:0;padding:6px 0">${esc(S.tilesErr)} Reload to try again; the board itself is unaffected.</p></div>`;
   if(!tiles.length) return '';
   return `<div class="sectorbar">
     <div class="sec-tile all">
@@ -3885,6 +4212,11 @@ function pageCalendar(){
   if(S.calView==='invites') return pageInvites();
   if(!S.loaded.week) return loading();
   const w = S.week || [];
+  if(S.weekErr){
+    return `<main class="page">${calSwitch()}<div class="empty"><h2>Could not load the calendar</h2>
+      <p>${esc(S.weekErr)}</p><p class="hint">This is a loading problem, not an empty calendar. Reload to try again.</p>
+    </div></main>`;
+  }
   if(!w.length){
     return `<main class="page">${calSwitch()}<div class="empty"><h2>No events</h2>
       <p>Nothing on the calendar for the next two weeks. If that looks wrong, run the calendar sync in n8n.</p>
@@ -4130,7 +4462,7 @@ function requestCard(r){
     ${open ? `
       ${r.details?`<p class="apv-desc">${esc(r.details)}</p>`:''}
       ${files.length?`<div class="apv-file">${files.map(f=>{
-        const url = S.reqUrls[f.file_path];
+        const url = signedUrl('requests', f.file_path);
         const isImg = /^image\//.test(f.file_type||'') || /\.(png|jpe?g|gif|webp)$/i.test(f.file_name||'');
         return url && isImg
           ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img class="apv-thumb"
@@ -4199,7 +4531,7 @@ const APV_KINDS = { design:'Design', campaign:'Advertising campaign',
                     approach:'Project approach', copy:'Copy', other:'Other' };
 
 function apvFileBlock(a){
-  const url = a.file_path ? S.apvUrls[a.file_path] : null;
+  const url = a.file_path ? signedUrl('approvals', a.file_path) : null;
   const bits = [];
   if(a.file_name){
     const isImg = /^image\//.test(a.file_type||'') || /\.(png|jpe?g|gif|webp|svg)$/i.test(a.file_name);
@@ -4209,7 +4541,7 @@ function apvFileBlock(a){
     bits.push(`<div class="apv-file">
       ${url ? `<a class="chip" href="${esc(url)}" target="_blank" rel="noopener">Open ${esc(a.file_name)}</a>`
             : `<span class="chip">${esc(a.file_name)}</span>`}
-      ${(url && !isImg) ? `<span class="hint">Opens in a new tab. The link expires after an hour, so reopen the page if it stops working.</span>` : ''}
+      ${(url && !isImg) ? `<span class="hint">Opens in a new tab. The link renews itself while this page is open.</span>` : ''}
     </div>`);
   }
   if(a.link_url){
@@ -4277,8 +4609,8 @@ function approvalCard(a){
         <b>Version ${esc(v.version)}</b> &middot; <span class="muted">${esc(shortDate(v.created_at))}</span>
         ${v.change_note?`<div class="hint">Changed: ${esc(v.change_note)}</div>`:''}
         ${v.feedback?`<div class="hint">Pat: ${esc(v.feedback)}</div>`:''}
-        ${v.file_path && S.apvUrls[v.file_path]
-          ? `<a class="chip" href="${esc(S.apvUrls[v.file_path])}" target="_blank" rel="noopener">${esc(v.file_name||'File')}</a>`
+        ${v.file_path && signedUrl('approvals', v.file_path)
+          ? `<a class="chip" href="${esc(signedUrl('approvals', v.file_path))}" target="_blank" rel="noopener">${esc(v.file_name||'File')}</a>`
           : (v.file_name?`<span class="chip">${esc(v.file_name)}</span>`:'')}
       </div>`).join('') : ''}
     </div>` : ''}
@@ -4297,7 +4629,10 @@ function approvalCard(a){
 
     <div class="apv-foot">
       <div class="apv-acts">
-        ${a.status === 'pending' ? `
+        ${apvMine(a) ? (a.status === 'changes'
+            ? `<button class="btn small accent" data-apv-reply="${a.id}" ${busy?'disabled':''}>Upload a new version</button>`
+            : `<span class="hint">${a.status === 'pending' ? 'You sent this, so it waits for someone else to decide.' : 'You sent this.'}</span>`)
+        : a.status === 'pending' ? `
           <button class="btn small" data-apv-do="${a.id}" data-val="approved" ${busy?'disabled':''}>Approve</button>
           <button class="btn small ghost" data-apv-do="${a.id}" data-val="changes" ${busy?'disabled':''}>Request changes</button>
           <button class="btn small ghost" data-apv-do="${a.id}" data-val="declined" ${busy?'disabled':''}>Decline</button>`
@@ -4422,6 +4757,9 @@ function pageApprovals(){
                 : 'Nothing in this list yet.'}</p>
          </div>`}
 
+    ${S.apvOlderN ? `<p style="text-align:center;margin:6px 0 18px"><button class="linkbtn" id="apvOlder" ${S.apvBusy==='older'?'disabled':''}>${
+      S.apvBusy==='older' ? 'Loading&hellip;' : `Show ${plural(S.apvOlderN, 'older decided item')}`}</button></p>` : ''}
+
     ${rows.length ? `<div class="apv-total">
       <div><span class="eyebrow">${totLabel}</span>
         <div class="hint" id="apvTotalHint">${esc(apvTotalHint(tot))}</div></div>
@@ -4488,6 +4826,13 @@ function wireApprovals(){
 
   const sv = document.getElementById('apvSave');
   if(sv) sv.addEventListener('click', submitApproval);
+
+  const ol = document.getElementById('apvOlder');
+  if(ol) ol.addEventListener('click', async ()=>{
+    S.apvAll = true; S.apvBusy = 'older'; render();
+    try{ await loadApprovals(); }catch(err){ S.apvErr = 'Could not load older items. ' + (err.message || err); }
+    S.apvBusy = ''; render();
+  });
 }
 
 /* ================= pipeline and kpis ================= */
@@ -4513,6 +4858,116 @@ function kpiVal(row){
 }
 function kpiTarget(row){
   return row.unit==='currency' ? money(row.year_target) : num(row.year_target);
+}
+
+/* ---------- headline charts ----------
+   The tab opened on tables, so the shape of the year (is pipeline being
+   added, are we winning, is outreach landing) took reading four of
+   them. These four charts lead; the tables stay below for the detail.
+   They use Home's chart styles (.chart, .legend, .stages) and the same
+   axis rule as Home's budget chart, so a chart reads the same on both. */
+function niceStep(top){
+  const mag = Math.pow(10, Math.floor(Math.log10(top || 1)));
+  return top / mag > 5 ? mag * 2 : top / mag > 2 ? mag : Math.max(mag / 2, top < 5 ? 1 : 0);
+}
+/* rows: [{ tick, tip, v, v2 }]. v is the orange bar; v2, when given, a
+   narrower green bar in front of it (replies against sends). */
+function barChart(rows, o){
+  const W = 560, H = 170, L = o.left || 34, R = 6, T = 10, B = 24, iw = W - L - R, ih = H - T - B;
+  const top = Math.max(o.min || 4, ...rows.map(r => Number(r.v) || 0));
+  const step = niceStep(top) || 1, ymax = Math.ceil(top / step) * step;
+  const y = v => T + ih - v / ymax * ih;
+  const slot = iw / Math.max(1, rows.length), bw = Math.min(30, slot * .64);
+  const grid = [];
+  for(let v = 0; v <= ymax + 1e-9; v += step)
+    grid.push(`<line class="${v ? 'grid' : 'base'}" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
+      <text x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(o.fmt ? o.fmt(v) : String(v))}</text>`);
+  const cols = rows.map((r, i) => {
+    const x = L + slot * i + (slot - bw) / 2, v = Number(r.v) || 0, v2 = Number(r.v2) || 0;
+    const bars = [];
+    if(v) bars.push(`<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(T + ih - y(v)).toFixed(1)}" rx="3" fill="var(--orange)"/>`);
+    if(v2){ const w2 = bw * .5;
+      bars.push(`<rect x="${(x + (bw - w2) / 2).toFixed(1)}" y="${y(v2).toFixed(1)}" width="${w2.toFixed(1)}" height="${(T + ih - y(v2)).toFixed(1)}" rx="2" fill="var(--green)"/>`); }
+    const tick = (rows.length - 1 - i) % (o.every || 1) === 0
+      ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(r.tick)}</text>` : '';
+    return `<g><title>${esc(r.tip)}</title>
+      <rect x="${(L + slot * i).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>
+      ${bars.join('')}</g>${tick}`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria)}">${grid.join('')}${cols}</svg>`;
+}
+
+/* Horizontal bars in Home's "Pipeline by stage" style. */
+function hBars(rows){
+  const max = Math.max(...rows.map(r => Number(r.v) || 0)) || 1;
+  return `<div class="stages">${rows.map(r => `<div class="stage" title="${esc(r.tip || '')}">
+      <span class="stage-n">${esc(r.label)}</span>
+      <span class="stage-bar"><i style="width:${Math.max(1.5, 100 * (Number(r.v) || 0) / (r.of || max)).toFixed(1)}%;background:${r.color || 'var(--orange)'}"></i></span>
+      <span class="stage-v">${r.text}</span></div>`).join('')}</div>`;
+}
+
+function kpiCharts(k, m){
+  const o = k.outcomes || {};
+  const monthly = (k.monthly || []).slice(-12).map(x => {
+    const lab = new Date(x.month + 'T00:00:00').toLocaleDateString('en-US', { month:'short' });
+    const full = new Date(x.month + 'T00:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
+    return { tick:lab, v:Number(x.added || 0), tip:`${full}: ${money(x.added)} added across ${plural(Number(x.deals || 0), 'deal')}` };
+  });
+  const rolling = monthly.reduce((a, x) => a + x.v, 0);
+  const added = monthly.length
+    ? barChart(monthly, { aria:'Pipeline added each month, last twelve months', fmt:v => v ? moneyShort(v) : '0', left:44, every:2, min:1 })
+      + `<div class="legend"><span><i style="background:var(--orange)"></i>Added that month</span><span>Hover a month for its deals.</span></div>`
+    : `<p class="hint">No pipeline added in the last twelve months.</p>`;
+
+  const decided = Number(o.decided_deals || 0);
+  const won = decided ? hBars([
+      { label:'Won', v:o.won_value, color:'var(--green)', text:`${moneyShort(o.won_value)} <em>${num(o.won_deals)}</em>`,
+        tip:`Won ${money(o.won_value)} across ${plural(Number(o.won_deals || 0), 'deal')}` },
+      { label:'Lost', v:o.lost_value, color:'var(--red)', text:`${moneyShort(o.lost_value)} <em>${num(o.lost_deals)}</em>`,
+        tip:`Lost ${money(o.lost_value)} across ${plural(Number(o.lost_deals || 0), 'deal')}` }])
+      + `<div class="legend"><span>Value decided in the rolling twelve months. The small number is how many deals.</span></div>`
+    : `<p class="hint">No deals won or lost in the last twelve months.</p>`;
+
+  const rate = decided ? hBars([
+      { label:'By count', v:o.win_rate_count, of:100, text:`${o.win_rate_count != null ? o.win_rate_count + '%' : '&ndash;'}`,
+        tip:`${num(o.won_deals)} of ${num(decided)} decided deals won` },
+      { label:'By value', v:o.win_rate_value, of:100, text:`${o.win_rate_value != null ? o.win_rate_value + '%' : '&ndash;'}`,
+        tip:`${money(o.won_value)} won of ${money(Number(o.won_value || 0) + Number(o.lost_value || 0))} decided` }])
+      + `<div class="legend"><span>Share of decided deals won, against the whole bar.</span></div>`
+    : `<p class="hint">Nothing decided yet, so there is no win rate.</p>`;
+
+  let sends = `<p class="hint">Email numbers could not load.</p>`, sentN = 0, repN = 0;
+  if(m){
+    const by = new Map((m.daily || []).map(r => [String(r.day).slice(0, 10), r]));
+    const days = [];
+    for(let i = 13; i >= 0; i--){
+      const key = daysAgo(i), r = by.get(key) || {};
+      const lab = new Date(key + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+      const s = Number(r.sent || 0), rp = Number(r.replied || 0);
+      sentN += s; repN += rp;
+      days.push({ tick:lab, v:s, v2:rp, tip:`${lab}: ${plural(s, 'email')} sent, ${plural(rp, 'reply', 'replies')}` });
+    }
+    sends = barChart(days, { aria:'Emails sent and replies each day, last 14 days', every:3 })
+      + `<div class="legend"><span><i style="background:var(--orange)"></i>Sent</span><span><i style="background:var(--green)"></i>Replied</span><span>Hover a day for its numbers.</span></div>`;
+  }
+  const head = (t, sub) => `<div class="panel-head"><h2>${t}</h2>${sub ? `<span class="hint">${sub}</span>` : ''}</div>`;
+  return `<div class="kpi-charts">
+    <section class="panel">${head('Pipeline added', `${moneyShort(rolling)} in 12 months`)}${added}</section>
+    <section class="panel">${head('Won value', decided ? `${moneyShort(o.won_value)} won` : '')}${won}</section>
+    <section class="panel">${head('Win rate', decided ? `${num(o.won_deals)} of ${num(decided)} decided` : '')}${rate}</section>
+    <section class="panel">${head('Sends and replies, 14 days', m ? `${num(sentN)} sent, ${num(repN)} replied` : '')}${sends}</section>
+  </div>`;
+}
+
+/* Whose numbers these are. kpi_config.deal_owner is the Pipedrive owner
+   name the KPI views filter on; it is matched to the Pipedrive user and
+   then to the team's full name, and shown as stored if there is no match. */
+function kpiOwnerName(){
+  const k = S.kpi || {}, owner = String((k.config || {}).deal_owner || '').trim();
+  if(!owner) return 'No owner set';
+  const u = (k.users || []).find(x => String(x.name || '').trim().toLowerCase() === owner.toLowerCase());
+  const team = u && Object.values(EV_SENDERS).find(e => e.email === String(u.email || '').toLowerCase());
+  return team ? team.label : owner;
 }
 
 function pageKpis(){
@@ -4602,13 +5057,15 @@ function pageKpis(){
   return `<main class="page">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       ${kpiSwitch()}
-      <span class="eyebrow" style="flex:1;min-width:150px">Pat Dobson &middot; ${k.year} &middot; Q${qtr} to date</span>
+      <span class="eyebrow" style="flex:1;min-width:150px">${esc(kpiOwnerName())} &middot; ${k.year} &middot; Q${qtr} to date</span>
       <button class="btn small ghost" id="kpiEdit">${S.kpiEdit?'Hide targets':'Edit targets'}</button>
       <button class="btn small ghost" id="exportCsv">Export CSV</button>
       <button class="btn small ghost" id="printPage">Print</button>
     </div>
 
     ${S.kpiNote?`<div class="done-banner" style="margin-bottom:16px"><p style="margin:0">${esc(S.kpiNote)}</p></div>`:''}
+
+    ${kpiCharts(k, m)}
 
     <div class="stat-grid">
       <div class="stat accent"><div class="k">Open pipeline</div><div class="v">${money(op.open_value)}</div></div>
@@ -4619,9 +5076,9 @@ function pageKpis(){
 
     <div class="block">
       <h2 class="sec">Scorecard</h2>
-      <table><thead><tr><th>Metric</th><th class="num">Year target</th>
+      <div class="scroll-x"><table><thead><tr><th>Metric</th><th class="num">Year target</th>
         <th class="num">Year to date</th><th class="num">Pace</th>
-        <th style="width:24%">Progress</th></tr></thead><tbody>${score}</tbody></table>
+        <th style="width:24%">Progress</th></tr></thead><tbody>${score}</tbody></table></div>
       <p class="hint">Pace divides year to date by the target for the ${qtr} quarter${qtr===1?'':'s'} elapsed,
       so 100% means level. Progress is the same number his spreadsheet shows, against the full year.</p>
     </div>
@@ -4630,12 +5087,12 @@ function pageKpis(){
 
     <div class="cols">
       <div class="block"><h2 class="sec">Pipeline added by quarter</h2>
-        <table><thead><tr><th>Quarter</th><th class="num">Goal</th><th class="num">Added</th>
-          <th class="num">Deals</th><th style="width:26%"></th></tr></thead><tbody>${quarters}</tbody></table>
+        <div class="scroll-x"><table><thead><tr><th>Quarter</th><th class="num">Goal</th><th class="num">Added</th>
+          <th class="num">Deals</th><th style="width:26%"></th></tr></thead><tbody>${quarters}</tbody></table></div>
       </div>
       <div class="block"><h2 class="sec">Open funnel</h2>
-        <table><thead><tr><th class="num">#</th><th>Stage</th><th class="num">Deals</th>
-          <th class="num">Value</th><th style="width:22%"></th></tr></thead><tbody>${funnel}</tbody></table>
+        <div class="scroll-x"><table><thead><tr><th class="num">#</th><th>Stage</th><th class="num">Deals</th>
+          <th class="num">Value</th><th style="width:22%"></th></tr></thead><tbody>${funnel}</tbody></table></div>
       </div>
     </div>
 
@@ -4901,8 +5358,7 @@ function searchOrgs(q){
     }catch{ S.orgHits = []; }
     S.orgBusy=false;
     render();
-    const el = document.getElementById('aOrg');
-    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    /* The patcher keeps the box (and its caret) in place. */
   }, 350);
 }
 
@@ -5542,10 +5998,7 @@ function wireClassify(){
     clsTimer = setTimeout(async ()=>{
       await loadClassifications();
       render();
-      // Rendering rebuilt the input, so the cursor goes back to where
-      // it was rather than to the start of the box.
-      const el = document.getElementById('clsSearch');
-      if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      // The patcher keeps the box and its caret where they were.
     }, 400);
   });
 
@@ -5668,6 +6121,8 @@ function leadHtml(l){
         ${l.linkedin_url?`<a class="chip" href="${esc(l.linkedin_url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>`:''}
         ${l.sales_nav_url?`<a class="chip" href="${esc(l.sales_nav_url)}" target="_blank" rel="noopener">Sales Nav &#8599;</a>`:''}
       </div>
+
+      ${clicksHtml(l.contact_id)}
 
       ${facts.length?`<dl class="facts">${facts.map(([k,v])=>
         `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:''}
@@ -5799,6 +6254,7 @@ function crmPanel(){
                 ${h.vertical?`<span class="chip">${esc(h.vertical)}</span>`:''}
               </div>
               ${h.sub?`<div class="hit-sub">${esc(h.sub)}</div>`:''}
+              ${h.kind === 'company' ? '' : clicksHtml(h.id)}
               <div class="hit-meta">
                 ${h.email?`<a href="mailto:${esc(h.email)}">${esc(h.email)}</a>`:''}
                 ${h.phone?`<span>${esc(h.phone)}</span>`:''}
@@ -6479,8 +6935,11 @@ async function useDraft(draftId){
 
     // Clearing the selection lets loadBoard move to the next open contact.
     S.activeId = null;
+    delete S.dEdit[draftId];
     await loadBoard();
-    S.loaded.metrics=false; S.loaded.tiles=false;
+    /* Email health, the follow-up panel, Home's charts and the KPI
+       numbers all move when something sends. */
+    staleAfter('send');
     if(out.sent === false) S.err = 'Saved to Pat\u2019s Outlook drafts but not sent'
       + (out.error ? ': ' + out.error : '.') + ' Send it from Outlook.';
   }catch(err){ S.err = err.message||String(err); }
@@ -6495,41 +6954,29 @@ async function generate(verticalId, count, gold){
     const res = await fetch(GENERATE_URL,{method:'POST',
       headers:await authHeaders(),
       body:JSON.stringify(body)});
-    const out = await res.json().catch(()=>({}));
+    const out = await res.json().catch(()=>null);
+    /* A failed call (a timeout, a 500, an auth refusal) used to read as
+       "Nothing eligible", which sent Pat looking at the sector rather
+       than at the workflow. Only a clean ok:false is "nothing eligible". */
+    if(!res.ok) throw new Error((out && out.error) || `the draft workflow returned ${res.status}${res.statusText ? ' ' + res.statusText : ''}`);
+    if(!out) throw new Error('the draft workflow sent back something that is not JSON');
     /* removed is how many picks failed the Evaboot address check and were
        left off before any draft was written. */
     const dropped = Number(out.removed || 0);
     S.gen = out.ok ? `${out.queued} added to the list with drafts ready.` +
                      (dropped ? ` ${dropped} left off because the address failed the check.` : '')
                    : (out.error || 'Nothing eligible in that sector right now.');
-    S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
-    await loadTiles(); await loadBoard();
-  }catch(err){ S.gen = 'That did not go through: ' + (err.message||err); }
-  finally{ S.busy=false; render(); }
-}
-
-async function generateAcross(){
-  if(S.busy) return;
-  const live = (S.tiles||[]).filter(t=>Number(t.pool)>0);
-  if(!live.length){ S.gen='No sector has eligible contacts right now.'; return render(); }
-  S.busy=true; S.gen=`Pulling two from each of ${live.length} sectors…`; render();
-  let total = 0;
-  try{
-    for(const t of live){
-      const res = await fetch(GENERATE_URL,{method:'POST',
-        headers:await authHeaders(),
-        body:JSON.stringify({vertical_id:t.vertical_id, count:2})});
-      const out = await res.json().catch(()=>({}));
-      if(out.ok) total += Number(out.queued||0);
-    }
-    S.gen = `Queued ${total} across ${live.length} sectors. Open the Today tab to work through them.`;
-    S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
-    await loadTiles(); await loadBoard();
-  }catch(err){ S.gen = 'Stopped partway: ' + (err.message||err); }
-  finally{ S.busy=false; render(); }
+  }catch(err){ S.gen = 'That did not go through: ' + (err.message||err) + '. Nothing was added.'; }
+  finally{
+    /* Whatever happened, the pools and the board may have moved. */
+    staleAfter('generate');
+    try{ await Promise.all([loadTiles(), loadBoard()]); }catch(e){}
+    S.busy=false; render();
+  }
 }
 
 async function addTask(){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const el = document.getElementById('taskTitle');
   if(el) S.taskDraft.title = el.value;
 
@@ -6560,6 +7007,7 @@ async function addTask(){
 }
 
 async function cycleTask(id){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   const rows = S.tasks[owner] || [];
   const t = rows.find(x=>x.id===id);
@@ -6603,6 +7051,7 @@ async function cycleTask(id){
 }
 
 async function addSubtask(){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const d = S.subDraft;
   if(!d) return;
   const el = document.getElementById('subInput');
@@ -6645,6 +7094,7 @@ async function addSubtask(){
    so a drag that ends where it began costs no requests. Only unfinished
    rows take part: done rows have no handle and stay parked below. */
 function startTaskDrag(e){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   if(e.button !== undefined && e.button !== 0) return;
   const list = document.getElementById('taskList');
   const row = e.currentTarget.closest('.task');
@@ -6695,6 +7145,7 @@ function startTaskDrag(e){
 }
 
 async function saveTaskOrder(ids){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   const rows = S.tasks[owner] || [];
   const byId = Object.fromEntries(rows.map(r=>[r.id, r]));
@@ -6721,6 +7172,7 @@ async function saveTaskOrder(ids){
 }
 
 async function delTask(id){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   try{
     await sb.from('tasks').delete().eq('id', id);
@@ -7136,8 +7588,7 @@ function wireReels(){
       clearTimeout(reelTimer);
       reelTimer = setTimeout(()=>{
         render();
-        const el = document.getElementById('reelSearch');
-        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+
       }, 250);
     });
   }
@@ -7444,8 +7895,7 @@ function wirePermits(){
       clearTimeout(permitTimer);
       permitTimer = setTimeout(()=>{
         render();
-        const el = document.getElementById('permitSearch');
-        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+
       }, 250);
     });
   }
@@ -8518,14 +8968,7 @@ async function loadBudget(){
   B.exps = (e.data || []).map(r => Object.assign({}, r, {
     category:r.category_id == null ? null : String(r.category_id), reference:r.invoice_ref }));
 
-  B.urls = {};
-  const paths = [...new Set(B.exps.map(x => x.receipt_path).filter(Boolean))];
-  if(paths.length){
-    try{
-      const { data:urls } = await sb.storage.from('receipts').createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) B.urls[u.path] = u.signedUrl;
-    }catch(err){ /* the row just shows no receipt link */ }
-  }
+  /* Receipts are signed as their rows are drawn (signedUrl). */
   S.loaded.budget = true;
 }
 
@@ -9613,8 +10056,9 @@ function budRow(it){
   if(BUD_SRC[it.source]) tags.push(`<span class="bud-tag">${BUD_SRC[it.source]}</span>`);
   if(it.payment_method && BUD_PAY[it.payment_method]) tags.push(`<span class="bud-tag">${esc(BUD_PAY[it.payment_method])}</span>`);
   if(it.reference) tags.push(`<span class="bud-tag">#${esc(it.reference)}</span>`);
-  const rc = it.receipt_path && B.urls[it.receipt_path]
-    ? `<a class="bud-tag" href="${esc(B.urls[it.receipt_path])}" target="_blank" rel="noopener">Receipt</a>` : '';
+  const rurl = it.receipt_path ? signedUrl('receipts', it.receipt_path) : null;
+  const rc = rurl ? `<a class="bud-tag" href="${esc(rurl)}" target="_blank" rel="noopener">Receipt</a>`
+    : it.receipt_path ? `<span class="bud-tag muted">Receipt&hellip;</span>` : '';
   const cat = it.category ? esc(budCatLabel(it.category))
     : `<select data-bud-setcat="${esc(it.id)}" ${busy ? 'disabled' : ''}>${budCatOptions('', 'Pick a category')}</select>`;
   const status = it.status === 'paid'
@@ -9923,7 +10367,11 @@ function wireBudget(){
    The PDF has its own form fields: 20 trip rows, a name, and total
    mileage and total reimbursement. More than 20 trips print as more
    pages, each with its own totals. */
-const MIL_RATE = 0.70;
+/* The rate for new trips comes from kpi_config (key mileage_rate) when
+   the tab loads; each trip keeps the rate it was saved with (t.rate).
+   A trip on a printed or reimbursed form is locked by the database
+   (sql/mileage.sql), so it shows Printed or Paid instead of Edit. */
+let MIL_RATE = 0.70;
 const MIL_ROWS = 20;
 const MIL_FORM = 'forms/mileage-reimbursement-2026.pdf';
 const PDFLIB_SRC = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
@@ -9935,7 +10383,16 @@ const milNum = v => { if(v === null || v === undefined || String(v).trim() === '
   const n = parseFloat(String(v).replace(/[,$\s]/g, '')); return isFinite(n) ? n : null; };
 const milMi = n => (Math.round(Number(n || 0) * 10) / 10).toLocaleString('en-US');
 const milOdo = n => n === null || n === undefined ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits:1 });
-const milCost = t => Math.round(Number(t.miles || 0) * Number(t.rate ?? MIL_RATE) * 100) / 100;
+const milRate = t => Number(t && t.rate != null ? t.rate : MIL_RATE);
+const milCost = t => Math.round(Number(t.miles || 0) * milRate(t) * 100) / 100;
+/* Each trip keeps the rate it was logged at, and that is what its cost
+   uses, so the text says the same rather than always today's rate. */
+function milRateLine(trips){
+  const rates = [...new Set((trips || []).map(milRate))].sort((a, b) => a - b);
+  if(!rates.length) return `${apvMoney(MIL_RATE)} a mile for new trips.`;
+  if(rates.length === 1) return `${apvMoney(rates[0])} a mile.`;
+  return `Rates this month: ${rates.map(r => apvMoney(r)).join(', ')} a mile, each trip at the rate it was logged at.`;
+}
 const milMDY = ymd => { const [y, m, d] = ymd.split('-').map(Number); return `${m}/${d}/${y}`; };
 const milMonthName = ym => new Date(ym + '-15T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
 const milMonthEnd = ym => { const [y, m] = ym.split('-').map(Number);
@@ -9947,10 +10404,13 @@ async function loadMileage(){
   const M = S.mil;
   let who = '';
   try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
-  const [t, d] = await Promise.all([
+  const [t, d, r] = await Promise.all([
     sb.from('mileage_trips').select('*').order('trip_date').order('created_at'),
-    who ? sb.from('staff_directory').select('name').ilike('email', who).limit(1) : Promise.resolve({ data:[] })
+    who ? sb.from('staff_directory').select('name').ilike('email', who).limit(1) : Promise.resolve({ data:[] }),
+    sb.from('kpi_config').select('value').eq('key', 'mileage_rate').maybeSingle()
   ]);
+  const rate = parseFloat(r && r.data && r.data.value);
+  if(isFinite(rate) && rate > 0) MIL_RATE = rate;
   if(t.error){
     const m = t.error.message || String(t.error);
     M.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (t.error.code || ''))
@@ -9999,18 +10459,20 @@ function pageMileage(){
       <div class="stat"><div class="k">Miles</div><div class="v">${esc(milMi(miles))}</div></div>
       <div class="stat accent"><div class="k">Reimbursement</div><div class="v">${esc(apvMoney(owed))}</div></div>
     </div>
-    <p class="hint" style="margin:0 0 24px">${esc(apvMoney(MIL_RATE))} a mile. Only you can see your trips.</p>
+    <p class="hint" style="margin:0 0 24px">${esc(milRateLine(shown))} Only you can see your trips.</p>
     <div class="block"><h2 class="sec">Trips</h2>
     ${shown.length ? `<div class="bud-scroll"><table class="bud-log"><thead><tr><th style="width:90px">Date</th>
       <th>From</th><th>To</th><th>Job # / what for</th><th class="num" style="width:150px">Odometer</th>
-      <th class="num" style="width:80px">Miles</th><th class="num" style="width:100px">Amount</th><th style="width:60px"></th></tr></thead><tbody>
+      <th class="num" style="width:80px">Miles</th><th class="num" style="width:70px">Rate</th><th class="num" style="width:100px">Amount</th><th style="width:60px"></th></tr></thead><tbody>
       ${shown.map(t => `<tr>
         <td class="mono">${esc(shortDate(t.trip_date + 'T12:00:00'))}</td>
         <td>${esc(t.start_loc)}</td><td>${esc(t.destination)}</td><td>${esc(t.purpose)}</td>
         <td class="num mono">${t.odo_start != null || t.odo_end != null ? esc(milOdo(t.odo_start) + ' – ' + milOdo(t.odo_end)) : ''}</td>
-        <td class="num">${esc(milMi(t.miles))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
-        <td style="text-align:right"><button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button></td></tr>`).join('')}
-      <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
+        <td class="num">${esc(milMi(t.miles))}</td><td class="num muted">${esc(apvMoney(milRate(t)))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
+        <td style="text-align:right">${t.reimbursed_at ? `<span class="chip good" title="Reimbursed ${esc(shortDate(t.reimbursed_at))}">Paid</span>`
+          : t.printed_at ? `<span class="chip" title="On a form printed ${esc(shortDate(t.printed_at))}. Locked; add a correcting trip if something is wrong.">Printed</span>`
+          : `<button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button>`}</td></tr>`).join('')}
+      <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td></td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
       </tbody></table></div>`
     : `<div class="empty" style="padding:30px 0"><h2>No trips yet</h2><p>Nothing logged for ${esc(milMonthName(M.month))}. Use Add a trip after each drive.</p></div>`}
     </div>
@@ -10057,7 +10519,9 @@ function milForm(){
 
 function milSumLine(f){
   const n = milNum(f.miles);
-  return n ? `${milMi(n)} miles × ${apvMoney(MIL_RATE)} = ${apvMoney(Math.round(n * MIL_RATE * 100) / 100)}`
+  /* An existing trip keeps its own rate; a new one takes today's. */
+  const rate = milRate(f.id ? S.mil.trips.find(t => t.id === f.id) : null);
+  return n ? `${milMi(n)} miles × ${apvMoney(rate)} = ${apvMoney(Math.round(n * rate * 100) / 100)}`
            : 'Enter both odometer readings, or just the miles.';
 }
 
@@ -10081,8 +10545,10 @@ function milPrintSheet(){
         esc(apvMoney(ts.reduce((s, t) => s + milCost(t), 0)))} on ${pages} page${pages === 1 ? '' : 's'}.` : 'No trips in these dates.'}</p>
       ${M.err ? `<p class="hint err">${esc(M.err)}</p>` : ''}
       <div class="sheet-foot">
-        ${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;text-align:center">Open the form to print</a>
-          <p style="margin:12px 0 0;text-align:center"><a class="linkbtn" href="${esc(p.url)}" download="${esc(p.file)}">Save the PDF</a></p>`
+        ${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;text-align:center" data-mil-printed="1">Open the form to print</a>
+          <p style="margin:12px 0 0;text-align:center"><a class="linkbtn" href="${esc(p.url)}" download="${esc(p.file)}" data-mil-printed="1">Save the PDF</a>
+            ${ts.some(t => !t.reimbursed_at) ? ` &middot; <button class="linkbtn" id="milPaid">Mark these reimbursed</button>` : ''}</p>
+          <p class="hint" style="text-align:center">Opening or saving the form locks these trips.</p>`
         : `<button class="btn" id="milPGo" ${M.saving || !ts.length ? 'disabled' : ''}>${M.saving ? 'Filling in&hellip;' : 'Fill in the form'}</button>`}
       </div>
     </div>
@@ -10156,6 +10622,22 @@ async function milMakePdf(){
     p.file = `Mileage ${p.from} to ${p.to} - ${p.name.trim()}.pdf`;
   }catch(err){ M.err = err.message || String(err); }
   M.saving = false; render();
+}
+
+/* Printing locks the trips on the form; marking them reimbursed records
+   the payment. Both are one-way (the database refuses to undo them). */
+async function milStamp(field){
+  const M = S.mil, ids = milPicked().filter(t => !t[field]).map(t => t.id);
+  if(!ids.length) return;
+  const { data, error } = await sb.from('mileage_trips').update({ [field]:new Date().toISOString() })
+    .in('id', ids).is(field, null).select();
+  /* Before sql/safety_2026_10_23.sql has run the columns are missing;
+     printing still works, it just does not lock anything yet. */
+  if(error && /printed_at|reimbursed_at|schema cache/i.test(error.message || '') && field === 'printed_at') return;
+  if(error){ M.err = 'Could not mark the trips. ' + (error.message || ''); return render(); }
+  (data || []).forEach(row => { const i = M.trips.findIndex(t => t.id === row.id); if(i >= 0) M.trips[i] = row; });
+  if(field === 'reimbursed_at'){ M.note = `${(data || []).length} trip${(data || []).length === 1 ? '' : 's'} marked reimbursed.`; M.print = null; }
+  render();
 }
 
 async function milSave(andReturn){
@@ -10250,6 +10732,9 @@ function wireMileage(){
     nm && nm.addEventListener('change', () => { p.url = null; render(); });
     const go = document.getElementById('milPGo');
     if(go) go.addEventListener('click', milMakePdf);
+    document.querySelectorAll('[data-mil-printed]').forEach(el => el.addEventListener('click', () => milStamp('printed_at')));
+    const pd = document.getElementById('milPaid');
+    if(pd) pd.addEventListener('click', () => { if(confirm('Mark the trips on this form as reimbursed? They stay locked.')) milStamp('reimbursed_at'); });
     const cl = document.getElementById('milPClose');
     if(cl) cl.addEventListener('click', () => { M.print = null; M.err = ''; render(); });
   }
@@ -10316,7 +10801,7 @@ function bulkNew(){
   const M = S.mrw;
   M.open = 'new'; M.err = ''; M.note = ''; M.preview = null; M.confirm = false; M.recips = []; M.replies = [];
   M.form = { name:'', sender:S.me === 'pat' ? 'pat' : 'liam', include:[], exclude:[], match_all:false, cooldown:'90',
-    skip_deals:true, cap:'300', brief:'', subject:'', body:'', options:[] };
+    skip_deals:true, cap:'100', brief:'', subject:'', body:'', options:[] };
 }
 
 /* Saves the draft and returns its id. Counting, writing and testing all
@@ -10326,7 +10811,7 @@ async function bulkSave(quiet){
   const cap = parseInt(f.cap, 10), cool = parseInt(f.cooldown, 10);
   if(!f.name.trim()){ M.err = 'Give the campaign a name.'; return null; }
   if(!(cap >= 10 && cap <= 1500)){ M.err = 'The daily limit has to be between 10 and 1,500.'; return null; }
-  if(!(cool >= 0 && cool <= 365)){ M.err = 'The rest period has to be between 0 and 365 days.'; return null; }
+  if(!(cool >= 14 && cool <= 365)){ M.err = 'The rest period has to be between 14 and 365 days.'; return null; }
   const row = { name:f.name.trim(), sender:f.sender, include_labels:f.include, exclude_labels:f.exclude,
     match_all:f.match_all, cooldown_days:cool, skip_open_deals:f.skip_deals, daily_cap:cap,
     brief:f.brief, subject:f.subject.trim(), body:f.body.replace(/\r/g, '').trim(), updated_at:new Date().toISOString() };
@@ -10389,7 +10874,7 @@ const bulkStart = () => bulkRun('start', async () => {
   const { data, error } = await sb.rpc('bulk_start', { p_campaign:M.open });
   if(error) throw new Error('Could not start. ' + error.message);
   M.confirm = false;
-  M.note = data && data.resumed ? 'Sending again.' : `Started. ${num(data && data.total)} people are queued and the first emails go out within 5 minutes on a weekday between 7am and 5pm.`;
+  M.note = data && data.resumed ? 'Sending again.' : `Started. ${num(data && data.total)} people are queued${data && data.to_verify ? `, ${num(data.to_verify)} of them waiting on an Evaboot check` : ''}${data && data.left_out ? `; ${num(data.left_out)} left out for an unchecked or risky address` : ''}. The first emails go out within 5 minutes on a weekday between 7am and 5pm.`;
   await loadBulk(); await bulkOpen(M.open, true);
 });
 
@@ -10494,7 +10979,7 @@ function pageBulkCampaign(){
           <select id="mrwMatch"><option value="any" ${f.match_all ? '' : 'selected'}>Any of the picked labels</option>
             <option value="all" ${f.match_all ? 'selected' : ''}>All of the picked labels</option></select></div>
         <div class="field"><label for="mrwCool">Skip anyone emailed in the last</label>
-          <select id="mrwCool">${[[0,'No rest, email them anyway'],[30,'30 days'],[60,'60 days'],[90,'90 days (same as Pat\'s board)'],[180,'180 days']]
+          <select id="mrwCool">${[[14,'14 days (the shortest allowed)'],[30,'30 days'],[60,'60 days'],[90,'90 days (same as Pat\'s board)'],[180,'180 days']]
             .map(([v, t]) => `<option value="${v}" ${String(v) === String(f.cooldown) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
         <div class="field"><label for="mrwCap">Most emails a day</label>
           <input type="text" inputmode="numeric" id="mrwCap" value="${esc(f.cap)}" autocomplete="off" /></div>
@@ -10502,7 +10987,7 @@ function pageBulkCampaign(){
       <label class="hint" style="display:flex;gap:8px;align-items:center;margin-top:10px">
         <input type="checkbox" id="mrwDeals" ${f.skip_deals ? 'checked' : ''} /> Leave out anyone on an open deal</label>
       <div class="actions"><button class="btn small ghost" id="mrwCount" ${busy ? 'disabled' : ''}>${busy === 'count' ? 'Counting&hellip;' : 'Count who gets it'}</button>
-        ${p ? `<span><b>${num(p.count)}</b> people${p.unverified ? `, ${num(p.unverified)} never checked by Evaboot` : ''}. ${p.count ? `About ${bulkDays(p.count, parseInt(f.cap, 10) || 300)} weekday${bulkDays(p.count, parseInt(f.cap, 10) || 300) === 1 ? '' : 's'} to send.` : ''}</span>` : ''}</div>
+        ${p ? `<span><b>${num(p.count)}</b> people${p.to_verify || (p.to_verify === undefined && p.unverified) ? `, ${num(p.to_verify ?? p.unverified)} checked by Evaboot first` : ''}${p.risky ? `, ${num(p.risky)} risky address${p.risky === 1 ? '' : 'es'} left out` : ''}. ${p.count ? `About ${bulkDays(p.count, parseInt(f.cap, 10) || 100)} weekday${bulkDays(p.count, parseInt(f.cap, 10) || 100) === 1 ? '' : 's'} to send.` : ''}</span>` : ''}</div>
       ${p && p.sample && p.sample.length ? `<p class="hint" style="margin-top:8px">For example: ${p.sample.map(x => esc([x.name, x.title, x.company].filter(Boolean).join(', '))).join(' &middot; ')}</p>` : ''}
     </div>
 
@@ -10522,7 +11007,7 @@ function pageBulkCampaign(){
       ${f.subject || f.body ? `<div class="panelbox"><p class="eyebrow" style="margin:0">Preview${sample ? ' for ' + esc(sample.name || sample.email) : ''}</p>
         <p style="color:var(--ink);font-weight:600">${esc(bulkFill(f.subject, sample))}</p>
         <p style="white-space:pre-wrap;color:var(--ink)">${esc(bulkFill(f.body, sample))}</p>
-        <p style="font-size:11.5px">${esc(((M.senders.find(s => s.key === f.sender) || {}).footer_line) || '')}</p>
+        <p style="font-size:11.5px">${esc(((M.senders.find(s => s.key === f.sender) || {}).footer_line) || '')}<br><u>Unsubscribe</u> (each person's own one-click link)</p>
         ${sample ? '' : '<p class="none">Press Count who gets it to fill this in for a real person.</p>'}</div>` : ''}
     </div>
 
@@ -10558,7 +11043,7 @@ function bulkLabelPicker(){
 function bulkConfirm(c){
   const M = S.mrw, f = M.form, p = M.preview;
   if(!M.confirm) return '';
-  const cap = parseInt(f.cap, 10) || 300;
+  const cap = parseInt(f.cap, 10) || 100;
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Start sending">
     <div class="sheet-in">
       <div class="sheet-head"><h2>Start sending?</h2><button class="linkbtn" id="mrwNo">Close</button></div>
@@ -10574,7 +11059,7 @@ function bulkConfirm(c){
 
 function bulkLive(c, back, msgs){
   const M = S.mrw, s = M.stats[c.id] || {}, busy = M.busy;
-  const left = Number(s.queued || 0) + Number(s.sending || 0);
+  const left = Number(s.queued || 0) + Number(s.sending || 0) + Number(s.verifying || 0);
   return `<main class="page" style="max-width:1060px">
     <p style="margin:0 0 10px">${back}</p>
     <div class="bud-head"><h2 class="sec" style="margin:0">${esc(c.name)}</h2>${bulkStatusChip(c.status)}
@@ -10593,7 +11078,7 @@ function bulkLive(c, back, msgs){
       <div class="stat"><div class="k">Unsubscribed</div><div class="v">${num(s.unsubscribed)}</div></div>
       <div class="stat"><div class="k">Still to send</div><div class="v">${num(left)}</div></div>
     </div>
-    <p class="hint" style="margin:0 0 24px">From ${esc(bulkSenderName(c.sender))}, up to ${num(c.daily_cap)} a day. Labels: ${esc((c.include_labels || []).map(bulkLabelName).join(c.match_all ? ' and ' : ' or '))}${(c.exclude_labels || []).length ? `, leaving out ${esc(c.exclude_labels.map(bulkLabelName).join(', '))}` : ''}.${Number(s.failed) ? ` ${num(s.failed)} could not be sent and were not retried.` : ''}${Number(s.skipped) ? ` ${num(s.skipped)} were skipped because they unsubscribed, bounced or became a client after the start.` : ''}</p>
+    <p class="hint" style="margin:0 0 24px">From ${esc(bulkSenderName(c.sender))}, up to ${num(c.daily_cap)} a day. Labels: ${esc((c.include_labels || []).map(bulkLabelName).join(c.match_all ? ' and ' : ' or '))}${(c.exclude_labels || []).length ? `, leaving out ${esc(c.exclude_labels.map(bulkLabelName).join(', '))}` : ''}.${Number(s.failed) ? ` ${num(s.failed)} could not be sent and were not retried.` : ''}${Number(s.verifying) ? ` ${num(s.verifying)} are waiting on an Evaboot check.` : ''}${Number(s.skipped) ? ` ${num(s.skipped)} were left out: an unchecked or risky address, or they unsubscribed, bounced or became a client after the start.` : ''}</p>
     <div class="block"><h2 class="sec">Replies</h2>
       ${M.replies.length ? `<div class="bud-scroll"><table class="bud-log"><tbody>${M.replies.map(r => `<tr>
         <td class="mono" style="width:80px">${esc(shortDate(r.replied_at))}</td><td style="width:220px">${esc(r.email)}${r.unsubscribed_at ? ' <span class="chip bad">Unsubscribed</span>' : ''}</td>
@@ -10819,7 +11304,7 @@ function phoDetail(b){
         <span class="pho-fn">${esc(i.file_name)}</span>
       </figcaption></figure>`).join('')}</div>
     <p class="hint" style="margin-top:22px">
-      ${b.status === 'submitted' ? `<button class="linkbtn" id="phoReopen" style="padding-left:0">Let them change their picks</button> &middot; ` : ''}
+      ${b.status === 'submitted' ? `<span class="hint">Sent back, so it is read-only. Send a new batch to ask again. </span>` : ''}
       <button class="linkbtn" id="phoDelete" style="color:var(--red)${b.status === 'submitted' ? '' : ';padding-left:0'}">Delete this batch</button></p>`;
 }
 
@@ -11297,7 +11782,7 @@ function exvPieceCard(pc){
     <p class="hint" style="margin:4px 0 0">${blog ? 'Lines starting with ## become headings and lines starting with &gt; become quotes when you copy it for WordPress.' : ''}
       ${needsOk && ['approved','changes','needs_ok'].includes(pc.status) ? ' Saving an edit means it goes back for another OK.' : ''}</p>
     <div class="actions">
-      <button class="btn small ghost" data-exv-save="${esc(pc.id)}">Save edits</button>
+      ${pc.status !== 'published' ? `<button class="btn small ghost" data-exv-save="${esc(pc.id)}">Save edits</button>` : ''}
       ${blog ? `<button class="btn small ghost" data-exv-wp="${esc(pc.id)}">Copy for WordPress</button>` : ''}
       <button class="btn small ghost" data-exv-plain="${esc(pc.id)}">Copy text</button>
       ${needsOk && pc.status !== 'published' && pc.status !== 'approved' ? `<a class="btn small" href="${esc(exvSms(ap.phone, okTxt))}" data-exv-askok="${esc(pc.id)}"
@@ -11663,9 +12148,11 @@ function wireVoices(){
 
 /* ================= marketing return ================= */
 /* What the marketing spend brought in. Pipedrive has no source on a deal,
-   so it lives in deal_sources (sql/deal_sources.sql). A deal at a company
-   the dashboard emailed before the deal was added counts as outreach
-   without anyone tagging it; a source picked by hand always wins. */
+   so it lives in deal_sources (sql/deal_sources.sql). The nightly deal sync
+   fills a source for every untagged deal from what the data says
+   (deal_sources_autofill, sql/deal_sources_auto.sql), with set_by 'auto'
+   and a note saying why. Those show as "auto" until Liam or Pat confirm or
+   change them; a source picked by hand always wins and is never replaced. */
 const RET_SOURCES = { outreach:'Outreach email', event:'Event', website:'Website or inbound',
                       social:'Social', referral:'Referral', repeat:'Repeat client', other:'Other' };
 /* The sources marketing can take credit for. Referrals and repeat
@@ -11701,13 +12188,21 @@ function retEventLabel(ev){
 }
 
 function retSourceSelect(row, id){
+  /* An auto source sits in the blank first option, so picking any real
+     option (the same one included) saves it as a person's choice. */
   const cur = row.source_auto ? '' : (row.source || '');
-  const opts = `<option value="">${row.source_auto ? 'Outreach email (worked out)' : 'Not set'}</option>` +
+  const opts = `<option value="">${row.source_auto ? esc(RET_SOURCES[row.source] || row.source) + ' (auto)' : 'Not set'}</option>` +
     Object.entries(RET_SOURCES).map(([k,l]) =>
       `<option value="${k}" ${k===cur?'selected':''}>${esc(l)}</option>`).join('');
   const busy = S.ret.busy === row.deal_id;
   let html = `<select id="${id}" data-ret-src="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
     aria-label="Where ${esc(row.title || 'this deal')} came from">${opts}</select>`;
+  if(row.source_auto){
+    html += `<div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
+      <span class="chip">auto</span>
+      ${retCanEdit() ? `<button class="btn small ghost" data-ret-ok="${esc(row.deal_id)}" ${busy ? 'disabled' : ''}>Confirm</button>` : ''}
+    </div>${row.source_note ? `<p class="hint" style="margin:3px 0 0">${esc(String(row.source_note).replace(/^Auto:\s*/, ''))}</p>` : ''}`;
+  }
   if(row.source === 'event' && !row.source_auto){
     html += `<select data-ret-ev="${esc(row.deal_id)}" ${busy || !retCanEdit() ? 'disabled' : ''}
       aria-label="Which event" style="margin-top:4px">
@@ -11770,12 +12265,16 @@ function pageReturn(){
   const wonMkt = sum(wonY.filter(mkt));
   const multiple = spend ? wonMkt / spend : null;
   const untagged = wonY.filter(r => !r.source).length + open.filter(r => !r.source).length;
+  /* Auto sources nobody has confirmed yet, won this year or still open. */
+  const autoRows = wonY.filter(r => r.source_auto).concat(open.filter(r => r.source_auto))
+    .sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
 
   const stats = `<div class="stat-grid ret-stats" style="margin-bottom:22px">
     <div class="stat"><div class="k">Marketing spend ${year}</div><div class="v">${spend === null ? '&ndash;' : money(spend)}</div>
       ${spend === null ? `<p class="hint" style="margin:4px 0 0">From the Budget tab, Liam and Pat only.</p>` : ''}</div>
     <div class="stat accent"><div class="k">Won from marketing</div><div class="v">${money(wonMkt)}</div>
-      <p class="hint" style="margin:4px 0 0">${num(wonY.filter(mkt).length)} of ${num(wonY.length)} deals won this year</p></div>
+      <p class="hint" style="margin:4px 0 0">${num(wonY.filter(mkt).length)} of ${num(wonY.length)} deals won this year${
+        autoRows.length ? `, ${num(autoRows.length)} auto not yet confirmed` : ''}</p></div>
     <div class="stat"><div class="k">Return on spend</div><div class="v">${multiple === null ? '&ndash;' : (multiple >= 10 ? Math.round(multiple) : multiple.toFixed(1)) + '<small>&times;</small>'}</div>
       <p class="hint" style="margin:4px 0 0">${multiple === null ? 'Needs spend and a tagged win' : 'Won value per dollar spent'}</p></div>
     <div class="stat"><div class="k">Open from marketing</div><div class="v">${money(sum(open.filter(mkt)))}</div>
@@ -11786,8 +12285,10 @@ function pageReturn(){
   const bySource = keys.map(k => {
     const w = wonY.filter(r => (r.source || '') === k), o = open.filter(r => (r.source || '') === k);
     if(!w.length && !o.length) return '';
+    const nAuto = w.concat(o).filter(r => r.source_auto).length;
     return `<tr>
-      <td>${k ? `<b>${esc(RET_SOURCES[k])}</b>${RET_MARKETING.includes(k) ? '' : ' <span class="chip">not marketing</span>'}`
+      <td>${k ? `<b>${esc(RET_SOURCES[k])}</b>${RET_MARKETING.includes(k) ? '' : ' <span class="chip">not marketing</span>'}${
+                nAuto ? ` <span class="muted">${num(nAuto)} auto</span>` : ''}`
               : `<span style="color:var(--red)">No source yet</span>`}</td>
       <td class="num">${num(w.length)}</td><td class="num"><b>${money(sum(w))}</b></td>
       <td class="num">${num(o.length)}</td><td class="num">${money(sum(o))}</td>
@@ -11830,7 +12331,8 @@ function pageReturn(){
         <th class="num">Won ${year}</th><th class="num">Won value</th>
         <th class="num">Open</th><th class="num">Open value</th></tr></thead>
         <tbody>${bySource || `<tr><td colspan="5" class="hint">No deals yet.</td></tr>`}</tbody></table></div>
-      <p class="hint">Deals at a company Pat emailed before the deal was added count as outreach on their own.
+      <p class="hint">Sources marked auto were worked out from the data (an email or event invite before the deal,
+      an earlier deal with them, Pat's gold list or Pipedrive labels) and wait for Liam or Pat to confirm.
       Won deals count in the year of their last Pipedrive update, the same as the scorecard.</p>
     </div>
 
@@ -11841,6 +12343,20 @@ function pageReturn(){
         <tbody>${evRows}</tbody></table></div>
         <p class="hint">Spent is what the Budget tab has against the event. Tag a deal with the event below to count it here.</p>`
       : `<p class="hint">No events marked going yet.</p>`}
+    </div>
+
+    <div class="block">
+      <h2 class="sec">Auto, not yet confirmed${autoRows.length ? ` (${autoRows.length})` : ''}</h2>
+      ${autoRows.length ? `<div style="overflow-x:auto"><table><thead><tr><th>Deal</th><th class="num">Value</th><th>Came from</th></tr></thead>
+        <tbody>${autoRows.map((r, i) => `<tr>
+          <td><b>${esc(r.title || 'Untitled')}</b>${r.company_name ? ` <span class="muted">${esc(r.company_name)}</span>` : ''}
+            ${r.status === 'won' ? ' <span class="chip good">won</span>' : ''}</td>
+          <td class="num">${money(r.value)}</td>
+          <td style="min-width:190px">${retSourceSelect(r, 'retAuto' + i)}</td>
+        </tr>`).join('')}</tbody></table></div>
+        <p class="hint">${retCanEdit() ? 'Confirm keeps the auto source as yours; picking another one changes it.'
+          : 'Liam or Pat can confirm these.'} Won this year first by value, then open deals.</p>`
+      : `<p class="hint">No auto sources waiting.</p>`}
     </div>
 
     <div class="block">
@@ -11862,6 +12378,11 @@ function wireReturn(){
     }));
   document.querySelectorAll('[data-ret-ev]').forEach(el =>
     el.addEventListener('change', () => saveDealSource(el.dataset.retEv, 'event', el.value)));
+  document.querySelectorAll('[data-ret-ok]').forEach(el =>
+    el.addEventListener('click', () => {
+      const row = (S.ret.rows||[]).find(r => r.deal_id === el.dataset.retOk);
+      if(row && row.source) saveDealSource(row.deal_id, row.source, row.event_invite_id);
+    }));
 }
 
 /* ================= home ================= */
@@ -11879,50 +12400,54 @@ const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
 const HOME_SOCIAL_DAYS = 14;
 
 S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null,
-           stages:null, daily:null, monthly:null, reach:null };
+           stages:null, daily:null, monthly:null, reach:null, sys:null };
+
+/* Home's own reads, one function each, so a live update or an action can
+   refresh just the part it touched (refreshKeys('home.daily')) instead
+   of the whole screen. A part that fails leaves null, and its card says
+   it could not load. */
+const HOME_PARTS = {
+  hot: () => loadHotLeads(),
+  /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
+     v_dash_headline counts every owner's deals. */
+  pipe: () => sb.from('v_kpi_open').select('*').single()
+    .then(r => { S.home.pipe = r.data || null; }),
+  /* For the charts and trend lines on Home. */
+  stages: () => sb.from('v_kpi_stages').select('*').order('order_nr')
+    .then(r => { S.home.stages = r.error ? null : (r.data || []); }),
+  daily: () => sb.from('v_dash_daily').select('day,sent,replied,bounced').gte('day', daysAgo(13)).order('day')
+    .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
+  monthly: () => sb.from('v_kpi_monthly').select('month,added').order('month')
+    .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
+  reach: () => sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
+    .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
+  /* Stale refreshes, stuck jobs and failed workflows, the same rows the
+     Haggerty Freshness Check emails about (sql/system_health.sql). */
+  sys: () => sb.from('v_system_health').select('*').order('kind').order('title')
+    .then(r => { S.home.sys = r.error ? null : (r.data || []); }),
+  socDrafts: () => {
+    const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
+    return sb.from('social_posts').select('id,post_date')
+      .eq('status','draft').gte('post_date', today()).lte('post_date', ymdOf(soon))
+      .order('post_date')
+      .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); });
+  }
+};
+const homeParts = () => S.me === 'pat' ? ['hot','pipe','stages','daily','monthly']
+  : ['hot','pipe','stages','daily','monthly','reach','sys','socDrafts'];
+/* The other tabs' loaders Home reads from. */
+const homeDeps = () => S.me === 'pat'
+  ? ['board','health','approvals','week','seq','invites','permits']
+  : ['board','health','approvals','tasks.liam','requests','budget'];
 
 async function loadHome(){
-  const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
-  const soonYmd = [soon.getFullYear(), String(soon.getMonth()+1).padStart(2,'0'),
-                   String(soon.getDate()).padStart(2,'0')].join('-');
-  const pat = S.me === 'pat';
-  const own = [
-    loadHotLeads(),
-    /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
-       v_dash_headline counts every owner's deals. */
-    sb.from('v_kpi_open').select('*').single()
-      .then(r => { S.home.pipe = r.data || null; }),
-    /* For the charts and trend lines on Home. */
-    sb.from('v_kpi_stages').select('*').order('order_nr')
-      .then(r => { S.home.stages = r.error ? null : (r.data || []); }),
-    sb.from('v_dash_daily').select('day,sent,replied,bounced').gte('day', daysAgo(13)).order('day')
-      .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
-    sb.from('v_kpi_monthly').select('month,added').order('month')
-      .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
-    !pat && sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
-      .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
-    !pat && sb.from('social_posts').select('id,post_date')
-      .eq('status','draft')
-      .gte('post_date', today()).lte('post_date', soonYmd)
-      .order('post_date')
-      .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); })
-  ];
   /* A tab that fails to load should not blank the whole screen, so each
      read is caught on its own and its card says it could not load. */
   const safe = p => p && Promise.resolve(p).catch(() => {});
   await Promise.all([
-    ...own,
-    !S.loaded.board && loadBoard(),
-    !S.loaded.health && loadHealth(),
-    !S.loaded.approvals && loadApprovals(),
-    pat && !S.loaded.week && loadWeek(),
-    pat && !S.loaded.seq && loadSequences(),
-    pat && !S.loaded.invites && loadInvites(),
-    pat && !S.loaded.permits && loadPermits(),
-    !pat && !S.loaded.tasks.liam && loadTasks('liam'),
-    !pat && !S.loaded.requests && loadRequests(),
-    !pat && !S.loaded.budget && loadBudget()
-  ].filter(Boolean).map(safe));
+    ...homeParts().map(k => HOME_PARTS[k]()),
+    ...homeDeps().filter(k => !keyLoaded(k)).map(k => LOADERS[k]())
+  ].map(safe));
   S.loaded.home = true;
 }
 
@@ -12248,7 +12773,6 @@ function homePat(){
   const inv = (S.invites || []).filter(v => v.decision === 'undecided' && !v.is_past && isLocal(v)).length;
   const apv = homeApprovals();
   const hot = S.home.hot;
-  const todayEvents = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
   const days = homeDays();
 
   const needs = [];
@@ -12272,12 +12796,28 @@ function homePat(){
       <div>${homeEmailPanel(days)}${homeHotPanel()}</div>
       <div>
         ${homePermitPanel(pp)}
-        ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayEvents.length
-          ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
-          : `<p class="hint">Nothing on the calendar today.</p>`)}
+        ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayCalHtml())}
         ${homePanel('Pipeline by stage', 'kpis', 'Open Pipeline & KPIs', homeStages())}
       </div>
     </div>` };
+}
+
+/* "Needs a look": anything stale or broken behind the dashboard, from
+   v_system_health. Hidden when the view has no rows, so a good day shows
+   nothing. A failed workflow links to its n8n execution; the rest go to
+   the tab that shows the stale data. */
+const SYS_GO = { permits:'permits', outreach:'today', pipeline:'kpis', social:'social' };
+function homeSysPanel(){
+  const rows = S.home.sys;
+  if(!rows || !rows.length) return '';
+  return homePanel(`Needs a look (${rows.length})`, '', '', `<div class="hlist">${rows.map(r => {
+    const body = `<span class="n">${esc(r.title)}<br><em>${esc(r.detail || '')}</em></span>
+      <span class="w ${r.kind === 'failed' || r.kind === 'stale' ? 'late' : ''}">${esc(r.since ? shortDate(r.since) : '')}</span>`;
+    return r.url
+      ? `<a class="hrow" href="${esc(r.url)}" target="_blank" rel="noopener">${body}</a>`
+      : `<button class="hrow" data-home-go="${esc(SYS_GO[r.tab] || 'home')}">${body}</button>`;
+  }).join('')}</div>
+    <p class="hint">Liam gets an email for these too. Each clears on its own once the refresh runs or the item is fixed.</p>`, 'sysHealth');
 }
 
 function homeLiam(){
@@ -12329,6 +12869,7 @@ function homeLiam(){
 
   return { needs, body: `
     <p class="eyebrow home-lbl">Needs you today</p>${homeQueue(needs)}
+    ${homeSysPanel()}
     <div class="kpis">${kpis.map(kpiTile).join('')}</div>
     <div class="home-cols">
       <div>
@@ -12378,14 +12919,8 @@ async function homeGo(target){
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     return;
   }
-  if(page === 'calendar' && view) S.calView = view;
-  if(page === 'permits' && view) S.permitView = view;
-  S.page = page; S.err = ''; S.gen = '';
-  try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
-  render();
-  try{ await ensure(S.page); }
-  catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
-  render();
+  if(SUBVIEW[page] && view) SUBVIEW[page].set(view);
+  return goPage(page);
 }
 
 function wireHome(){
@@ -12403,6 +12938,200 @@ function wireHome(){
     }));
 }
 
+/* ================= sheet clicks ================= */
+/* Every tracked flyer link (haggertybuilds.com/go/<slug>?c=<contact>)
+   writes a row to asset_clicks. Hot leads already lists the last 30
+   days; this puts the full history on the contact wherever the contact
+   is shown: the Outreach detail, a lead card and a CRM search hit. */
+S.clicks = {};
+async function loadClicks(ids){
+  const need = [...new Set((ids || []).filter(Boolean))].filter(id => !(id in S.clicks));
+  if(!need.length) return;
+  const rows = [];
+  for(let i = 0; i < need.length; i += 150){
+    const { data, error } = await sb.from('asset_clicks').select('contact_id,slug,clicked_at')
+      .in('contact_id', need.slice(i, i + 150)).order('clicked_at', { ascending:false }).limit(1000);
+    if(error) return;            // the contact simply shows no clicks
+    rows.push(...(data || []));
+  }
+  for(const id of need) S.clicks[id] = [];
+  for(const r of rows) S.clicks[r.contact_id].push(r);
+  if(!S.loaded.assets) await loadAssets().catch(() => {});
+}
+function clicksHtml(cid){
+  const c = cid && S.clicks[cid];
+  if(!c || !c.length) return '';
+  const title = slug => ((S.assets || []).find(a => a.slug === slug) || {}).title || slug;
+  return `<div class="clicks"><span class="eyebrow">Opened ${c.length === 1 ? 'a sheet' : plural(c.length, 'sheet link')}</span>
+    ${c.slice(0, 4).map(x => `<span class="chip hot" title="${esc(new Date(x.clicked_at).toLocaleString('en-US'))}">${
+      esc(title(x.slug))} &middot; ${esc(shortDate(x.clicked_at))}</span>`).join('')}${
+    c.length > 4 ? `<span class="hint">and ${c.length - 4} more</span>` : ''}</div>`;
+}
+
+/* ================= keeping the screen current ================= */
+/* A change made on another device (Pat sends, Liam approves, a request
+   comes in) used to appear only after a reload. Three things keep the
+   screen current now:
+
+   1. Supabase Realtime. One channel listens to the tables below; a change
+      marks the loaders that read that table as stale.
+   2. A light poll, for tables Realtime is not publishing yet: on window
+      focus, and every few minutes while the tab is visible.
+   3. Actions that change other tabs' numbers (Send, Generate) mark those
+      loaders stale too (staleAfter).
+
+   Stale loaders that the current screen shows are re-read together,
+   after a short pause so a burst of changes costs one read each, and the
+   page is patched in the background without disturbing what is being
+   typed. Stale loaders the screen does not show are just marked unloaded,
+   so the next visit reads them fresh. */
+const LOADERS = {
+  board:loadBoard, tiles:loadTiles, week:loadWeek, seq:loadSequences, assets:loadAssets,
+  voice:loadVoice, health:loadHealth, mc:loadMailchimp, invites:loadInvites,
+  approvals:loadApprovals, budget:loadBudget, mileage:loadMileage, requests:loadRequests,
+  reels:loadReels, social:loadSocial, permits:loadPermits, ec:loadCampaigns, bulk:loadBulk,
+  photos:loadPhotos, voices:loadVoices, kpis:loadKpis, metrics:loadMetrics, ret:loadReturn,
+  'tasks.liam':() => loadTasks('liam'), 'tasks.iyanna':() => loadTasks('iyanna'),
+  clicks:() => { const ids = Object.keys(S.clicks); S.clicks = {}; return loadClicks(ids); }
+};
+for(const k of Object.keys(HOME_PARTS)) LOADERS['home.' + k] = HOME_PARTS[k];
+
+function keyLoaded(k){
+  if(k.startsWith('home.')) return !!S.loaded.home;
+  if(k.startsWith('tasks.')) return !!S.loaded.tasks[k.slice(6)];
+  if(k === 'clicks') return Object.keys(S.clicks).length > 0;
+  return !!S.loaded[k];
+}
+function unloadKey(k){
+  if(k.startsWith('home.')) return;          // Home re-reads its parts on every visit
+  if(k.startsWith('tasks.')){ S.loaded.tasks[k.slice(6)] = false; return; }
+  if(k === 'clicks'){ S.clicks = {}; return; }
+  S.loaded[k] = false;
+}
+
+/* What the current screen is drawn from. */
+function pageKeys(page){
+  const P = {
+    home: () => homeParts().map(k => 'home.' + k).concat(homeDeps()),
+    today: () => ['board','tiles','week','tasks.' + S.me,'seq','assets','voice','health','mc','clicks'],
+    calendar: () => ['week','invites'], approvals: () => ['approvals'], budget: () => ['budget'],
+    mileage: () => ['mileage'], photos: () => ['photos'], voices: () => ['voices'],
+    kpis: () => ['kpis','metrics'].concat(S.kpiView === 'scorecard' ? [] : ['ret']),
+    myday: () => ['tasks.liam','requests'], iyanna: () => ['tasks.iyanna'],
+    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'],
+    campaigns: () => ['ec'], bulk: () => ['bulk'], leads: () => ['clicks']
+  };
+  return P[page] ? P[page]() : [];
+}
+/* The sidebar counts read these whatever the page. */
+function chromeKeys(){
+  return [S.loaded.approvals && 'approvals', S.me === 'pat' && 'board', S.loaded.voices && 'voices'].filter(Boolean);
+}
+const onScreen = () => new Set(pageKeys(S.page).concat(chromeKeys()));
+
+/* Which loaders read each table. A function gets the changed row. */
+const LIVE_TABLES = {
+  approvals:['approvals'],
+  tasks: row => row && row.owner ? ['tasks.' + row.owner] : ['tasks.liam','tasks.iyanna'],
+  requests:['requests'], request_files:['requests'],
+  social_posts:['social','home.socDrafts'], social_post_media:['social'], social_jobs:['social'],
+  social_results:['home.reach'],
+  email_queue:['board','tiles'], email_drafts:['board'],
+  email_sends:['board','seq','health','metrics','home.daily','home.hot'],
+  email_events:['health','metrics','home.daily'],
+  asset_clicks:['home.hot','clicks'], hot_lead_done:['home.hot'],
+  event_invites:['invites','ret'], event_invitations:['invites','home.hot'],
+  calendar_events:['week'],
+  deals:['kpis','home.pipe','home.stages','home.monthly','ret'], deal_sources:['ret'],
+  kpi_targets:['kpis'], kpi_manual:['kpis'],
+  expenses:['budget'], budget_plan:['budget'],
+  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'],
+  email_campaigns:['ec'], bulk_campaigns:['bulk'],
+  photo_batches:['photos'], exv_answers:['voices']
+};
+const liveKeys = (t, row) => { const m = LIVE_TABLES[t]; return typeof m === 'function' ? m(row) : m; };
+
+const STALE = new Set();
+let liveTimer = null, liveCh = null, lastPoll = Date.now();
+const LIVE_SEEN = new Set();     // tables that have delivered an event
+
+function markStale(keys, delay){
+  for(const k of keys || []) if(LOADERS[k]) STALE.add(k);
+  if(!STALE.size) return;
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(liveRefresh, delay == null ? 800 : delay);
+}
+
+/* What an action changes besides the screen it was taken on. */
+const AFTER = {
+  send:     ['health','seq','metrics','tiles','home.daily','home.hot','home.pipe'],
+  generate: ['metrics','home.daily']
+};
+function staleAfter(kind){ markStale(AFTER[kind] || []); }
+
+async function liveRefresh(){
+  liveTimer = null;
+  if(!S.day || !app.querySelector('.shell')) return;
+  if(document.hidden) return;                       // picked up again on focus
+  /* Never repaint under someone mid-drag or mid-send. */
+  if(S.busy || document.body.classList.contains('reordering') || app.querySelector('.dragging')){
+    liveTimer = setTimeout(liveRefresh, 2000); return;
+  }
+  const show = onScreen(), now = [];
+  for(const k of [...STALE]){
+    STALE.delete(k);
+    if(show.has(k) && keyLoaded(k)) now.push(k); else unloadKey(k);
+  }
+  if(!now.length) return;
+  const page = S.page;
+  await Promise.all(now.map(k => Promise.resolve().then(LOADERS[k]).catch(() => {})));
+  if(S.page === page || onScreen().size) render({ bg:true });
+}
+
+function onLive(table, payload){
+  LIVE_SEEN.add(table);
+  const row = payload && (payload.new && Object.keys(payload.new).length ? payload.new : payload.old);
+  markStale(liveKeys(table, row));
+}
+
+function liveStart(){
+  if(liveCh) return;
+  try{
+    const tables = S.me === 'reviewer' ? ['social_posts','social_post_media','social_jobs','email_campaigns']
+                                       : Object.keys(LIVE_TABLES);
+    liveCh = sb.channel('dash-' + S.me + '-' + Math.random().toString(36).slice(2, 8));
+    for(const t of tables)
+      liveCh.on('postgres_changes', { event:'*', schema:'public', table:t }, p => onLive(t, p));
+    liveCh.subscribe(status => { S.liveStatus = status; });
+  }catch(e){ liveCh = null; /* the poll below still keeps things fresh */ }
+}
+function liveStop(){
+  clearTimeout(liveTimer); liveTimer = null; STALE.clear();
+  if(liveCh){ try{ sb.removeChannel(liveCh); }catch(e){} liveCh = null; }
+}
+
+/* The fallback. Tables that have proved they publish (an event arrived)
+   are left to Realtime; everything else on screen is re-read. The timed
+   poll skips the heavy or slow-moving reads; a return to the window
+   re-reads those as well. */
+const POLL_MS = 3 * 60 * 1000;
+const POLL_LIGHT_SKIP = new Set(['assets','voice','mc','permits','kpis','ret','metrics','clicks']);
+function poll(full){
+  lastPoll = Date.now();
+  const covered = new Set();
+  for(const t of LIVE_SEEN) for(const k of liveKeys(t, null)) covered.add(k);
+  const keys = [...onScreen()].filter(k => LOADERS[k] && keyLoaded(k) && !covered.has(k)
+    && k !== 'assets' && k !== 'voice' && (full || !POLL_LIGHT_SKIP.has(k)));
+  markStale(keys, 0);
+}
+setInterval(() => { if(S.day && !document.hidden) poll(false); }, POLL_MS);
+window.addEventListener('focus', () => { if(S.day && Date.now() - lastPoll > 30 * 1000) poll(true); });
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && S.day && S.day === today()){
+    if(Date.now() - lastPoll > 30 * 1000) poll(true); else if(STALE.size) markStale([], 0);
+  }
+});
+
 /* ================= boot ================= */
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
@@ -12412,6 +13141,7 @@ async function boot(){
      data, but the screen should not offer what the account cannot have. */
   const email = (session.user && session.user.email || '').toLowerCase();
   S.me = WHOAMI[email];
+  S.email = email;
   if(!S.me){
     /* Not on the team list: maybe a social reviewer. The database only
        lets a reviewer see their own row. */
@@ -12424,12 +13154,15 @@ async function boot(){
   S.day = today();
   /* A tab named in the address wins. Otherwise Liam and Pat start on
      Home, and Iyanna on her own list. */
-  const want = location.hash.slice(1);
+  const { page:want, view } = parseHash(location.hash);
   S.page = visiblePages().some(([k]) => k === want) ? want
          : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? 'social' : 'home');
+  if(S.page === want && view && SUBVIEW[want]) SUBVIEW[want].set(view);
+  S._hashReady = false;
   try{
     await ensure(S.page);
     render();
+    liveStart();
   }catch(e){
     app.innerHTML = shell(`<div class="empty"><h2>Could not load</h2>
       <p>${esc(e.message||e)}</p>

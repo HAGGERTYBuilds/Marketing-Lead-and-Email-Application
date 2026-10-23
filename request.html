@@ -347,7 +347,11 @@ async function submit(){
     render(); window.scrollTo(0,0); return;
   }
 
-  if(F.hp.trim() || (Date.now() - OPENED_AT) < MIN_SECONDS*1000){
+  /* The hidden "leave this empty" box is not judged here any more: it
+     goes to the database with the request (hp_website), which quietly
+     drops a filled-in one, so a script posting straight to the API meets
+     the same check. Too-fast submits are still waved through here. */
+  if((Date.now() - OPENED_AT) < MIN_SECONDS*1000){
     F.done = true; F.ref = ''; render(); window.scrollTo(0,0); return;
   }
 
@@ -371,7 +375,7 @@ async function submit(){
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
       });
 
-    const { error } = await sb.from('requests').insert({
+    const row = {
       id:              reqId,
       requester_name:  F.name.trim(),
       requester_email: F.email.trim().toLowerCase(),
@@ -380,8 +384,17 @@ async function submit(){
       brand:           F.brand,
       title:           F.title.trim(),
       details:         F.details.trim() || null,
-      needed_by:       F.needed_by || null
-    });
+      needed_by:       F.needed_by || null,
+      hp_website:      F.hp.trim() || null
+    };
+    let { error } = await sb.from('requests').insert(row);
+    /* Until sql/safety_2026_10_23.sql has run there is no hp_website
+       column. Send without it then, unless the box was filled in. */
+    if(error && /hp_website/.test(error.message || '')){
+      if(row.hp_website){ F.done = true; F.ref = ''; F.busy = false; render(); window.scrollTo(0,0); return; }
+      delete row.hp_website;
+      ({ error } = await sb.from('requests').insert(row));
+    }
     if(error) throw error;
 
     F.ref = reqId.slice(0,8);

@@ -31,7 +31,9 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 -- 3. For each post, Metricool createScheduledPost on the job's brand:
 --    haggerty = blogId 5357410, rhino = blogId 6222867 (RHINO Restores,
 --    since 2026-10-15). Any other brand: fail the job, send nothing.
---    Timezone America/Los_Angeles, draft true, autoPublish true:
+--    Timezone America/Los_Angeles, draft true. These are drafts in
+--    Metricool only: the routine never publishes; a person does that in
+--    Metricool:
 --      a. Instagram + Facebook at post_date 10:00. Text = caption, a blank
 --         line, hashtags. instagramData.type and facebookData.type are
 --         REEL when the post has a video, else POST.
