@@ -342,3 +342,253 @@ select * from (values
   ('rhino',    'Anyone',     'Mitigation', 'Tell me about a job where fast mitigation saved a lot of damage. What made the difference?')
 ) v(brand, for_who, theme, question)
 where not exists (select 1 from public.exv_prompts);
+
+-- ===== 2026-10-23 safety pass. Not applied yet when written;
+-- it is section 1 of sql/safety_2026_10_23.sql, which is the file to paste.
+
+-- Executive Voices: links expire, uploads are capped, and the database
+-- (not just the Voices tab) decides when a piece may be published.
+
+-- a. Every link now has an end date. 30 days from when it was made, and
+--    pushed out again to 30 days whenever Liam sends or re-sends it, so a
+--    reminder never goes out with a dead link. Staff can extend one by
+--    setting expires_at by hand.
+alter table public.exv_requests
+  add column if not exists expires_at timestamptz not null default now() + interval '30 days';
+alter table public.exv_pieces
+  add column if not exists approve_expires_at timestamptz not null default now() + interval '30 days';
+
+create or replace function public.exv_requests_extend()
+returns trigger language plpgsql set search_path = public, pg_temp as $$
+begin
+  if new.sent_at is distinct from old.sent_at or new.reminded_at is distinct from old.reminded_at then
+    new.expires_at := greatest(new.expires_at, now() + interval '30 days');
+  end if;
+  return new;
+end $$;
+drop trigger if exists exv_requests_extend on public.exv_requests;
+create trigger exv_requests_extend before update on public.exv_requests
+  for each row execute function public.exv_requests_extend();
+
+-- b. The upload policy: an open ask, a live link, and room left. A link
+--    may hold at most 12 files and 80MB in all (a three minute voice note
+--    is 1 to 3MB, a phone photo up to 12MB). Sizes are those of files
+--    already uploaded, so one last file can take a link slightly past the
+--    total; the bucket's own 25MB per-file limit still applies.
+create or replace function public.exv_token_open(p_token text)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from public.exv_requests r join public.exv_asks a on a.id = r.ask_id
+                  where r.token = p_token and a.status = 'open' and r.expires_at > now());
+$$;
+revoke execute on function public.exv_token_open(text) from public;
+grant execute on function public.exv_token_open(text) to anon, authenticated;
+
+create or replace function public.exv_upload_ok(p_token text)
+returns boolean language sql stable security definer set search_path = public, storage, pg_temp as $$
+  select coalesce(length(p_token) >= 32, false)
+     and (select count(*) < 12 and coalesce(sum((o.metadata ->> 'size')::bigint), 0) < 80 * 1024 * 1024
+            from storage.objects o
+           where o.bucket_id = 'voices' and left(o.name, length(p_token) + 1) = p_token || '/');
+$$;
+revoke execute on function public.exv_upload_ok(text) from public;
+grant execute on function public.exv_upload_ok(text) to anon, authenticated;
+
+drop policy if exists voices_answer_upload on storage.objects;
+create policy voices_answer_upload on storage.objects for insert to anon
+  with check (bucket_id = 'voices'
+              and public.exv_token_open((storage.foldername(name))[1])
+              and public.exv_upload_ok((storage.foldername(name))[1]));
+
+-- c. The answer page's functions check the end date. exv_get answers an
+--    expired link with {expired:true} so the page can say so plainly.
+create or replace function public.exv_get(p_token text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare r public.exv_requests; a public.exv_asks; p public.exv_people;
+begin
+  select * into r from public.exv_requests where token = p_token;
+  if not found then return null; end if;
+  select * into a from public.exv_asks where id = r.ask_id;
+  select * into p from public.exv_people where id = r.person_id;
+  if r.expires_at <= now() then
+    return jsonb_build_object('expired', true, 'open', false, 'brand', a.brand,
+                              'first_name', split_part(trim(p.name), ' ', 1));
+  end if;
+  if r.opened_at is null then
+    update public.exv_requests set opened_at = now() where id = r.id;
+  end if;
+  return jsonb_build_object(
+    'brand', a.brand, 'question', a.question, 'help', a.help, 'angle', r.angle,
+    'open', a.status = 'open', 'first_name', split_part(trim(p.name), ' ', 1),
+    'expires_at', r.expires_at,
+    'answers', coalesce((select jsonb_agg(jsonb_build_object(
+        'kind', x.kind, 'duration_s', x.duration_s, 'created_at', x.created_at,
+        'text', case when x.kind = 'text' then x.text_body end) order by x.created_at)
+      from public.exv_answers x where x.request_id = r.id), '[]'::jsonb));
+end $$;
+
+-- At most 10 answers per link, so a leaked link cannot fill the inbox.
+create or replace function public.exv_submit(p_token text, p_kind text, p_audio_path text, p_audio_type text,
+                                             p_duration int, p_text text, p_photo_path text)
+returns jsonb language plpgsql security definer set search_path = public, storage, pg_temp as $$
+declare r public.exv_requests; a public.exv_asks; new_id uuid;
+begin
+  select * into r from public.exv_requests where token = p_token for update;
+  if not found then raise exception 'This link is not valid.'; end if;
+  if r.expires_at <= now() then raise exception 'This link has expired. Ask Liam for a fresh one.'; end if;
+  select * into a from public.exv_asks where id = r.ask_id;
+  if a.status <> 'open' then raise exception 'This question is closed. Thanks anyway!'; end if;
+  if (select count(*) from public.exv_answers x where x.request_id = r.id) >= 10 then
+    raise exception 'This link already has 10 answers. Text Liam if there is more to add.';
+  end if;
+  if p_kind not in ('voice','text') then raise exception 'Unknown answer type.'; end if;
+  if p_kind = 'voice' then
+    if p_audio_path is null or left(p_audio_path, length(p_token) + 1) <> p_token || '/'
+       or not exists (select 1 from storage.objects o where o.bucket_id = 'voices' and o.name = p_audio_path) then
+      raise exception 'The recording did not upload. Please try again.';
+    end if;
+  elsif length(trim(coalesce(p_text, ''))) < 2 then
+    raise exception 'The answer is empty.';
+  end if;
+  if p_photo_path is not null and (left(p_photo_path, length(p_token) + 1) <> p_token || '/'
+       or not exists (select 1 from storage.objects o where o.bucket_id = 'voices' and o.name = p_photo_path)) then
+    raise exception 'The photo did not upload. Please try again.';
+  end if;
+  insert into public.exv_answers (request_id, kind, audio_path, audio_type, duration_s, text_body, photo_path)
+  values (r.id, p_kind,
+          case when p_kind = 'voice' then p_audio_path end,
+          case when p_kind = 'voice' then left(coalesce(p_audio_type, ''), 60) end,
+          case when p_kind = 'voice' then greatest(0, least(coalesce(p_duration, 0), 3600)) end,
+          case when p_kind = 'text' then left(trim(p_text), 20000) end,
+          p_photo_path)
+  returning id into new_id;
+  update public.exv_requests set answered_at = now() where id = r.id;
+  return jsonb_build_object('id', new_id);
+end $$;
+
+create or replace function public.exv_piece_get(p_token text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare pc public.exv_pieces; a public.exv_asks; p public.exv_people;
+begin
+  select * into pc from public.exv_pieces where approve_token = p_token and status in ('needs_ok','approved','changes');
+  if not found then return null; end if;
+  select * into a from public.exv_asks where id = pc.ask_id;
+  if pc.approve_expires_at <= now() then
+    return jsonb_build_object('expired', true, 'brand', a.brand);
+  end if;
+  select * into p from public.exv_people where id = pc.approver_id;
+  return jsonb_build_object('brand', a.brand, 'kind', pc.kind, 'title', pc.title, 'body', pc.body,
+    'status', pc.status, 'note', pc.approve_note, 'first_name', split_part(trim(coalesce(p.name, '')), ' ', 1));
+end $$;
+
+-- The only way a piece becomes 'approved' is this function, called from
+-- the sign-off link. It marks the session so the guard below lets it by.
+create or replace function public.exv_piece_decide(p_token text, p_decision text, p_note text)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare pc public.exv_pieces;
+begin
+  select * into pc from public.exv_pieces where approve_token = p_token for update;
+  if not found then raise exception 'This link is not valid.'; end if;
+  if pc.status not in ('needs_ok','approved','changes') then raise exception 'This piece is no longer waiting for an OK.'; end if;
+  if pc.approve_expires_at <= now() then raise exception 'This link has expired. Ask Liam for a fresh one.'; end if;
+  if p_decision not in ('approved','changes') then raise exception 'Unknown choice.'; end if;
+  if p_decision = 'changes' and length(trim(coalesce(p_note, ''))) = 0 then
+    raise exception 'Say what should change.';
+  end if;
+  perform set_config('exv.deciding', 'on', true);
+  update public.exv_pieces
+     set status = p_decision, approve_note = nullif(left(trim(coalesce(p_note, '')), 4000), ''),
+         approved_at = now(), updated_at = now()
+   where id = pc.id;
+  perform set_config('exv.deciding', '', true);
+end $$;
+
+revoke execute on function public.exv_get(text) from public;
+revoke execute on function public.exv_submit(text, text, text, text, int, text, text) from public;
+revoke execute on function public.exv_piece_get(text) from public;
+revoke execute on function public.exv_piece_decide(text, text, text) from public;
+grant execute on function public.exv_get(text) to anon, authenticated;
+grant execute on function public.exv_submit(text, text, text, text, int, text, text) to anon, authenticated;
+grant execute on function public.exv_piece_get(text) to anon, authenticated;
+grant execute on function public.exv_piece_decide(text, text, text) to anon, authenticated;
+
+-- d. The rules for a piece, whoever writes it (dashboard, n8n or the
+--    sign-off link):
+--    - A piece that quotes someone marked "Needs their OK" (Ryan) gets
+--      them as approver, even if nobody picked one.
+--    - Only the sign-off link can set 'approved'.
+--    - 'published' needs the approver's OK first, and the words cannot
+--      change in the same save.
+--    - Changing the words of a piece that was sent for an OK, approved or
+--      sent back sends it back to draft, so the OK is for what goes out.
+--    - A published piece is locked. Only dashboard staff can take it back
+--      to draft (to correct it), which then needs a fresh OK.
+create or replace function public.exv_pieces_guard()
+returns trigger language plpgsql set search_path = public, pg_temp as $$
+declare
+  deciding boolean := coalesce(current_setting('exv.deciding', true), '') = 'on';
+  words_changed boolean := false;
+  needs uuid;
+begin
+  if new.approver_id is null then
+    select p.id into needs
+      from public.exv_requests r
+      join public.exv_people p on p.id = r.person_id
+     where r.ask_id = new.ask_id and p.needs_signoff
+       and exists (select 1 from public.exv_answers x where x.request_id = r.id)
+     order by p.sort, p.name limit 1;
+    new.approver_id := needs;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status in ('approved','published') and new.approver_id is not null then
+      raise exception 'A piece that needs an OK cannot start out approved or published.';
+    end if;
+    if new.status = 'approved' then new.status := 'draft'; end if;
+    if new.status = 'needs_ok' then new.approve_expires_at := now() + interval '30 days'; end if;
+    return new;
+  end if;
+
+  words_changed := (new.title, new.excerpt, new.body) is distinct from (old.title, old.excerpt, old.body);
+
+  if old.status = 'published' then
+    if not public.is_voice_staff() then
+      raise exception 'This piece is already published and cannot be changed from here.';
+    end if;
+    if new.status = 'published' and (words_changed or new.approver_id is distinct from old.approver_id) then
+      raise exception 'A published piece is locked. Move it back to draft first; it then needs a fresh OK.';
+    end if;
+    if new.status <> 'published' then
+      new.approved_at := null;
+      new.published_at := null;
+      if new.status = 'approved' then new.status := 'draft'; end if;
+    end if;
+    return new;
+  end if;
+
+  if new.status = 'approved' and old.status <> 'approved' and not deciding then
+    raise exception 'Only the person signing off can approve a piece, from their link.';
+  end if;
+
+  if words_changed and new.approver_id is not null and old.status in ('needs_ok','approved','changes') then
+    if new.status = 'published' then
+      raise exception 'The words changed, so it needs a fresh OK before it is published.';
+    end if;
+    if new.status in ('approved','changes') then new.status := 'draft'; end if;
+    new.approved_at := null;
+  end if;
+
+  if new.status = 'published' and old.status <> 'published' then
+    if new.approver_id is not null and old.status <> 'approved' then
+      raise exception 'This piece needs its OK before it can be published.';
+    end if;
+    new.published_at := coalesce(new.published_at, now());
+  end if;
+
+  if new.status = 'needs_ok' and old.status is distinct from 'needs_ok' then
+    new.approve_expires_at := greatest(old.approve_expires_at, now() + interval '30 days');
+  end if;
+  return new;
+end $$;
+drop trigger if exists exv_pieces_guard on public.exv_pieces;
+create trigger exv_pieces_guard before insert or update on public.exv_pieces
+  for each row execute function public.exv_pieces_guard();

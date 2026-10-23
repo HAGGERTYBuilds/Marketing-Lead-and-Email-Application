@@ -177,6 +177,11 @@ function renderAnswer(){
       <p>It may have been copied only partly. Text Liam and he will send a fresh one.</p></div>`;
     return;
   }
+  if(d.expired){
+    app.innerHTML = `<div class="empty"><h2>This link has expired</h2>
+      <p>Links stop working after 30 days. Text Liam and he will send a fresh one.</p></div>`;
+    return;
+  }
   const before = (d.answers || []).length;
   if(!d.open){
     app.innerHTML = `<div class="empty"><h2>This question is closed</h2>
@@ -407,6 +412,11 @@ function renderOk(){
   if(!d){
     app.innerHTML = `<div class="empty"><h2>This link does not work</h2>
       <p>The post may already be published or replaced. Text Liam for a fresh link.</p></div>`;
+    return;
+  }
+  if(d.expired){
+    app.innerHTML = `<div class="empty"><h2>This link has expired</h2>
+      <p>Sign-off links stop working after 30 days. Text Liam for a fresh one.</p></div>`;
     return;
   }
   const decided = O.done || d.status !== 'needs_ok';
