@@ -1224,12 +1224,12 @@ const S = {
   tasks:{}, seq:null, seqErr:'', skipOpen:false, sentOpen:false, loaded:{ tasks:{} }, me:'liam', dayOwner:'liam',
   taskOpen:{}, subDraft:null,
   /* approvals */
-  approvals:null, apvUrls:{}, apvFilter:'pending', apvBusy:'', apvErr:'',
+  approvals:null, apvAll:false, apvOlderN:0, apvFilter:'pending', apvBusy:'', apvErr:'',
   apvNote:'', apvHist:{}, apvOpen:false, apvSaving:false, apvFile:null,
   apvForm:{ title:'', kind:'design', description:'', link_url:'', due_by:'', quantity:'1', unit_cost:'' },
   apvReplyTo:null, apvReply:'',
   /* inbound requests, shown as a section on Liam's day rather than a tab */
-  requests:null, reqUrls:{}, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
+  requests:null, reqFiles:{}, reqBusy:'', reqErr:'', reqOpen:{},
   reqShowDone:false,
   /* reel ideas */
   reels:null, reelView:'active', reelBrand:'all', reelQ:'', reelOpenId:null,
@@ -1405,11 +1405,17 @@ async function loadBoard(){
     const f = S.activeId && S.drafts[S.activeId]?.[0];
     if(f) S.open[f.id] = true;
   }
+  /* Fresh click history for the people on the board. */
+  for(const r of S.board) delete S.clicks[r.contact_id];
+  await loadClicks(S.board.map(r => r.contact_id)).catch(() => {});
   S.loaded.board = true;
 }
 
 async function loadTiles(){
-  const { data } = await sb.from('v_dash_tiles').select('*').order('sort_order');
+  /* A failed read used to look exactly like "no sectors", which hid the
+     Generate buttons with no explanation. */
+  const { data, error } = await sb.from('v_dash_tiles').select('*').order('sort_order');
+  S.tilesErr = error ? 'The sector pools could not load. ' + (error.message || '') : '';
   S.tiles = data || [];
 
   /* Gold is not a row in v_dash_tiles, because it crosses every sector.
@@ -1544,9 +1550,19 @@ function mailchimpPanel(){
 }
 
 async function loadWeek(){
-  const { data } = await sb.from('v_dash_week').select('*');
+  const { data, error } = await sb.from('v_dash_week').select('*');
+  /* Kept apart from "nothing on the calendar", which is a real answer. */
+  S.weekErr = error ? 'The calendar could not load. ' + (error.message || '') : '';
   S.week = data || [];
   S.loaded.week = true;
+}
+
+/* Today's slice of the calendar, or the reason there is none. */
+function todayCalHtml(){
+  if(S.weekErr) return `<p class="hint err">${esc(S.weekErr)}</p>`;
+  const ev = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
+  return ev.length ? `<div style="border:1px solid var(--rule)">${ev.map(evRow).join('')}</div>`
+    : `<p class="hint">Nothing on the calendar today.</p>`;
 }
 
 /* ================= marketing assets ================= */
@@ -1555,8 +1571,9 @@ async function loadWeek(){
    and drops open rates, and a link on haggertybuilds.com reads as normal
    while a tracked one tells you who looked. */
 async function loadAssets(){
-  const { data } = await sb.from('marketing_assets').select('*')
+  const { data, error } = await sb.from('marketing_assets').select('*')
     .eq('active', true).order('title');
+  S.assetsErr = error ? 'The flyers could not load. ' + (error.message || '') : '';
   S.assets = data || [];
   S.loaded.assets = true;
 }
@@ -2366,14 +2383,7 @@ async function loadRequests(){
   S.reqFiles = {};
   for(const f of (files||[])) (S.reqFiles[f.request_id] ||= []).push(f);
 
-  S.reqUrls = {};
-  const paths = [...new Set((files||[]).map(f => f.file_path).filter(Boolean))];
-  if(paths.length){
-    try{
-      const { data:urls } = await sb.storage.from('requests').createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) S.reqUrls[u.path] = u.signedUrl;
-    }catch(e){ /* card falls back to a filename with no preview */ }
-  }
+  /* Files are signed when a card is opened (signedUrl), not all at once. */
   S.loaded.requests = true;
 }
 
@@ -2421,24 +2431,74 @@ async function setRequestStatus(id, status){
   S.reqBusy = ''; render();
 }
 
-async function loadApprovals(){
-  const { data, error } = await sb.from('approvals').select('*')
-    .order('created_at', { ascending:false });
-  if(error) throw error;
-  S.approvals = data || [];
-
-  /* Private bucket, so every file needs a signed URL. One hour is long
-     enough to review and short enough that a copied link goes stale. */
-  S.apvUrls = {};
-  const withFiles = S.approvals.filter(a => a.file_path);
-  if(withFiles.length){
-    const paths = [...new Set(withFiles.map(a => a.file_path))];
-    try{
-      const { data:urls } = await sb.storage.from('approvals')
-        .createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) S.apvUrls[u.path] = u.signedUrl;
-    }catch(e){ /* the card falls back to a filename with no preview */ }
+/* ---------- signed links ----------
+   The storage buckets are private, so every file link is a signed URL
+   that lasts an hour. They used to be made for every file the moment a
+   tab loaded, and went dead after the hour. Now a link is made the first
+   time something is drawn with it, in one batch per bucket, and a timer
+   re-signs anything still on screen ten minutes before it expires. */
+const SIGN_TTL = 3600, SIGN_EARLY = 10 * 60 * 1000;
+const SIGNED = {}, SIGN_Q = {}, SIGN_FAIL = {};
+let signTimer = null;
+function signedUrl(bucket, path){
+  if(!path) return null;
+  const m = SIGNED[bucket] ||= new Map();
+  const hit = m.get(path), now = Date.now();
+  if((!hit || hit.exp - now < SIGN_EARLY) && !(SIGN_FAIL[bucket + '/' + path] > now)){
+    (SIGN_Q[bucket] ||= new Set()).add(path);
+    if(!signTimer) signTimer = setTimeout(flushSign, 0);
   }
+  return hit && hit.exp > now ? hit.url : null;
+}
+async function flushSign(){
+  signTimer = null;
+  const jobs = Object.keys(SIGN_Q).map(b => [b, [...SIGN_Q[b]]]).filter(j => j[1].length);
+  for(const b of Object.keys(SIGN_Q)) delete SIGN_Q[b];
+  let got = false;
+  await Promise.all(jobs.map(async ([bucket, paths]) => {
+    const exp = Date.now() + SIGN_TTL * 1000;
+    try{
+      const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, SIGN_TTL);
+      if(error) throw error;
+      const ok = new Set();
+      for(const u of (data || [])) if(u && u.path && u.signedUrl){ SIGNED[bucket].set(u.path, { url:u.signedUrl, exp }); ok.add(u.path); got = true; }
+      for(const p of paths) if(!ok.has(p)) SIGN_FAIL[bucket + '/' + p] = Date.now() + 5 * 60 * 1000;
+    }catch(e){
+      /* The card falls back to the filename. Wait a minute before asking again. */
+      for(const p of paths) SIGN_FAIL[bucket + '/' + p] = Date.now() + 60 * 1000;
+    }
+  }));
+  if(got && app.querySelector('.shell')) render({ bg:true });
+}
+setInterval(() => {
+  const now = Date.now();
+  let due = false;
+  for(const m of Object.values(SIGNED)) for(const [p, h] of m){
+    if(h.exp <= now) m.delete(p);
+    else if(h.exp - now < SIGN_EARLY) due = true;
+  }
+  /* Redrawing re-asks for every link still on screen; the rest lapse. */
+  if(due && app.querySelector('.shell')) render({ bg:true });
+}, 4 * 60 * 1000);
+
+/* Everything still open, plus whatever was decided in the last
+   APV_DAYS. Older decided items wait behind "Show older" (S.apvAll), so
+   the tab does not read every approval ever made each time it opens.
+   Files are signed only when a card that shows them is drawn
+   (signedUrl), not all at once. */
+const APV_DAYS = 120;
+const APV_COLS = 'id,parent_id,version,title,kind,description,change_note,file_path,file_name,file_type,'
+  + 'link_url,requested_by,due_by,status,feedback,decided_by,decided_at,created_at,quantity,unit_cost';
+async function loadApprovals(){
+  const cut = new Date(Date.now() - APV_DAYS * 864e5).toISOString();
+  let q = sb.from('approvals').select(APV_COLS).order('created_at', { ascending:false });
+  if(!S.apvAll) q = q.or(`status.in.(pending,changes),created_at.gte.${cut}`).limit(400);
+  const [r, older] = await Promise.all([q, S.apvAll ? null
+    : sb.from('approvals').select('id', { count:'exact', head:true })
+        .lt('created_at', cut).not('status', 'in', '(pending,changes)')]);
+  if(r.error) throw r.error;
+  S.approvals = r.data || [];
+  S.apvOlderN = S.apvAll ? 0 : Number((older && older.count) || 0);
   S.loaded.approvals = true;
 }
 
@@ -2803,7 +2863,7 @@ function dayStats(owner){
 async function loadKpis(){
   const yr = new Date().getFullYear();
   const [score, quarters, monthly, outcomes, open, stages, targets, manual,
-         cols, board, users] = await Promise.all([
+         cols, board, users, config] = await Promise.all([
     sb.from('v_kpi_scorecard').select('*').order('sort_order'),
     sb.from('v_kpi_quarters').select('*').order('quarter'),
     sb.from('v_kpi_monthly').select('*').order('month'),
@@ -3046,9 +3106,12 @@ async function ensureOnce(page){
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='kpis'){
-    if(!S.loaded.kpis) await loadKpis();
-    if(S.kpiView !== 'scorecard' && !S.loaded.ret) await loadReturn();
-    if(!S.loaded.metrics) await loadMetrics();
+    /* Independent reads, so they go together rather than one by one. */
+    await Promise.all([
+      !S.loaded.kpis && loadKpis(),
+      S.kpiView !== 'scorecard' && !S.loaded.ret && loadReturn(),
+      !S.loaded.metrics && loadMetrics()
+    ].filter(Boolean));
   }
   if(OWNERS[page] && !S.loaded.tasks[OWNERS[page]]) await loadTasks(OWNERS[page]);
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
@@ -3058,11 +3121,16 @@ async function ensureOnce(page){
   if(page==='campaigns' && !S.loaded.ec) await loadCampaigns();
   if(page==='bulk') await Promise.all([!S.loaded.bulk && loadBulk(), !S.loaded.labels && loadLabels()].filter(Boolean));
   if(page==='leads'){
-    if(!S.loaded.verticals) await loadVerticals();
-    if(!S.loaded.labels) await loadLabels();
-    if(S.lastApproval === null) await loadLastApproval();
-    if(!S.loaded.leads){ await loadBatches(); await loadLeadRows(); }
-    if(!S.loaded.cls) await loadClassifications();
+    /* Five reads that used to wait on each other in turn. */
+    await Promise.all([
+      !S.loaded.verticals && loadVerticals(),
+      !S.loaded.labels && loadLabels(),
+      S.lastApproval === null && loadLastApproval(),
+      !S.loaded.leads && loadBatches(),
+      !S.loaded.leads && loadLeadRows(),
+      !S.loaded.cls && loadClassifications()
+    ].filter(Boolean));
+    if(S.leads && S.leads.length) await loadClicks(S.leads.map(l => l.contact_id));
   }
 }
 
@@ -3531,8 +3599,6 @@ function wirePage(){
   if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
     el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
-  const all = document.getElementById('genAll');
-  if(all) all.addEventListener('click', generateAcross);
   const gf = document.getElementById('goldFilt');
   if(gf) gf.addEventListener('click',()=>{ S.goldOnly=!S.goldOnly; render(); });
   const gg = document.getElementById('genGold');
@@ -3624,8 +3690,7 @@ function pageToday(){
   const side = `
     <div class="block">
       <h2 class="sec">Today's calendar</h2>
-      ${todayEvents.length ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
-        : `<p class="hint">Nothing on the calendar today.</p>`}
+      ${todayCalHtml()}
     </div>
     <div class="block">
       <h2 class="sec">Email health</h2>
@@ -3992,6 +4057,7 @@ function detailHtml(){
 }
 
 function assetPicker(d){
+  if(S.assetsErr) return `<div class="field"><label>Attach a flyer</label><p class="hint err">${esc(S.assetsErr)}</p></div>`;
   const list = assetsFor(S.board.find(x => x.queue_id === S.activeId));
   if(!list.length) return '';
   const r = S.board.find(x => x.queue_id === S.activeId);
@@ -4043,6 +4109,7 @@ function optHtml(d,i){
    same screen. */
 function sectorBar(){
   const tiles = S.tiles || [];
+  if(S.tilesErr) return `<div class="sectorbar"><p class="hint err" style="margin:0;padding:6px 0">${esc(S.tilesErr)} Reload to try again; the board itself is unaffected.</p></div>`;
   if(!tiles.length) return '';
   return `<div class="sectorbar">
     <div class="sec-tile all">
@@ -4107,6 +4174,11 @@ function pageCalendar(){
   if(S.calView==='invites') return pageInvites();
   if(!S.loaded.week) return loading();
   const w = S.week || [];
+  if(S.weekErr){
+    return `<main class="page">${calSwitch()}<div class="empty"><h2>Could not load the calendar</h2>
+      <p>${esc(S.weekErr)}</p><p class="hint">This is a loading problem, not an empty calendar. Reload to try again.</p>
+    </div></main>`;
+  }
   if(!w.length){
     return `<main class="page">${calSwitch()}<div class="empty"><h2>No events</h2>
       <p>Nothing on the calendar for the next two weeks. If that looks wrong, run the calendar sync in n8n.</p>
@@ -4352,7 +4424,7 @@ function requestCard(r){
     ${open ? `
       ${r.details?`<p class="apv-desc">${esc(r.details)}</p>`:''}
       ${files.length?`<div class="apv-file">${files.map(f=>{
-        const url = S.reqUrls[f.file_path];
+        const url = signedUrl('requests', f.file_path);
         const isImg = /^image\//.test(f.file_type||'') || /\.(png|jpe?g|gif|webp)$/i.test(f.file_name||'');
         return url && isImg
           ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img class="apv-thumb"
@@ -4421,7 +4493,7 @@ const APV_KINDS = { design:'Design', campaign:'Advertising campaign',
                     approach:'Project approach', copy:'Copy', other:'Other' };
 
 function apvFileBlock(a){
-  const url = a.file_path ? S.apvUrls[a.file_path] : null;
+  const url = a.file_path ? signedUrl('approvals', a.file_path) : null;
   const bits = [];
   if(a.file_name){
     const isImg = /^image\//.test(a.file_type||'') || /\.(png|jpe?g|gif|webp|svg)$/i.test(a.file_name);
@@ -4499,8 +4571,8 @@ function approvalCard(a){
         <b>Version ${esc(v.version)}</b> &middot; <span class="muted">${esc(shortDate(v.created_at))}</span>
         ${v.change_note?`<div class="hint">Changed: ${esc(v.change_note)}</div>`:''}
         ${v.feedback?`<div class="hint">Pat: ${esc(v.feedback)}</div>`:''}
-        ${v.file_path && S.apvUrls[v.file_path]
-          ? `<a class="chip" href="${esc(S.apvUrls[v.file_path])}" target="_blank" rel="noopener">${esc(v.file_name||'File')}</a>`
+        ${v.file_path && signedUrl('approvals', v.file_path)
+          ? `<a class="chip" href="${esc(signedUrl('approvals', v.file_path))}" target="_blank" rel="noopener">${esc(v.file_name||'File')}</a>`
           : (v.file_name?`<span class="chip">${esc(v.file_name)}</span>`:'')}
       </div>`).join('') : ''}
     </div>` : ''}
@@ -4644,6 +4716,9 @@ function pageApprovals(){
                 : 'Nothing in this list yet.'}</p>
          </div>`}
 
+    ${S.apvOlderN ? `<p style="text-align:center;margin:6px 0 18px"><button class="linkbtn" id="apvOlder" ${S.apvBusy==='older'?'disabled':''}>${
+      S.apvBusy==='older' ? 'Loading&hellip;' : `Show ${plural(S.apvOlderN, 'older decided item')}`}</button></p>` : ''}
+
     ${rows.length ? `<div class="apv-total">
       <div><span class="eyebrow">${totLabel}</span>
         <div class="hint" id="apvTotalHint">${esc(apvTotalHint(tot))}</div></div>
@@ -4710,6 +4785,13 @@ function wireApprovals(){
 
   const sv = document.getElementById('apvSave');
   if(sv) sv.addEventListener('click', submitApproval);
+
+  const ol = document.getElementById('apvOlder');
+  if(ol) ol.addEventListener('click', async ()=>{
+    S.apvAll = true; S.apvBusy = 'older'; render();
+    try{ await loadApprovals(); }catch(err){ S.apvErr = 'Could not load older items. ' + (err.message || err); }
+    S.apvBusy = ''; render();
+  });
 }
 
 /* ================= pipeline and kpis ================= */
@@ -6716,41 +6798,29 @@ async function generate(verticalId, count, gold){
     const res = await fetch(GENERATE_URL,{method:'POST',
       headers:await authHeaders(),
       body:JSON.stringify(body)});
-    const out = await res.json().catch(()=>({}));
+    const out = await res.json().catch(()=>null);
+    /* A failed call (a timeout, a 500, an auth refusal) used to read as
+       "Nothing eligible", which sent Pat looking at the sector rather
+       than at the workflow. Only a clean ok:false is "nothing eligible". */
+    if(!res.ok) throw new Error((out && out.error) || `the draft workflow returned ${res.status}${res.statusText ? ' ' + res.statusText : ''}`);
+    if(!out) throw new Error('the draft workflow sent back something that is not JSON');
     /* removed is how many picks failed the Evaboot address check and were
        left off before any draft was written. */
     const dropped = Number(out.removed || 0);
     S.gen = out.ok ? `${out.queued} added to the list with drafts ready.` +
                      (dropped ? ` ${dropped} left off because the address failed the check.` : '')
                    : (out.error || 'Nothing eligible in that sector right now.');
-    S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
-    await loadTiles(); await loadBoard();
-  }catch(err){ S.gen = 'That did not go through: ' + (err.message||err); }
-  finally{ S.busy=false; render(); }
-}
-
-async function generateAcross(){
-  if(S.busy) return;
-  const live = (S.tiles||[]).filter(t=>Number(t.pool)>0);
-  if(!live.length){ S.gen='No sector has eligible contacts right now.'; return render(); }
-  S.busy=true; S.gen=`Pulling two from each of ${live.length} sectors…`; render();
-  let total = 0;
-  try{
-    for(const t of live){
-      const res = await fetch(GENERATE_URL,{method:'POST',
-        headers:await authHeaders(),
-        body:JSON.stringify({vertical_id:t.vertical_id, count:2})});
-      const out = await res.json().catch(()=>({}));
-      if(out.ok) total += Number(out.queued||0);
-    }
-    S.gen = `Queued ${total} across ${live.length} sectors. Open the Today tab to work through them.`;
-    S.loaded.board=false; S.loaded.tiles=false; S.loaded.metrics=false;
-    await loadTiles(); await loadBoard();
-  }catch(err){ S.gen = 'Stopped partway: ' + (err.message||err); }
-  finally{ S.busy=false; render(); }
+  }catch(err){ S.gen = 'That did not go through: ' + (err.message||err) + '. Nothing was added.'; }
+  finally{
+    /* Whatever happened, the pools and the board may have moved. */
+    staleAfter('generate');
+    try{ await Promise.all([loadTiles(), loadBoard()]); }catch(e){}
+    S.busy=false; render();
+  }
 }
 
 async function addTask(){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const el = document.getElementById('taskTitle');
   if(el) S.taskDraft.title = el.value;
 
@@ -8737,14 +8807,7 @@ async function loadBudget(){
   B.exps = (e.data || []).map(r => Object.assign({}, r, {
     category:r.category_id == null ? null : String(r.category_id), reference:r.invoice_ref }));
 
-  B.urls = {};
-  const paths = [...new Set(B.exps.map(x => x.receipt_path).filter(Boolean))];
-  if(paths.length){
-    try{
-      const { data:urls } = await sb.storage.from('receipts').createSignedUrls(paths, 3600);
-      for(const u of (urls||[])) if(u && u.path && u.signedUrl) B.urls[u.path] = u.signedUrl;
-    }catch(err){ /* the row just shows no receipt link */ }
-  }
+  /* Receipts are signed as their rows are drawn (signedUrl). */
   S.loaded.budget = true;
 }
 
@@ -9832,8 +9895,9 @@ function budRow(it){
   if(BUD_SRC[it.source]) tags.push(`<span class="bud-tag">${BUD_SRC[it.source]}</span>`);
   if(it.payment_method && BUD_PAY[it.payment_method]) tags.push(`<span class="bud-tag">${esc(BUD_PAY[it.payment_method])}</span>`);
   if(it.reference) tags.push(`<span class="bud-tag">#${esc(it.reference)}</span>`);
-  const rc = it.receipt_path && B.urls[it.receipt_path]
-    ? `<a class="bud-tag" href="${esc(B.urls[it.receipt_path])}" target="_blank" rel="noopener">Receipt</a>` : '';
+  const rurl = it.receipt_path ? signedUrl('receipts', it.receipt_path) : null;
+  const rc = rurl ? `<a class="bud-tag" href="${esc(rurl)}" target="_blank" rel="noopener">Receipt</a>`
+    : it.receipt_path ? `<span class="bud-tag muted">Receipt&hellip;</span>` : '';
   const cat = it.category ? esc(budCatLabel(it.category))
     : `<select data-bud-setcat="${esc(it.id)}" ${busy ? 'disabled' : ''}>${budCatOptions('', 'Pick a category')}</select>`;
   const status = it.status === 'paid'
@@ -12100,48 +12164,48 @@ const HOME_SOCIAL_DAYS = 14;
 S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null,
            stages:null, daily:null, monthly:null, reach:null };
 
-async function loadHome(){
-  const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
-  const soonYmd = [soon.getFullYear(), String(soon.getMonth()+1).padStart(2,'0'),
-                   String(soon.getDate()).padStart(2,'0')].join('-');
-  const pat = S.me === 'pat';
-  const own = [
-    loadHotLeads(),
-    /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
-       v_dash_headline counts every owner's deals. */
-    sb.from('v_kpi_open').select('*').single()
-      .then(r => { S.home.pipe = r.data || null; }),
-    /* For the charts and trend lines on Home. */
-    sb.from('v_kpi_stages').select('*').order('order_nr')
-      .then(r => { S.home.stages = r.error ? null : (r.data || []); }),
-    sb.from('v_dash_daily').select('day,sent,replied,bounced').gte('day', daysAgo(13)).order('day')
-      .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
-    sb.from('v_kpi_monthly').select('month,added').order('month')
-      .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
-    !pat && sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
-      .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
-    !pat && sb.from('social_posts').select('id,post_date')
-      .eq('status','draft')
-      .gte('post_date', today()).lte('post_date', soonYmd)
+/* Home's own reads, one function each, so a live update or an action can
+   refresh just the part it touched (refreshKeys('home.daily')) instead
+   of the whole screen. A part that fails leaves null, and its card says
+   it could not load. */
+const HOME_PARTS = {
+  hot: () => loadHotLeads(),
+  /* v_kpi_open is Pat's pipeline, the same figure the KPI tab shows.
+     v_dash_headline counts every owner's deals. */
+  pipe: () => sb.from('v_kpi_open').select('*').single()
+    .then(r => { S.home.pipe = r.data || null; }),
+  /* For the charts and trend lines on Home. */
+  stages: () => sb.from('v_kpi_stages').select('*').order('order_nr')
+    .then(r => { S.home.stages = r.error ? null : (r.data || []); }),
+  daily: () => sb.from('v_dash_daily').select('day,sent,replied,bounced').gte('day', daysAgo(13)).order('day')
+    .then(r => { S.home.daily = r.error ? null : (r.data || []); }),
+  monthly: () => sb.from('v_kpi_monthly').select('month,added').order('month')
+    .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
+  reach: () => sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
+    .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
+  socDrafts: () => {
+    const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
+    return sb.from('social_posts').select('id,post_date')
+      .eq('status','draft').gte('post_date', today()).lte('post_date', ymdOf(soon))
       .order('post_date')
-      .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); })
-  ];
+      .then(r => { S.home.socDrafts = r.error ? null : (r.data || []); });
+  }
+};
+const homeParts = () => S.me === 'pat' ? ['hot','pipe','stages','daily','monthly']
+  : ['hot','pipe','stages','daily','monthly','reach','socDrafts'];
+/* The other tabs' loaders Home reads from. */
+const homeDeps = () => S.me === 'pat'
+  ? ['board','health','approvals','week','seq','invites','permits']
+  : ['board','health','approvals','tasks.liam','requests','budget'];
+
+async function loadHome(){
   /* A tab that fails to load should not blank the whole screen, so each
      read is caught on its own and its card says it could not load. */
   const safe = p => p && Promise.resolve(p).catch(() => {});
   await Promise.all([
-    ...own,
-    !S.loaded.board && loadBoard(),
-    !S.loaded.health && loadHealth(),
-    !S.loaded.approvals && loadApprovals(),
-    pat && !S.loaded.week && loadWeek(),
-    pat && !S.loaded.seq && loadSequences(),
-    pat && !S.loaded.invites && loadInvites(),
-    pat && !S.loaded.permits && loadPermits(),
-    !pat && !S.loaded.tasks.liam && loadTasks('liam'),
-    !pat && !S.loaded.requests && loadRequests(),
-    !pat && !S.loaded.budget && loadBudget()
-  ].filter(Boolean).map(safe));
+    ...homeParts().map(k => HOME_PARTS[k]()),
+    ...homeDeps().filter(k => !keyLoaded(k)).map(k => LOADERS[k]())
+  ].map(safe));
   S.loaded.home = true;
 }
 
@@ -12491,9 +12555,7 @@ function homePat(){
       <div>${homeEmailPanel(days)}${homeHotPanel()}</div>
       <div>
         ${homePermitPanel(pp)}
-        ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayEvents.length
-          ? `<div style="border:1px solid var(--rule)">${todayEvents.map(evRow).join('')}</div>`
-          : `<p class="hint">Nothing on the calendar today.</p>`)}
+        ${homePanel("Today's calendar", 'calendar', 'Open calendar', todayCalHtml())}
         ${homePanel('Pipeline by stage', 'kpis', 'Open Pipeline & KPIs', homeStages())}
       </div>
     </div>` };
@@ -12615,6 +12677,200 @@ function wireHome(){
       S.crmOpen = true; crmSearch(q);
     }));
 }
+
+/* ================= sheet clicks ================= */
+/* Every tracked flyer link (haggertybuilds.com/go/<slug>?c=<contact>)
+   writes a row to asset_clicks. Hot leads already lists the last 30
+   days; this puts the full history on the contact wherever the contact
+   is shown: the Outreach detail, a lead card and a CRM search hit. */
+S.clicks = {};
+async function loadClicks(ids){
+  const need = [...new Set((ids || []).filter(Boolean))].filter(id => !(id in S.clicks));
+  if(!need.length) return;
+  const rows = [];
+  for(let i = 0; i < need.length; i += 150){
+    const { data, error } = await sb.from('asset_clicks').select('contact_id,slug,clicked_at')
+      .in('contact_id', need.slice(i, i + 150)).order('clicked_at', { ascending:false }).limit(1000);
+    if(error) return;            // the contact simply shows no clicks
+    rows.push(...(data || []));
+  }
+  for(const id of need) S.clicks[id] = [];
+  for(const r of rows) S.clicks[r.contact_id].push(r);
+  if(!S.loaded.assets) await loadAssets().catch(() => {});
+}
+function clicksHtml(cid){
+  const c = cid && S.clicks[cid];
+  if(!c || !c.length) return '';
+  const title = slug => ((S.assets || []).find(a => a.slug === slug) || {}).title || slug;
+  return `<div class="clicks"><span class="eyebrow">Opened ${c.length === 1 ? 'a sheet' : plural(c.length, 'sheet link')}</span>
+    ${c.slice(0, 4).map(x => `<span class="chip hot" title="${esc(new Date(x.clicked_at).toLocaleString('en-US'))}">${
+      esc(title(x.slug))} &middot; ${esc(shortDate(x.clicked_at))}</span>`).join('')}${
+    c.length > 4 ? `<span class="hint">and ${c.length - 4} more</span>` : ''}</div>`;
+}
+
+/* ================= keeping the screen current ================= */
+/* A change made on another device (Pat sends, Liam approves, a request
+   comes in) used to appear only after a reload. Three things keep the
+   screen current now:
+
+   1. Supabase Realtime. One channel listens to the tables below; a change
+      marks the loaders that read that table as stale.
+   2. A light poll, for tables Realtime is not publishing yet: on window
+      focus, and every few minutes while the tab is visible.
+   3. Actions that change other tabs' numbers (Send, Generate) mark those
+      loaders stale too (staleAfter).
+
+   Stale loaders that the current screen shows are re-read together,
+   after a short pause so a burst of changes costs one read each, and the
+   page is patched in the background without disturbing what is being
+   typed. Stale loaders the screen does not show are just marked unloaded,
+   so the next visit reads them fresh. */
+const LOADERS = {
+  board:loadBoard, tiles:loadTiles, week:loadWeek, seq:loadSequences, assets:loadAssets,
+  voice:loadVoice, health:loadHealth, mc:loadMailchimp, invites:loadInvites,
+  approvals:loadApprovals, budget:loadBudget, mileage:loadMileage, requests:loadRequests,
+  reels:loadReels, social:loadSocial, permits:loadPermits, ec:loadCampaigns, bulk:loadBulk,
+  photos:loadPhotos, voices:loadVoices, kpis:loadKpis, metrics:loadMetrics, ret:loadReturn,
+  'tasks.liam':() => loadTasks('liam'), 'tasks.iyanna':() => loadTasks('iyanna'),
+  clicks:() => { const ids = Object.keys(S.clicks); S.clicks = {}; return loadClicks(ids); }
+};
+for(const k of Object.keys(HOME_PARTS)) LOADERS['home.' + k] = HOME_PARTS[k];
+
+function keyLoaded(k){
+  if(k.startsWith('home.')) return !!S.loaded.home;
+  if(k.startsWith('tasks.')) return !!S.loaded.tasks[k.slice(6)];
+  if(k === 'clicks') return Object.keys(S.clicks).length > 0;
+  return !!S.loaded[k];
+}
+function unloadKey(k){
+  if(k.startsWith('home.')) return;          // Home re-reads its parts on every visit
+  if(k.startsWith('tasks.')){ S.loaded.tasks[k.slice(6)] = false; return; }
+  if(k === 'clicks'){ S.clicks = {}; return; }
+  S.loaded[k] = false;
+}
+
+/* What the current screen is drawn from. */
+function pageKeys(page){
+  const P = {
+    home: () => homeParts().map(k => 'home.' + k).concat(homeDeps()),
+    today: () => ['board','tiles','week','tasks.' + S.me,'seq','assets','voice','health','mc','clicks'],
+    calendar: () => ['week','invites'], approvals: () => ['approvals'], budget: () => ['budget'],
+    mileage: () => ['mileage'], photos: () => ['photos'], voices: () => ['voices'],
+    kpis: () => ['kpis','metrics'].concat(S.kpiView === 'scorecard' ? [] : ['ret']),
+    myday: () => ['tasks.liam','requests'], iyanna: () => ['tasks.iyanna'],
+    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'],
+    campaigns: () => ['ec'], bulk: () => ['bulk'], leads: () => ['clicks']
+  };
+  return P[page] ? P[page]() : [];
+}
+/* The sidebar counts read these whatever the page. */
+function chromeKeys(){
+  return [S.loaded.approvals && 'approvals', S.me === 'pat' && 'board', S.loaded.voices && 'voices'].filter(Boolean);
+}
+const onScreen = () => new Set(pageKeys(S.page).concat(chromeKeys()));
+
+/* Which loaders read each table. A function gets the changed row. */
+const LIVE_TABLES = {
+  approvals:['approvals'],
+  tasks: row => row && row.owner ? ['tasks.' + row.owner] : ['tasks.liam','tasks.iyanna'],
+  requests:['requests'], request_files:['requests'],
+  social_posts:['social','home.socDrafts'], social_post_media:['social'], social_jobs:['social'],
+  social_results:['home.reach'],
+  email_queue:['board','tiles'], email_drafts:['board'],
+  email_sends:['board','seq','health','metrics','home.daily','home.hot'],
+  email_events:['health','metrics','home.daily'],
+  asset_clicks:['home.hot','clicks'], hot_lead_done:['home.hot'],
+  event_invites:['invites','ret'], event_invitations:['invites','home.hot'],
+  calendar_events:['week'],
+  deals:['kpis','home.pipe','home.stages','home.monthly','ret'], deal_sources:['ret'],
+  kpi_targets:['kpis'], kpi_manual:['kpis'],
+  expenses:['budget'], budget_plan:['budget'],
+  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'],
+  email_campaigns:['ec'], bulk_campaigns:['bulk'],
+  photo_batches:['photos'], exv_answers:['voices']
+};
+const liveKeys = (t, row) => { const m = LIVE_TABLES[t]; return typeof m === 'function' ? m(row) : m; };
+
+const STALE = new Set();
+let liveTimer = null, liveCh = null, lastPoll = Date.now();
+const LIVE_SEEN = new Set();     // tables that have delivered an event
+
+function markStale(keys, delay){
+  for(const k of keys || []) if(LOADERS[k]) STALE.add(k);
+  if(!STALE.size) return;
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(liveRefresh, delay == null ? 800 : delay);
+}
+
+/* What an action changes besides the screen it was taken on. */
+const AFTER = {
+  send:     ['health','seq','metrics','tiles','home.daily','home.hot','home.pipe'],
+  generate: ['metrics','home.daily']
+};
+function staleAfter(kind){ markStale(AFTER[kind] || []); }
+
+async function liveRefresh(){
+  liveTimer = null;
+  if(!S.day || !app.querySelector('.shell')) return;
+  if(document.hidden) return;                       // picked up again on focus
+  /* Never repaint under someone mid-drag or mid-send. */
+  if(S.busy || document.body.classList.contains('reordering') || app.querySelector('.dragging')){
+    liveTimer = setTimeout(liveRefresh, 2000); return;
+  }
+  const show = onScreen(), now = [];
+  for(const k of [...STALE]){
+    STALE.delete(k);
+    if(show.has(k) && keyLoaded(k)) now.push(k); else unloadKey(k);
+  }
+  if(!now.length) return;
+  const page = S.page;
+  await Promise.all(now.map(k => Promise.resolve().then(LOADERS[k]).catch(() => {})));
+  if(S.page === page || onScreen().size) render({ bg:true });
+}
+
+function onLive(table, payload){
+  LIVE_SEEN.add(table);
+  const row = payload && (payload.new && Object.keys(payload.new).length ? payload.new : payload.old);
+  markStale(liveKeys(table, row));
+}
+
+function liveStart(){
+  if(liveCh) return;
+  try{
+    const tables = S.me === 'reviewer' ? ['social_posts','social_post_media','social_jobs','email_campaigns']
+                                       : Object.keys(LIVE_TABLES);
+    liveCh = sb.channel('dash-' + S.me + '-' + Math.random().toString(36).slice(2, 8));
+    for(const t of tables)
+      liveCh.on('postgres_changes', { event:'*', schema:'public', table:t }, p => onLive(t, p));
+    liveCh.subscribe(status => { S.liveStatus = status; });
+  }catch(e){ liveCh = null; /* the poll below still keeps things fresh */ }
+}
+function liveStop(){
+  clearTimeout(liveTimer); liveTimer = null; STALE.clear();
+  if(liveCh){ try{ sb.removeChannel(liveCh); }catch(e){} liveCh = null; }
+}
+
+/* The fallback. Tables that have proved they publish (an event arrived)
+   are left to Realtime; everything else on screen is re-read. The timed
+   poll skips the heavy or slow-moving reads; a return to the window
+   re-reads those as well. */
+const POLL_MS = 3 * 60 * 1000;
+const POLL_LIGHT_SKIP = new Set(['assets','voice','mc','permits','kpis','ret','metrics','clicks']);
+function poll(full){
+  lastPoll = Date.now();
+  const covered = new Set();
+  for(const t of LIVE_SEEN) for(const k of liveKeys(t, null)) covered.add(k);
+  const keys = [...onScreen()].filter(k => LOADERS[k] && keyLoaded(k) && !covered.has(k)
+    && k !== 'assets' && k !== 'voice' && (full || !POLL_LIGHT_SKIP.has(k)));
+  markStale(keys, 0);
+}
+setInterval(() => { if(S.day && !document.hidden) poll(false); }, POLL_MS);
+window.addEventListener('focus', () => { if(S.day && Date.now() - lastPoll > 30 * 1000) poll(true); });
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && S.day && S.day === today()){
+    if(Date.now() - lastPoll > 30 * 1000) poll(true); else if(STALE.size) markStale([], 0);
+  }
+});
 
 /* ================= boot ================= */
 async function boot(){
