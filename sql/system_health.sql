@@ -147,3 +147,14 @@ select 'failed:' || a.workflow_id, 'failed', 'home',
 
 grant select on public.v_system_health to authenticated;
 revoke all on public.v_system_health from anon;
+
+-- Live notes, 2026-10-23:
+-- * Tested workflow_alert_record() with a 'test-dryrun' row (first call
+--   true, second false), then removed it with a one-off n8n run
+--   (delete from public.workflow_alerts where workflow_id = 'test-dryrun').
+-- * n8n: Haggerty Workflow Alerts (jwbd5a9mDJrfeuKc) is the error workflow
+--   on every active workflow; its caller policy is "any" so the Shop
+--   Inventory project's workflows can use it too. Haggerty Freshness Check
+--   is ikMWHftr5xa01hj2. The nightly Haggerty Pipedrive Sync
+--   (fwLHyG9NPDR5ZrwB) ends with Fill Deal Sources, which runs
+--   deal_sources_autofill() (sql/deal_sources_auto.sql).
