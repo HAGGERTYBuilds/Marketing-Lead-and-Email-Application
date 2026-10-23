@@ -970,6 +970,8 @@
   button.hrow{width:100%;background:none;border:0;border-bottom:1px solid var(--rule-soft);
               text-align:left;font:inherit;color:inherit;cursor:pointer}
   button.hrow:hover{background:var(--paper)}
+  a.hrow{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule-soft)}
+  a.hrow:hover{background:var(--paper)}
   .hmore{display:inline-block;margin-top:7px}
   .hotlead{padding:11px 13px;border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:3px;min-width:0}
   .hotlead:last-child{border-bottom:0}
@@ -11915,7 +11917,7 @@ const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
 const HOME_SOCIAL_DAYS = 14;
 
 S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null,
-           stages:null, daily:null, monthly:null, reach:null };
+           stages:null, daily:null, monthly:null, reach:null, sys:null };
 
 async function loadHome(){
   const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
@@ -11937,6 +11939,10 @@ async function loadHome(){
       .then(r => { S.home.monthly = r.error ? null : (r.data || []).slice(-12); }),
     !pat && sb.from('social_results').select('post_date,reach').eq('brand', 'haggerty').gte('post_date', daysAgo(55))
       .then(r => { S.home.reach = r.error ? null : (r.data || []); }),
+    /* Stale refreshes, stuck jobs and failed workflows, the same rows the
+       Haggerty Freshness Check emails about (sql/system_health.sql). */
+    !pat && sb.from('v_system_health').select('*').order('kind').order('title')
+      .then(r => { S.home.sys = r.error ? null : (r.data || []); }),
     !pat && sb.from('social_posts').select('id,post_date')
       .eq('status','draft')
       .gte('post_date', today()).lte('post_date', soonYmd)
@@ -12316,6 +12322,24 @@ function homePat(){
     </div>` };
 }
 
+/* "Needs a look": anything stale or broken behind the dashboard, from
+   v_system_health. Hidden when the view has no rows, so a good day shows
+   nothing. A failed workflow links to its n8n execution; the rest go to
+   the tab that shows the stale data. */
+const SYS_GO = { permits:'permits', outreach:'today', pipeline:'kpis', social:'social' };
+function homeSysPanel(){
+  const rows = S.home.sys;
+  if(!rows || !rows.length) return '';
+  return homePanel(`Needs a look (${rows.length})`, '', '', `<div class="hlist">${rows.map(r => {
+    const body = `<span class="n">${esc(r.title)}<br><em>${esc(r.detail || '')}</em></span>
+      <span class="w ${r.kind === 'failed' || r.kind === 'stale' ? 'late' : ''}">${esc(r.since ? shortDate(r.since) : '')}</span>`;
+    return r.url
+      ? `<a class="hrow" href="${esc(r.url)}" target="_blank" rel="noopener">${body}</a>`
+      : `<button class="hrow" data-home-go="${esc(SYS_GO[r.tab] || 'home')}">${body}</button>`;
+  }).join('')}</div>
+    <p class="hint">Liam gets an email for these too. Each clears on its own once the refresh runs or the item is fixed.</p>`, 'sysHealth');
+}
+
 function homeLiam(){
   const rows = (S.tasks.liam || []).filter(t => !t.parent_id);
   const openT = rows.filter(t => t.status !== 'done');
@@ -12365,6 +12389,7 @@ function homeLiam(){
 
   return { needs, body: `
     <p class="eyebrow home-lbl">Needs you today</p>${homeQueue(needs)}
+    ${homeSysPanel()}
     <div class="kpis">${kpis.map(kpiTile).join('')}</div>
     <div class="home-cols">
       <div>
