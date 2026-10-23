@@ -4,7 +4,9 @@
 --
 -- Pipedrive does not record a source on deals, so the dashboard keeps it
 -- here, keyed by the deal. Liam and Pat set it on the deal card or in the
--- "Needs a source" list. A deal at a company (or with a contact) that the
+-- "Needs a source" list. (Since 2026-10-23 deal_sources_autofill() in
+-- sql/deal_sources_auto.sql fills untagged deals with set_by = 'auto' and
+-- v_deal_sources is replaced there.) A deal at a company (or with a contact) that the
 -- dashboard emailed before the deal was added counts as outreach without
 -- anyone tagging it; a tag set by hand always wins.
 
