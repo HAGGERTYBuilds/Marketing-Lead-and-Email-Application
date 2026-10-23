@@ -1308,7 +1308,7 @@ const S = {
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* permits */
   permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
-  permitBusy:'', permitErr:'', permitSend:'', permitNote:'',
+  permitBusy:'', permitErr:'', permitSend:'', permitTo:'pat', permitNote:'', permitMsg:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -7661,7 +7661,10 @@ function wireReels(){
    its job value and, once one is on file, its licensed professional
    (usually the contractor). Owner and applicant names stay hidden there.
    Send to Pat puts a permit on Pat's Home with a note; Pat marks it
-   contacted once she has called. */
+   contacted once she has called. Email Freddie, on RHINO ones, has the
+   n8n workflow "Haggerty Permit Email Freddie" email the permit to
+   Freddie at RHINO from Liam's Outlook; each send is kept in
+   permit_emails (sql/permit_email.sql). */
 const PERMIT_FIT = {
   project:  ['Project',  'Commercial new building, addition, remodel or tenant improvement'],
   planning: ['Planning', 'Zoning or design review, before a contractor is picked'],
@@ -7669,6 +7672,7 @@ const PERMIT_FIT = {
   rhino:    ['RHINO',    'Fire, water, dry rot, mold or impact damage repair']
 };
 const PERMIT_DAYS = 60;
+const PERMIT_EMAIL_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-permit-email';
 
 async function loadPermits(){
   if(!S.loaded.verticals) await loadVerticals();
@@ -7703,7 +7707,7 @@ function permitVisible(){
     if(S.permitVert && (p.vertical || 'none') !== S.permitVert) return false;
     if(q){
       const hay = [p.name, p.description, p.address, p.agency_reference, p.record_type, p.status,
-                   p.pro_company, p.pro_name, p.note]
+                   p.pro_company, p.pro_name, p.note, p.emailed_note]
         .filter(Boolean).join(' ').toLowerCase();
       if(hay.indexOf(q) === -1) return false;
     }
@@ -7731,6 +7735,7 @@ function permitCard(p){
       ${p.mark==='saved' ? '<span class="chip good">Saved</span>' : ''}
       ${p.mark==='pat' ? '<span class="chip hot">Sent to Pat</span>' : ''}
       ${p.mark==='contacted' ? '<span class="chip good">Pat contacted</span>' : ''}
+      ${p.emailed_at ? `<span class="chip good" title="Emailed by ${esc(HOME_NAMES[p.emailed_by] || p.emailed_by || '')}">Emailed Freddie ${esc(permitDate(String(p.emailed_at).slice(0,10)))}</span>` : ''}
       <span class="m">${esc(p.agency_reference)} · ${esc(p.record_type||'')} · ${esc(p.status||'')} · ${esc(permitDate(p.record_date))}</span>
     </div>
     <h4>${esc(p.name || p.record_type || p.agency_reference)}</h4>
@@ -7739,13 +7744,21 @@ function permitCard(p){
     ${nums ? `<div class="nums">${nums}</div>` : ''}
     ${permitPro(p)}
     ${permitSent(p) && p.note ? `<div class="pnote"><b>Note for Pat:</b> ${esc(p.note)}</div>` : ''}
-    ${S.permitSend === p.guid ? `<div class="psend">
+    ${p.emailed_note ? `<div class="pnote"><b>Note to Freddie:</b> ${esc(p.emailed_note)}</div>` : ''}
+    ${S.permitMsg && S.permitMsg.guid === p.guid ? `<div class="pnote">${esc(S.permitMsg.text)}</div>` : ''}
+    ${S.permitSend === p.guid ? (S.permitTo === 'freddie' ? `<div class="psend">
+        <textarea id="permitNote" rows="2" placeholder="Note to Freddie (optional): why this one, anything you know">${esc(S.permitNote||'')}</textarea>
+        <div><button class="btn small" data-permit-email-go="${esc(p.guid)}" ${busy?'disabled':''}>${busy?'Sending&hellip;':'Email Freddie'}</button>
+        <button class="linkbtn" data-permit-send-cancel>Cancel</button>
+        <span class="hint" style="margin:0">Goes from Liam's Outlook to freddie@rhinorestores.com</span></div>
+      </div>` : `<div class="psend">
         <textarea id="permitNote" rows="2" placeholder="Note for Pat (optional): why this one, who to ask for">${esc(S.permitNote||'')}</textarea>
         <div><button class="btn small" data-permit-send-go="${esc(p.guid)}" ${busy?'disabled':''}>${busy?'Sending&hellip;':'Send to Pat'}</button>
         <button class="linkbtn" data-permit-send-cancel>Cancel</button></div>
-      </div>` : ''}
+      </div>`) : ''}
     <div class="acts">
       <a class="btn small ghost" href="${esc(p.url)}" target="_blank" rel="noopener">Open record</a>
+      ${canMark && p.fit === 'rhino' ? `<button class="btn small ${p.emailed_at?'ghost':''}" data-permit-email="${esc(p.guid)}" ${busy?'disabled':''}>${p.emailed_at?'Email Freddie again':'Email Freddie'}</button>` : ''}
       ${canMark ? (permitSent(p)
         ? `<button class="btn small ${p.mark==='contacted'?'':'ghost'}" data-permit-contacted="${esc(p.guid)}" data-val="${p.mark==='contacted'?'0':'1'}" ${busy?'disabled':''}>${p.mark==='contacted'?'Contacted':'Mark contacted'}</button>
         <button class="btn small ghost" data-permit-unsend="${esc(p.guid)}" ${busy?'disabled':''}>Take back</button>`
@@ -7879,6 +7892,31 @@ async function sendPermit(guid){
   S.permitBusy = ''; render();
 }
 
+/* RHINO permits only. n8n reads the permit itself and sends it from
+   Liam's Outlook; the page passes the permit and the note, never the
+   address. */
+async function emailPermit(guid){
+  if(S.permitBusy) return;
+  const p = (S.permits||[]).find(x => x.guid === guid);
+  if(!p) return;
+  const note = String(S.permitNote || '').trim();
+  S.permitBusy = guid; S.permitErr = ''; S.permitMsg = ''; render();
+  try{
+    const res = await fetch(PERMIT_EMAIL_URL, { method:'POST', headers:await authHeaders(),
+      body:JSON.stringify({ guid, note }) });
+    let j = null;
+    try{ j = await res.json(); }catch(e){}
+    if(!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('The send service answered ' + res.status + '.'));
+    Object.assign(p, { emailed_at:j.emailed_at || new Date().toISOString(), emailed_by:j.emailed_by || S.me,
+                       emailed_note:j.emailed_note || null });
+    S.permitSend = ''; S.permitNote = '';
+    S.permitMsg = { guid, text:'Emailed to Freddie. A copy is in Liam\'s Sent Items.' };
+  }catch(e){
+    S.permitErr = 'It did not go to Freddie. ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
 async function unsendPermit(guid){
   if(S.permitBusy) return;
   const p = (S.permits||[]).find(x => x.guid === guid);
@@ -7924,8 +7962,13 @@ function wirePermits(){
   document.querySelectorAll('[data-permit-mark]').forEach(el=>
     el.addEventListener('click',()=>markPermit(el.dataset.permitMark, el.dataset.val)));
   document.querySelectorAll('[data-permit-send]').forEach(el=>
-    el.addEventListener('click',()=>{ S.permitSend = el.dataset.permitSend; S.permitNote = ''; render();
+    el.addEventListener('click',()=>{ S.permitSend = el.dataset.permitSend; S.permitTo = 'pat'; S.permitNote = ''; render();
       const t = document.getElementById('permitNote'); if(t) t.focus(); }));
+  document.querySelectorAll('[data-permit-email]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitSend = el.dataset.permitEmail; S.permitTo = 'freddie'; S.permitNote = ''; S.permitMsg = ''; render();
+      const t = document.getElementById('permitNote'); if(t) t.focus(); }));
+  document.querySelectorAll('[data-permit-email-go]').forEach(el=>
+    el.addEventListener('click',()=>emailPermit(el.dataset.permitEmailGo)));
   document.querySelectorAll('[data-permit-send-cancel]').forEach(el=>
     el.addEventListener('click',()=>{ S.permitSend = ''; S.permitNote = ''; render(); }));
   document.querySelectorAll('[data-permit-send-go]').forEach(el=>
@@ -13395,7 +13438,7 @@ const LIVE_TABLES = {
   deals:['kpis','home.pipe','home.stages','home.monthly','ret'], deal_sources:['ret'],
   kpi_targets:['kpis'], kpi_manual:['kpis'],
   expenses:['budget'], budget_plan:['budget'],
-  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'],
+  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'], permit_emails:['permits'],
   email_campaigns:['ec'], bulk_campaigns:['bulk'],
   photo_batches:['photos'], exv_answers:['voices']
 };
