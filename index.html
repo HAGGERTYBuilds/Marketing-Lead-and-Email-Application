@@ -1215,9 +1215,9 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-22y';
+const BUILD = '2026-10-23a';
 const S = {
-  page:'today', board:[], drafts:{}, activeId:null, open:{},
+  page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
   /* Two people now have lists, so tasks is keyed by owner rather than
      being one array. loaded.tasks follows the same shape. */
@@ -1594,6 +1594,7 @@ function insertAsset(draftId, slug){
   const before = el.value.slice(0, start).replace(/\s+$/, '');
   const after  = el.value.slice(end).replace(/^\s+/, '');
   el.value = (before ? before + '\n\n' : '') + phrase + (after ? '\n\n' + after : '');
+  (S.dEdit[draftId] ||= {}).b = el.value;
 
   const pos = (before ? before.length + 2 : 0) + phrase.length;
   el.focus();
@@ -3203,80 +3204,302 @@ function topbar(){
   </header>`;
 }
 
-function wireChrome(){
-  document.querySelectorAll('[data-page]').forEach(el=>
-    el.addEventListener('click', async ()=>{
-      S.page = el.dataset.page; S.err=''; S.gen=''; S.moreOpen = false;
-      /* The tab goes in the address so a refresh, a bookmark or a link
-         sent to someone lands on the same tab. */
-      try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
-      render();
-      try{ await ensure(S.page); }
-      catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
-      render();
-    }));
-  const cq = document.getElementById('crmQ');
-  if(cq){
-    /* Waits for a pause in typing. Searching on every keystroke sent a
-       database query and rebuilt the whole page per letter. */
-    cq.addEventListener('input', ()=>{
-      S.crmQ = cq.value; S.crmOpen = true;
-      clearTimeout(crmTimer);
-      crmTimer = setTimeout(()=>crmSearch(S.crmQ), 220);
-    });
-    cq.addEventListener('focus', ()=>{ if(S.crmQ) { S.crmOpen = true; render(); } });
-    cq.addEventListener('keydown', e=>{ if(e.key==='Escape'){ S.crmOpen=false; render(); } });
-    if(S.crmFocus){
-      cq.focus();
-      const n = cq.value.length;
-      try{ cq.setSelectionRange(n, n); }catch(e){}
-    }
+/* ---------- the address bar ----------
+   The tab and its sub-view live in the hash (#kpis/board,
+   #calendar/invites, #permits/pat), and every change of either is a new
+   history entry, so Back and Forward step between tabs and views the way
+   they do on any other site. */
+const SUBVIEW = {
+  kpis:     { get:() => S.kpiView,    set:v => { if(['scorecard','board','return'].includes(v)) S.kpiView = v; }, def:'scorecard' },
+  calendar: { get:() => S.calView,    set:v => { if(['schedule','invites'].includes(v)) S.calView = v; }, def:'schedule' },
+  permits:  { get:() => S.permitView, set:v => { if(['open','saved','pat','dismissed'].includes(v)) S.permitView = v; }, def:'open' }
+};
+function parseHash(h){
+  const [p, v] = String(h || '').replace(/^#/, '').split('/');
+  try{ return { page:decodeURIComponent(p || ''), view:v ? decodeURIComponent(v) : '' }; }
+  catch(e){ return { page:'', view:'' }; }
+}
+function hashNow(){
+  const sv = SUBVIEW[S.page], v = sv && sv.get();
+  return '#' + S.page + (v && v !== sv.def ? '/' + v : '');
+}
+function syncHash(){
+  const h = hashNow();
+  if(location.hash !== h){
+    try{ history[S._hashReady ? 'pushState' : 'replaceState'](null, '', h); }catch(e){}
   }
-  const cc = document.getElementById('crmClose');
-  if(cc) cc.addEventListener('click', ()=>{ S.crmOpen=false; render(); });
-  const cx = document.getElementById('crmClear');
-  if(cx) cx.addEventListener('click', ()=>{
-    S.crmQ=''; S.crmHits=null; S.crmOpen=false; render();
-  });
+  S._hashReady = true;
+}
+const pageVisible = k => visiblePages().some(([p]) => p === k);
 
-  document.querySelectorAll('[data-signout]').forEach(b =>
-    b.addEventListener('click', async ()=>{ S.day = null; S.moreOpen = false; await sb.auth.signOut(); renderLogin(); }));
-  document.querySelectorAll('[data-theme-cycle]').forEach(b => b.addEventListener('click', cycleTheme));
-  document.querySelectorAll('[data-more]').forEach(b =>
-    b.addEventListener('click', ()=>{ S.moreOpen = !S.moreOpen; render(); }));
+/* One way into a tab, used by the sidebar, the phone bar, Home's links
+   and Back/Forward. */
+async function goPage(page){
+  if(!pageVisible(page)) return;
+  S.page = page; S.err = ''; S.gen = ''; S.moreOpen = false;
+  render();
+  try{ await ensure(S.page); }
+  catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
+  render();
 }
 
-function render(){
-  let inner = '';
-  if(S.page==='home')     inner = pageHome();
-  if(S.page==='today')    inner = pageToday();
-  if(S.page==='calendar') inner = pageCalendar();
-  if(S.page==='kpis')     inner = pageKpis();
-  if(S.page==='approvals') inner = pageApprovals();
-  if(S.page==='budget')   inner = pageBudget();
-  if(S.page==='mileage')  inner = pageMileage();
-  if(S.page==='photos')   inner = pagePhotos();
-  if(S.page==='voices')   inner = pageVoices();
-  if(S.page==='reels')    inner = pageReels();
-  if(S.page==='social')   inner = pageSocial();
-  if(S.page==='campaigns') inner = pageCampaigns();
-  if(OWNERS[S.page])      inner = pageDay(OWNERS[S.page]);
-  if(S.page==='leads')    inner = pageLeads();
-  if(S.page==='permits')  inner = pagePermits();
-  if(S.page==='bulk')     inner = pageBulk();
-  const samePage = S._lastPage === S.page;
-  const sy = window.scrollY;
-  const ob = document.querySelector('.board');
-  const by = ob ? ob.scrollTop : 0;
-  app.innerHTML = shell(inner);
-  wireChrome();
-  wirePage();
-  if(samePage){
-    const nb = document.querySelector('.board');
-    if(nb && by) nb.scrollTop = by;
-    if(sy) window.scrollTo(0, sy);
+window.addEventListener('hashchange', () => {
+  if(!S.day || !app.querySelector('.shell')) return;      // not signed in yet
+  const { page, view } = parseHash(location.hash);
+  if(!pageVisible(page)){ try{ history.replaceState(null, '', hashNow()); }catch(e){} return; }
+  const sv = SUBVIEW[page];
+  const same = page === S.page && (!sv || (view || sv.def) === sv.get());
+  if(same) return;
+  if(sv) sv.set(view || sv.def);
+  goPage(page);
+});
+
+/* ---------- chrome, wired once ----------
+   The sidebar, phone bar and search box are handled by listeners on the
+   document, so they are never re-attached when the page repaints. */
+document.addEventListener('click', async e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-page],[data-signout],[data-theme-cycle],[data-more],#crmClose,#crmClear') : null;
+  if(!el || !app.contains(el)) return;
+  if(el.hasAttribute('data-page')) return goPage(el.dataset.page);
+  if(el.hasAttribute('data-signout')){ S.day = null; S.moreOpen = false; liveStop(); await sb.auth.signOut(); return renderLogin(); }
+  if(el.hasAttribute('data-theme-cycle')) return cycleTheme();
+  /* Lead cards use data-more for their own toggle, so only the phone
+     bar's More button opens the sheet. */
+  if(el.hasAttribute('data-more')){ if(el.closest('.bottombar')){ S.moreOpen = !S.moreOpen; render(); } return; }
+  if(el.id === 'crmClose'){ S.crmOpen = false; return render(); }
+  if(el.id === 'crmClear'){ S.crmQ = ''; S.crmHits = null; S.crmOpen = false; return render(); }
+});
+document.addEventListener('input', e => {
+  if(!e.target || e.target.id !== 'crmQ') return;
+  /* Waits for a pause in typing. Searching on every keystroke sent a
+     database query per letter. */
+  S.crmQ = e.target.value; S.crmOpen = true;
+  clearTimeout(crmTimer);
+  crmTimer = setTimeout(() => crmSearch(S.crmQ), 220);
+});
+document.addEventListener('focusin', e => {
+  if(e.target && e.target.id === 'crmQ' && S.crmQ && !S.crmOpen){ S.crmOpen = true; render(); }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && e.target && e.target.id === 'crmQ'){ S.crmOpen = false; render(); }
+});
+
+/* Puts the cursor back in a box after a repaint, but only if it is not
+   already there: the patcher keeps the focused box in place, and moving
+   the caret to the end on every repaint would fight the typist. */
+function refocus(el){
+  if(!el || document.activeElement === el) return;
+  el.focus();
+  const n = el.value.length;
+  try{ el.setSelectionRange(n, n); }catch(e){}
+}
+
+function wireChrome(){
+  if(S.crmFocus) refocus(document.getElementById('crmQ'));
+}
+
+/* ---------- the patcher ----------
+   render() used to replace the whole page with innerHTML and re-attach
+   every handler, so each click rebuilt a few thousand nodes, dropped the
+   caret and scroll position of anything inside, and closed whatever was
+   open. It now builds the new HTML off-screen and patches the live page
+   to match: nodes are kept where they line up (by id, data-key, data-tid
+   or data-row first, then by position), and only what differs is
+   created, removed or edited.
+
+   Form fields: a repaint the person caused writes the rendered value, as
+   before. A background repaint (live updates, the periodic refresh)
+   leaves alone any field that is focused or has been typed in. A
+   <details> the person opened stays open unless the page itself changes
+   its rendered state. */
+const PATCH = { created:0, removed:0, updated:0, bg:false };
+const KEY_ATTRS = ['data-key','data-tid','data-row'];
+function morphKey(n){
+  if(n.nodeType !== 1) return '';
+  if(n.id) return '#' + n.id;
+  for(const a of KEY_ATTRS){ const v = n.getAttribute(a); if(v) return a + '=' + v; }
+  return '';
+}
+function prepNew(n){
+  if(n.nodeType !== 1){ PATCH.created++; return; }
+  PATCH.created += 1 + n.getElementsByTagName('*').length;
+  if(n.nodeName === 'DETAILS') n.__ro = n.hasAttribute('open');
+  for(const d of n.getElementsByTagName('details')) d.__ro = d.hasAttribute('open');
+}
+function countOld(n){ PATCH.removed += n.nodeType === 1 ? 1 + n.getElementsByTagName('*').length : 1; }
+function syncAttrs(a, b){
+  const skip = a.nodeName === 'DETAILS' ? 'open' : '';
+  for(const at of Array.from(a.attributes)){
+    if(at.name === skip) continue;
+    if(!b.hasAttributeNS(at.namespaceURI, at.localName)){ a.removeAttributeNS(at.namespaceURI, at.localName); PATCH.updated++; }
   }
+  for(const at of b.attributes){
+    if(at.name === skip) continue;
+    if(a.getAttributeNS(at.namespaceURI, at.localName) !== at.value){ a.setAttributeNS(at.namespaceURI, at.name, at.value); PATCH.updated++; }
+  }
+}
+function morphNode(a, b){
+  if(a.nodeType !== 1){
+    if(a.nodeValue !== b.nodeValue){ a.nodeValue = b.nodeValue; PATCH.updated++; }
+    return;
+  }
+  const tag = a.nodeName, keep = PATCH.bg && a === document.activeElement;
+  if(tag === 'INPUT'){
+    const box = a.type === 'checkbox' || a.type === 'radio';
+    const dirty = box ? a.checked !== a.defaultChecked : a.value !== a.defaultValue;
+    syncAttrs(a, b);
+    if(a.type === 'file' || (PATCH.bg && (dirty || keep))) return;
+    if(box){ const c = b.hasAttribute('checked'); if(a.checked !== c) a.checked = c; }
+    else { const v = b.getAttribute('value') || ''; if(a.value !== v) a.value = v; }
+    return;
+  }
+  if(tag === 'TEXTAREA'){
+    const v = b.textContent, dirty = a.value !== a.defaultValue;
+    syncAttrs(a, b);
+    if(a.defaultValue !== v) a.defaultValue = v;
+    if(PATCH.bg && (dirty || keep)) return;
+    if(a.value !== v){ a.value = v; PATCH.updated++; }
+    return;
+  }
+  if(tag === 'SELECT'){
+    let idx = -1;
+    Array.from(b.options).forEach((o, i) => { if(o.hasAttribute('selected')) idx = i; });
+    if(idx < 0 && b.options.length) idx = 0;
+    syncAttrs(a, b);
+    morphChildren(a, b);
+    if(!keep && !a.multiple && a.selectedIndex !== idx) a.selectedIndex = idx;
+    return;
+  }
+  syncAttrs(a, b);
+  if(tag === 'DETAILS'){
+    const o = b.hasAttribute('open');
+    if(a.__ro !== o){ a.open = o; a.__ro = o; }
+  }
+  morphChildren(a, b);
+}
+function morphChildren(from, to){
+  const keyed = new Map();
+  for(let c = from.firstChild; c; c = c.nextSibling){
+    const k = morphKey(c);
+    if(k && !keyed.has(k)) keyed.set(k, c);
+  }
+  let cur = from.firstChild, n = to.firstChild;
+  while(n){
+    const next = n.nextSibling, k = morphKey(n);
+    let m = null;
+    if(k){
+      m = keyed.get(k) || null;
+      if(m && m.nodeName === n.nodeName) keyed.delete(k); else m = null;
+    }else if(cur && !morphKey(cur) && cur.nodeType === n.nodeType && cur.nodeName === n.nodeName){
+      m = cur;
+    }
+    if(m){
+      if(m === cur) cur = cur.nextSibling; else from.insertBefore(m, cur);
+      morphNode(m, n);
+    }else{
+      prepNew(n);
+      from.insertBefore(n, cur);
+    }
+    n = next;
+  }
+  while(cur){ const nx = cur.nextSibling; countOld(cur); from.removeChild(cur); cur = nx; }
+}
+
+/* ---------- wiring, made idempotent ----------
+   The wire functions still find their elements with querySelectorAll
+   after each repaint, but now that elements survive a repaint, adding a
+   listener again would stack a second copy. While a wiring pass runs,
+   every listener it adds is recorded on its element; the next pass drops
+   the old ones before adding new ones, and anything a pass no longer
+   wires is removed. Listeners added outside a pass are untouched. A
+   repaint that changed nothing skips the pass entirely. */
+const WIRE = { gen:0, on:false, live:new Set() };
+{
+  const add = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, fn, opts){
+    if(WIRE.on && fn){
+      let w = this.__wired;
+      if(!w || w.gen !== WIRE.gen){
+        if(w) for(const x of w.list) this.removeEventListener(x[0], x[1], x[2]);
+        w = this.__wired = { gen:WIRE.gen, list:[] };
+        WIRE.live.add(this);
+      }
+      w.list.push([type, fn, opts]);
+    }
+    return add.call(this, type, fn, opts);
+  };
+}
+function wireAll(){
+  WIRE.gen++; WIRE.on = true;
+  try{ wireChrome(); wirePage(); }
+  finally{ WIRE.on = false; }
+  let n = 0;
+  for(const el of WIRE.live){
+    const w = el.__wired;
+    if(w && w.gen === WIRE.gen && el.isConnected !== false){ n += w.list.length; continue; }
+    if(w) for(const x of w.list) el.removeEventListener(x[0], x[1], x[2]);
+    el.__wired = null; WIRE.live.delete(el);
+  }
+  return n;
+}
+
+/* The last few repaints, for checking speed from the console:
+   window.__renders. */
+const RSTATS = [];
+window.__renders = RSTATS;
+
+function pageHtml(){
+  if(S.page==='home')      return pageHome();
+  if(S.page==='today')     return pageToday();
+  if(S.page==='calendar')  return pageCalendar();
+  if(S.page==='kpis')      return pageKpis();
+  if(S.page==='approvals') return pageApprovals();
+  if(S.page==='budget')    return pageBudget();
+  if(S.page==='mileage')   return pageMileage();
+  if(S.page==='photos')    return pagePhotos();
+  if(S.page==='voices')    return pageVoices();
+  if(S.page==='reels')     return pageReels();
+  if(S.page==='social')    return pageSocial();
+  if(S.page==='campaigns') return pageCampaigns();
+  if(OWNERS[S.page])       return pageDay(OWNERS[S.page]);
+  if(S.page==='leads')     return pageLeads();
+  if(S.page==='permits')   return pagePermits();
+  if(S.page==='bulk')      return pageBulk();
+  return '';
+}
+
+function render(opts){
+  const t0 = performance.now();
+  const html = shell(pageHtml());
+  const pageChanged = S._lastPage !== S.page;
+  PATCH.created = PATCH.removed = PATCH.updated = 0;
+  PATCH.bg = !!(opts && opts.bg);
+  let full = false;
+  if(!app.querySelector(':scope > .shell')){
+    app.innerHTML = html; full = true;
+    PATCH.created = app.getElementsByTagName('*').length;
+    for(const d of app.getElementsByTagName('details')) d.__ro = d.hasAttribute('open');
+  }else{
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    morphChildren(app, t.content);
+  }
+  const changed = full || PATCH.created || PATCH.removed || PATCH.updated;
+  const listeners = changed || pageChanged ? wireAll() : -1;
+  if(listeners === -1){
+    /* Nothing changed, so no wiring pass ran, but a handler may still
+       have asked for the caret back. */
+    if(S.crmFocus) refocus(document.getElementById('crmQ'));
+    if(S.taskFocus) refocus(document.getElementById('taskTitle'));
+    if(S.subFocus) refocus(document.getElementById('subInput'));
+  }
+  if(pageChanged && S._lastPage && !full) window.scrollTo(0, 0);
   S._lastPage = S.page;
+  syncHash();
+  RSTATS.push({ page:S.page, ms:Math.round((performance.now() - t0) * 10) / 10, full,
+    created:PATCH.created, removed:PATCH.removed, updated:PATCH.updated, bg:PATCH.bg,
+    total:app.getElementsByTagName('*').length, rewired:listeners });
+  if(RSTATS.length > 40) RSTATS.shift();
 }
 
 function wirePage(){
@@ -3288,6 +3511,10 @@ function wirePage(){
     }));
   document.querySelectorAll('[data-toggle]').forEach(el=>
     el.addEventListener('click',()=>{ const id=el.dataset.toggle; S.open[id]=!S.open[id]; render(); }));
+  document.querySelectorAll('[data-dsub]').forEach(el=>
+    el.addEventListener('input',()=>{ (S.dEdit[el.dataset.dsub] ||= {}).s = el.value; }));
+  document.querySelectorAll('[data-dbody]').forEach(el=>
+    el.addEventListener('input',()=>{ (S.dEdit[el.dataset.dbody] ||= {}).b = el.value; }));
   document.querySelectorAll('[data-use]').forEach(el=>
     el.addEventListener('click',()=>useDraft(el.dataset.use)));
   document.querySelectorAll('[data-asset]').forEach(el=>
@@ -3319,11 +3546,7 @@ function wirePage(){
        Mirroring into state is how the deal and import forms already work. */
     ti.addEventListener('input', ()=>{ S.taskDraft.title = ti.value; });
     ti.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
-    if(S.taskFocus){
-      ti.focus();
-      const n = ti.value.length;
-      try{ ti.setSelectionRange(n, n); }catch(e){}
-    }
+    if(S.taskFocus) refocus(ti);
   }
   const tc = document.getElementById('taskCat');
   if(tc) tc.addEventListener('change', ()=>{ S.taskDraft.category = tc.value; });
@@ -3359,11 +3582,7 @@ function wirePage(){
       if(e.key === 'Enter') addSubtask();
       if(e.key === 'Escape'){ S.subDraft = null; render(); }
     });
-    if(S.subFocus){
-      si.focus();
-      const n = si.value.length;
-      try{ si.setSelectionRange(n, n); }catch(e){}
-    }
+    if(S.subFocus) refocus(si);
   }
   const ss = document.getElementById('subSave');
   if(ss) ss.addEventListener('click', addSubtask);
@@ -3794,7 +4013,10 @@ function assetPicker(d){
 
 function optHtml(d,i){
   const open = !!S.open[d.id];
-  const subject = d.edited_subject || d.subject || '';
+  /* What Pat has typed into a draft is kept in S.dEdit, so a repaint
+     (another draft opened, a live update) never puts the original back. */
+  const ed = S.dEdit[d.id] || {};
+  const subject = ed.s ?? (d.edited_subject || d.subject || '');
   return `<section class="opt ${open?'open':''}">
     <button class="opt-head" data-toggle="${d.id}">
       <span class="opt-n">${String(i+1).padStart(2,'0')}</span>
@@ -3802,9 +4024,9 @@ function optHtml(d,i){
       <span class="opt-subject">${esc(subject)}</span></button>
     ${open?`<div class="opt-body">
       <div class="field"><label for="s-${d.id}">Subject</label>
-        <input type="text" id="s-${d.id}" value="${esc(subject)}"/></div>
+        <input type="text" id="s-${d.id}" data-dsub="${d.id}" value="${esc(subject)}"/></div>
       <div class="field"><label for="b-${d.id}">Message</label>
-        <textarea id="b-${d.id}">${esc(toPlain(d.edited_body||d.body_html))}</textarea></div>
+        <textarea id="b-${d.id}" data-dbody="${d.id}">${esc(ed.b ?? toPlain(d.edited_body||d.body_html))}</textarea></div>
       ${assetPicker(d)}
       <div class="actions">
         <button class="btn" data-use="${d.id}" ${S.busy?'disabled':''}>
@@ -4901,8 +5123,7 @@ function searchOrgs(q){
     }catch{ S.orgHits = []; }
     S.orgBusy=false;
     render();
-    const el = document.getElementById('aOrg');
-    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    /* The patcher keeps the box (and its caret) in place. */
   }, 350);
 }
 
@@ -5542,10 +5763,7 @@ function wireClassify(){
     clsTimer = setTimeout(async ()=>{
       await loadClassifications();
       render();
-      // Rendering rebuilt the input, so the cursor goes back to where
-      // it was rather than to the start of the box.
-      const el = document.getElementById('clsSearch');
-      if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      // The patcher keeps the box and its caret where they were.
     }, 400);
   });
 
@@ -6479,8 +6697,11 @@ async function useDraft(draftId){
 
     // Clearing the selection lets loadBoard move to the next open contact.
     S.activeId = null;
+    delete S.dEdit[draftId];
     await loadBoard();
-    S.loaded.metrics=false; S.loaded.tiles=false;
+    /* Email health, the follow-up panel, Home's charts and the KPI
+       numbers all move when something sends. */
+    staleAfter('send');
     if(out.sent === false) S.err = 'Saved to Pat\u2019s Outlook drafts but not sent'
       + (out.error ? ': ' + out.error : '.') + ' Send it from Outlook.';
   }catch(err){ S.err = err.message||String(err); }
@@ -7136,8 +7357,7 @@ function wireReels(){
       clearTimeout(reelTimer);
       reelTimer = setTimeout(()=>{
         render();
-        const el = document.getElementById('reelSearch');
-        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+
       }, 250);
     });
   }
@@ -7444,8 +7664,7 @@ function wirePermits(){
       clearTimeout(permitTimer);
       permitTimer = setTimeout(()=>{
         render();
-        const el = document.getElementById('permitSearch');
-        if(el){ el.focus(); try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
+
       }, 250);
     });
   }
@@ -12378,14 +12597,8 @@ async function homeGo(target){
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     return;
   }
-  if(page === 'calendar' && view) S.calView = view;
-  if(page === 'permits' && view) S.permitView = view;
-  S.page = page; S.err = ''; S.gen = '';
-  try{ history.replaceState(null, '', '#' + S.page); }catch(e){}
-  render();
-  try{ await ensure(S.page); }
-  catch(err){ S.err = 'Could not load this tab. ' + (err.message || err); }
-  render();
+  if(SUBVIEW[page] && view) SUBVIEW[page].set(view);
+  return goPage(page);
 }
 
 function wireHome(){
@@ -12424,12 +12637,15 @@ async function boot(){
   S.day = today();
   /* A tab named in the address wins. Otherwise Liam and Pat start on
      Home, and Iyanna on her own list. */
-  const want = location.hash.slice(1);
+  const { page:want, view } = parseHash(location.hash);
   S.page = visiblePages().some(([k]) => k === want) ? want
          : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? 'social' : 'home');
+  if(S.page === want && view && SUBVIEW[want]) SUBVIEW[want].set(view);
+  S._hashReady = false;
   try{
     await ensure(S.page);
     render();
+    liveStart();
   }catch(e){
     app.innerHTML = shell(`<div class="empty"><h2>Could not load</h2>
       <p>${esc(e.message||e)}</p>
