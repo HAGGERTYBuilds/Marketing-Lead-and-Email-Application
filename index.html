@@ -725,6 +725,9 @@
   .socmixform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--slate)}
   .socmixform input{width:100%;font-family:var(--body);font-size:14px;color:var(--ink);
       background:var(--paper);border:1px solid var(--rule);padding:5px 8px}
+  .socmixform textarea{width:100%;min-height:96px;font-family:var(--body);font-size:14px;color:var(--ink);
+      background:var(--paper);border:1px solid var(--rule);padding:7px 9px;margin:8px 0 10px;resize:vertical}
+  .socside textarea.edit{min-height:96px}
   .fchips.focus .fchip{border-style:dashed}
   .fchips.focus .fchip.on{border-style:solid}
   .socthumb{position:relative;width:100%;aspect-ratio:4/3;background:#000;border:0;padding:0;
@@ -901,6 +904,15 @@
   /* ---------- email campaigns ---------- */
   .ec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
   .ec-list{border:1px solid var(--rule);background:var(--card)}
+  .ec-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:10px 0 26px}
+  .ec-tpl{background:var(--card);border:1px solid var(--rule);display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer;color:var(--ink)}
+  .ec-tpl:hover,.ec-tpl:focus-visible{border-color:var(--accent)}
+  .ec-tpl[disabled]{opacity:.5;cursor:default}
+  .ec-thumb{height:250px;overflow:hidden;background:#F4F2EE;border-bottom:1px solid var(--rule);position:relative}
+  .ec-thumb iframe{position:absolute;top:0;left:50%;width:640px;height:820px;border:0;transform:translateX(-50%) scale(.3);transform-origin:top center;pointer-events:none}
+  .ec-tpl-txt{padding:9px 11px 11px;display:flex;flex-direction:column;gap:3px}
+  .ec-tpl-txt b{font-size:14px}
+  .ec-tpl-txt span{font-size:12.5px;color:var(--muted);line-height:1.4}
   .ec-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--rule-soft)}
   .ec-item:first-child{border-top:0}
   .ec-open{flex:1 1 260px;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;color:var(--ink);display:flex;flex-direction:column}
@@ -1264,11 +1276,11 @@ const CARRY_DAYS = 7;
 /* How many open contacts the Outreach list shows at once. The rest wait
    their turn and slide in as these are sent or skipped, so Pat works a
    short list instead of scrolling a long one. */
-const BOARD_CAP = 5;
+const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-23b';
+const BUILD = '2026-10-23c';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -1291,6 +1303,7 @@ const S = {
   /* social calendar */
   social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
   socFocus:'all', socMix:{}, socMixOpen:false, socMixForm:{},
+  socStyle:'', socStyleOpen:false, socStyleForm:'',
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
   /* permits */
@@ -3678,11 +3691,11 @@ function wirePage(){
   const sn = document.getElementById('sentToggle');
   if(sn) sn.addEventListener('click',()=>{ S.sentOpen=!S.sentOpen; render(); });
   document.querySelectorAll('[data-gen]').forEach(el=>
-    el.addEventListener('click',()=>generate(Number(el.dataset.gen), 5)));
+    el.addEventListener('click',()=>generate(Number(el.dataset.gen), BOARD_CAP)));
   const gf = document.getElementById('goldFilt');
   if(gf) gf.addEventListener('click',()=>{ S.goldOnly=!S.goldOnly; render(); });
   const gg = document.getElementById('genGold');
-  if(gg) gg.addEventListener('click',()=>generate(null, 5, true));
+  if(gg) gg.addEventListener('click',()=>generate(null, BOARD_CAP, true));
   const add = document.getElementById('addTask');
   if(add) add.addEventListener('click', addTask);
   const ti = document.getElementById('taskTitle');
@@ -3805,7 +3818,7 @@ function pageToday(){
     return sectorBar() + `<div class="page cols3"><div>
       <div class="empty" style="padding:34px 0">
         <h2>Nothing on the list</h2>
-        <p>The list fills when you ask it to. Click Generate 5 on a sector above and five contacts from it land here with drafts ready.</p>
+        <p>The list fills when you ask it to. Click Generate 10 on a sector above and ten contacts from it land here with drafts ready.</p>
       </div></div><div>${side}</div></div>`;
   }
 
@@ -3842,7 +3855,7 @@ function pageToday(){
         stillOpen?`<span class="eyebrow" style="display:block;margin-top:3px">${
           stillOpen} still open from earlier</span>`:''}</div>
       ${capped.map(rowHtml).join('')}
-      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Click Generate 5 on a sector above for five more.</p>` : ''}
+      ${!openRows.length ? `<p class="hint" style="padding:14px 17px;margin:0">Nothing open. Click Generate 10 on a sector above for ten more.</p>` : ''}
       ${waiting > 0 ? `<p class="hint" style="padding:11px 17px;margin:0">${waiting} more waiting. The next one comes up as you clear these.</p>` : ''}
       ${sentRows.length?`<div class="skipgroup">
         <button class="skiphead" id="sentToggle" aria-expanded="${S.sentOpen?'true':'false'}">
@@ -4208,7 +4221,7 @@ function sectorBar(){
         <h4>Pat's Gold</h4>
         <div class="n">${num(pool)}<small> ready</small>${
           onBoard?`<small> &middot; ${num(onBoard)} today</small>`:''}</div>
-        <button class="btn small" id="genGold" ${(!pool||S.busy)?'disabled':''}>Generate 5</button>
+        <button class="btn small" id="genGold" ${(!pool||S.busy)?'disabled':''}>Generate ${BOARD_CAP}</button>
         ${onBoard?`<button class="btn small ghost" id="goldFilt" style="margin-top:4px">${
           S.goldOnly?'Show all':'Only these'}</button>`:''}
       </div>`;
@@ -4219,7 +4232,7 @@ function sectorBar(){
         <h4>${esc(t.vertical)}${t.has_proof?'':' <span style="color:var(--red)">&bull;</span>'}</h4>
         <div class="n">${num(t.pool)}<small> ready</small>${
           Number(t.queued_today)?`<small> &middot; ${num(t.queued_today)} today</small>`:''}</div>
-        <button class="btn small" data-gen="${t.vertical_id}" ${(!live||S.busy)?'disabled':''}>Generate 5</button>
+        <button class="btn small" data-gen="${t.vertical_id}" ${(!live||S.busy)?'disabled':''}>Generate ${BOARD_CAP}</button>
       </div>`;
     }).join('')}
   </div>${S.gen?`<p class="hint" style="padding:9px 26px 0;margin:0">${esc(S.gen)}</p>`:''}`;
@@ -7948,12 +7961,12 @@ function wirePermits(){
    J: archive, captions written, files saved to a month folder with a
    plan.json). Import brings that folder in: media goes to the public
    social-media bucket and each post becomes a row here. From then on
-   everything is editable. Generate and Send only queue a row in
-   social_jobs. Generate and extras need the J: archive, so the scheduled
-   Claude task on the laptop picks those up. Send only needs Metricool and
-   the media already in the bucket, so it queues a 'send_cloud' job that a
-   cloud routine picks up (see sql/social_send.sql); the laptop task
-   ignores that kind.
+   everything is editable. Generate and extras only queue a row in
+   social_jobs; they need the J: archive, so the scheduled Claude task on
+   the laptop picks those up. There is no Send button: approving a post
+   (plus the reviewer's OK, for a brand with one) makes the database queue
+   it and add a 'send_cloud' job (sql/social_auto_send.sql), which a cloud
+   routine picks up (sql/social_send.sql); the laptop task ignores that kind.
    Two brands share all of this: HAGGERTY and RHINO Restores. Every row
    carries brand, the switch at the top of the tab picks which one shows,
    and each brand has its own focus list, target mix and Metricool brand
@@ -8040,7 +8053,7 @@ async function loadSocial(){
   S.social = data || [];
   const j = await sb.from('social_jobs').select('*')
     .eq('brand', SOC_BRAND).eq('month', S.socMonth)
-    .order('created_at', { ascending:false }).limit(8);
+    .order('created_at', { ascending:false }).limit(30);
   if(j.error) throw j.error;
   S.socJobs = j.data || [];
   /* Results come from Metricool through the daily refresh. A failed read
@@ -8050,8 +8063,9 @@ async function loadSocial(){
     .eq('brand', SOC_BRAND).gte('post_date', since)
     .order('post_date', { ascending:false });
   S.socResults = r.error ? [] : (r.data || []);
-  const st = await sb.from('social_settings').select('focus_mix').eq('brand', SOC_BRAND).maybeSingle();
+  const st = await sb.from('social_settings').select('focus_mix, video_style').eq('brand', SOC_BRAND).maybeSingle();
   S.socMix = (!st.error && st.data && st.data.focus_mix) || {};
+  S.socStyle = (!st.error && st.data && st.data.video_style) || '';
   /* A brand with a reviewer needs their OK before Send takes a post. */
   const rv = await sb.from('social_reviewers').select('email,name').eq('brand', SOC_BRAND);
   S.socReviewers = rv.error ? [] : (rv.data || []);
@@ -8190,9 +8204,17 @@ function socReviewerName(email){
   const r = (S.socReviewers || []).find(x => x.email === email);
   return (r && r.name) || (email ? String(email).split('@')[0] : 'Reviewer');
 }
-function socSendable(p){
-  return p.status === 'approved' && (!socNeedsReview() || p.review_status === 'ok');
+/* Approved posts go to Metricool on their own: the database queues a post
+   once it is approved, dated today or later and, for a brand with a
+   reviewer, marked OK to post (sql/social_auto_send.sql). These say why an
+   approved post is still sitting here. */
+function socPast(p){ return String(p.post_date).slice(0,10) < socTodayISO(); }
+function socTodayISO(){ return new Date().toLocaleDateString('en-CA', { timeZone:'America/Los_Angeles' }); }
+function socAwaitingReview(p){
+  return p.status === 'approved' && !socPast(p) && socNeedsReview() && p.review_status !== 'ok';
 }
+/* Not yet in Metricool: still free to change its mind. */
+function socUnsent(p){ return p.status === 'queued' && !p.metricool; }
 function socReviewChip(p){
   if(!socNeedsReview()) return '';
   if(p.review_status === 'ok') return `<span class="chip good">OK to post</span>`;
@@ -8204,10 +8226,32 @@ function socReviewLine(p){
   return `<span class="why">${esc(socReviewerName(p.reviewed_by))}: ${esc(p.review_note)}</span>`;
 }
 
+/* ---- video edits ----
+   The laptop task cuts each video itself: it picks clips from the archive,
+   trims them, crops to vertical and joins them (reel_sources.json in the
+   month folder records the cuts). Two things steer it: the brand's video
+   style (social_settings.video_style, sent on every generate, extras and
+   re-edit job) and a post's own edit notes (social_posts.edit_notes).
+   Re-edit queues a 'reedit' job for one post; the laptop saves the new cut
+   in the month folder and marks the job ready, then Replace on the video
+   brings it in. See sql/social_video_edit.sql. */
+function socIsVideo(p){ return p.format === 'video' || socMedia(p).some(m => m.kind === 'video'); }
+function socReeditJob(p){
+  return (S.socJobs || []).find(j => j.kind === 'reedit' && j.options && j.options.post_id === p.id);
+}
+function socReeditLine(p){
+  const j = socReeditJob(p);
+  if(!j || j.status === 'done') return '';
+  return j.status === 'pending' ? 'Re-edit requested. The laptop picks it up within the hour on weekdays while it is on.'
+    : j.status === 'running' ? 'The video is being re-edited now.'
+    : j.status === 'ready' ? 'New cut ready' + (j.note ? ': ' + j.note : '') + '. Click Replace on the video and pick it.'
+    : 'The re-edit did not finish' + (j.note ? ': ' + j.note : '.');
+}
+
 function socCard(p){
   const media = socMedia(p);
   const busy = S.socBusy === p.id;
-  const open = p.status === 'draft' || p.status === 'approved';
+  const open = p.status === 'draft' || p.status === 'approved' || socUnsent(p);
   return `<article class="soccard ${esc(p.status)}">
     <button class="socthumb" data-soc-open="${esc(p.id)}" aria-label="Edit ${p.status==='extra'?'this extra option':'the post for ' + esc(socDay(p.post_date))}">
       ${media.length ? socMediaTag(media[0], false) : `<span class="none">No media yet</span>`}
@@ -8224,6 +8268,7 @@ function socCard(p){
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
       ${socReviewLine(p)}
+      ${socIsReviewer() ? '' : (() => { const l = socReeditLine(p); return l ? `<span class="why">${esc(l)}</span>` : ''; })()}
     </div>
     ${(() => { const r = (S.socResults || []).filter(x => x.social_post_id === p.id);
        return r.length ? socResLines(r.find(x => x.network === 'instagram'), r.find(x => x.network === 'linkedin')) : ''; })()}
@@ -8234,7 +8279,7 @@ function socCard(p){
     </div>` : `<div class="socfoot">
       ${p.status === 'draft'
         ? `<button class="btn small" data-soc-set="${esc(p.id)}" data-val="approved" ${busy?'disabled':''}>Approve</button>`
-        : p.status === 'approved'
+        : p.status === 'approved' || socUnsent(p)
           ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`
         : p.status === 'skipped'
           ? `<button class="btn small ghost" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`
@@ -8260,7 +8305,7 @@ function socSheet(){
   const media = socMedia(p);
   const busy = !!S.socBusy;
   const rev = socIsReviewer();
-  const open = p.status === 'draft' || p.status === 'approved';
+  const open = p.status === 'draft' || p.status === 'approved' || socUnsent(p);
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit post">
     <div class="sheet-in soc">
       <div class="reel-head">
@@ -8307,6 +8352,10 @@ function socSheet(){
             <input type="text" id="socTags" value="${esc(f.hashtags)}" autocomplete="off" /></div>
           <div class="field"><label for="socTagsLi">Hashtags, LinkedIn</label>
             <input type="text" id="socTagsLi" value="${esc(f.hashtags_li)}" autocomplete="off" /></div>
+          ${!rev && socIsVideo(p) ? `<div class="field"><label for="socEdit">How to edit this video</label>
+              <textarea id="socEdit" class="edit" placeholder="For example: cut the first 3 seconds and the part where the truck backs in, open on the finished kitchen, keep it under 20 seconds, no text on screen">${esc(f.edit_notes)}</textarea>
+              <span class="hint" style="margin:4px 0 0">Re-edit sends these notes${S.socStyle ? ' and the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' video style' : ''} to the laptop, which cuts a new version from the original clips.</span></div>
+              ${socReeditLine(p) ? `<p class="hint" style="margin-top:10px">${esc(socReeditLine(p))}</p>` : ''}` : ''}
           ${p.status==='skipped' && p.notes?`<p class="hint" style="margin-top:10px">Cleared: ${esc(p.notes)}</p>`:''}
           ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
           ${rev && open ? `<div class="field"><label for="socRevNote">What needs to change</label>
@@ -8324,7 +8373,8 @@ function socSheet(){
           </div>` : `<div class="actions" style="margin-top:auto;padding-top:14px">
             <button class="btn" id="socSave" ${busy?'disabled':''}>Save</button>
             ${p.status==='draft'?`<button class="btn ghost small" id="socApprove" ${busy?'disabled':''}>Save and approve</button>`:''}
-            ${p.status==='approved'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
+            ${socIsVideo(p) && p.status!=='sent' && p.status!=='queued' ? `<button class="btn ghost small" id="socReedit" ${busy||['pending','running'].includes((socReeditJob(p)||{}).status)?'disabled':''}>Save and re-edit video</button>` : ''}
+            ${p.status==='approved'||socUnsent(p)?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Back to draft</button>`:''}
             ${p.status==='skipped'?`<button class="btn ghost small" data-soc-set="${esc(p.id)}" data-val="draft" ${busy?'disabled':''}>Bring back</button>`:''}
             ${p.status==='draft'||p.status==='approved'||p.status==='extra'?`<button class="linkbtn" data-soc-clear="${esc(p.id)}" ${busy?'disabled':''}>Clear this post</button>`:''}
           </div>`}
@@ -8375,6 +8425,9 @@ function socJobNote(){
       : x.status === 'ready' ? 'More options are ready' + (x.note ? ': ' + x.note : '') + '. Click Import folder and pick that folder.'
       : 'More options did not finish' + (x.note ? ': ' + x.note : '.'));
   }
+  const re = jobs.filter(j => j.kind === 'reedit' && ['pending','running','ready','failed'].includes(j.status));
+  const reReady = re.filter(j => j.status === 'ready').length;
+  if(reReady) out.push(`${reReady} re-edited video${reReady===1?' is':'s are'} ready. Open the post and click Replace on the video.`);
   const s = jobs.find(j => j.kind === 'send' || j.kind === 'send_cloud');
   const fresh = s && s.finished_at && (Date.now() - new Date(s.finished_at)) < 864e5;
   if(s && (s.status !== 'done' || fresh)){
@@ -8454,6 +8507,35 @@ async function saveSocialMix(){
   S.socBusy = ''; render();
 }
 
+/* The brand's standing video preferences. Every generate, extras and
+   re-edit job carries them as options.video_style. */
+function socStyleLine(){
+  const form = S.socStyleOpen ? `<div class="socmixform">
+      <b style="font-size:13px">${esc(SOC_BRANDS[SOC_BRAND])} video style</b>
+      <p class="hint" style="margin:4px 0 0">How every video should be cut unless a post says otherwise: length, pace,
+        what to leave out, music or sound, text on screen, the opening and the ending.</p>
+      <textarea id="socStyleText" placeholder="For example: 15 to 25 seconds. Open on the most dramatic shot, no slow drone intros. Cut out anyone without PPE, people's faces and house numbers. No music, natural sound only. Logo on the last 2 seconds.">${esc(S.socStyleForm)}</textarea>
+      <div class="actions"><button class="btn small" id="socStyleSave" ${S.socBusy?'disabled':''}>Save video style</button>
+        <button class="linkbtn" id="socStyleClose">Cancel</button></div>
+    </div>` : '';
+  return `<p class="socmix"><span>Video style:</span>
+      <span>${S.socStyle ? esc(S.socStyle.length > 110 ? S.socStyle.slice(0,110) + '\u2026' : S.socStyle) : 'Not set, so the laptop picks the cuts itself'}</span>
+      <button class="linkbtn" id="socStyleOpen">${S.socStyle ? 'Change' : 'Set video style'}</button></p>${form}`;
+}
+async function saveSocialStyle(){
+  if(S.socBusy) return;
+  const style = String(S.socStyleForm || '').trim();
+  S.socBusy = 'style'; S.socErr = ''; render();
+  try{
+    const { error } = await sb.from('social_settings').upsert({
+      brand: SOC_BRAND, video_style: style || null, updated_at: new Date().toISOString(), updated_by: await socWho() });
+    if(error) throw error;
+    S.socStyle = style; S.socStyleOpen = false;
+    S.socNote = style ? 'Video style saved. New videos and re-edits will follow it.' : 'Video style cleared.';
+  }catch(err){ S.socErr = 'The video style did not save: ' + (err.message || err); }
+  S.socBusy = ''; render();
+}
+
 function pageSocial(){
   if(!S.loaded.social) return loading();
   const all = S.social || [];
@@ -8466,8 +8548,8 @@ function pageSocial(){
   const extras = count('extra');
   const xOpen = (S.socJobs||[]).some(j => j.kind==='extras' && ['pending','running','ready'].includes(j.status));
   const approved = count('approved');
-  const sendable = all.filter(socSendable).length;
-  const waiting = approved - sendable;
+  const waiting = all.filter(socAwaitingReview).length;
+  const pastDue = all.filter(p => p.status === 'approved' && socPast(p)).length;
   const drafts = count('draft');
   const rev = socIsReviewer();
   const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
@@ -8496,16 +8578,19 @@ function pageSocial(){
               title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
-      ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}>Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}
-      <button class="btn small" id="socSend" ${busy||!sendable?'disabled':''}
-              ${waiting?`title="${waiting} approved post${waiting===1?' is':'s are'} waiting on review"`:''}>Send ${sendable||''} ${socNeedsReview()?'reviewed':'approved'} to Metricool</button>`}
+      ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}
+              title="Approved posts go to Metricool as drafts on their own${socNeedsReview()?', once reviewed':''}.">Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}`}
     </div>
     ${rev ? socReviewerTodo(all)
-      : waiting ? `<p class="hint" style="margin:0 0 14px">${waiting} approved post${waiting===1?' is':'s are'} waiting on ${esc(socReviewerName((S.socReviewers[0]||{}).email))} to review before they can be sent.</p>` : ''}
+      : `<p class="hint" style="margin:0 0 14px">Approved posts go to Metricool as drafts on their own, within the hour between 7 AM and 7 PM${
+          socNeedsReview() ? ', once ' + esc(socReviewerName((S.socReviewers[0]||{}).email)) + ' marks them OK to post' : ''}.${
+          waiting ? ` <b>${waiting} approved post${waiting===1?' is':'s are'} waiting on review.</b>` : ''}${
+          pastDue ? ` <b>${pastDue} approved post${pastDue===1?' is':'s are'} dated before today and won't go. Give ${pastDue===1?'it':'them'} a new date or clear ${pastDue===1?'it':'them'}.</b>` : ''}</p>`}
 
     ${socResultsStrip()}
     <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
     ${S.socFilter !== 'results' && all.length ? socFocusChips(byStatus) + socMixLine(live) : ''}
+    ${!rev && S.socFilter !== 'results' ? socStyleLine() : ''}
 
     ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
     ${S.socNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.socNote)}</p></div>`:''}
@@ -8537,11 +8622,11 @@ function socOpen(id){
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
   S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '', focus: p.focus || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '',
-                review_note: p.review_note || '' };
+                review_note: p.review_note || '', edit_notes: p.edit_notes || '' };
   render();
 }
 
-async function saveSocial(status, review){
+async function saveSocial(status, review, reedit){
   const id = S.socOpenId;
   if(!id || S.socBusy) return;
   const f = S.socForm;
@@ -8551,6 +8636,8 @@ async function saveSocial(status, review){
   if(!rev && !isExtra && !f.post_date){ S.socErr = 'Pick a post date.'; return render(); }
   if(review === 'changes' && !String(f.review_note||'').trim()){
     S.socErr = 'Say what needs to change, so it can be fixed.'; return render(); }
+  if(reedit && !String(f.edit_notes||'').trim() && !S.socStyle){
+    S.socErr = 'Say how the video should be edited, or set a video style for the brand.'; return render(); }
   S.socBusy = id; S.socErr = ''; render();
   try{
     /* An extra keeps its placeholder date until it is given a slot. Picking
@@ -8562,6 +8649,7 @@ async function saveSocial(status, review){
                     hashtags: String(f.hashtags||'').trim() || null,
                     hashtags_li: String(f.hashtags_li||'').trim() || null };
     if(!rev){
+      patch.edit_notes = String(f.edit_notes||'').trim() || null;
       if(when){ patch.post_date = when; patch.month = when.slice(0,7); }
       if(isExtra && when) patch.status = 'draft';
       if(status) patch.status = status;
@@ -8569,13 +8657,29 @@ async function saveSocial(status, review){
     if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
     const { error } = await sb.from('social_posts').update(patch).eq('id', id);
     if(error) throw error;
-    S.socNote = review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
+    if(reedit){
+      const vid = socMedia(cur).find(m => m.kind === 'video') || socMedia(cur)[0] || {};
+      const r = await sb.from('social_jobs').insert({
+        kind:'reedit', brand: SOC_BRAND, month: patch.month || cur.month, status:'pending', requested_by: await socWho(),
+        options: { post_id: id, folder: cur.source_key || null, file: vid.file_name || null,
+                   source_path: vid.source_path || null, storage_path: vid.storage_path || null,
+                   notes: patch.edit_notes, video_style: S.socStyle || null } });
+      if(r.error) throw r.error;
+    }
+    S.socNote = reedit ? 'Saved. Re-edit requested; the new cut shows up on this post when it is ready.'
+      : review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
-      : status === 'approved' ? 'Saved and approved.' : 'Saved.';
+      : status === 'approved' ? 'Saved and approved. ' + socAfterApprove() : 'Saved.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = 'That did not save: ' + (err.message || err); }
   S.socBusy = ''; render();
+}
+
+function socAfterApprove(many){
+  return socNeedsReview()
+    ? (many ? 'Each one goes' : 'It goes') + ' to Metricool as a draft once it is marked OK to post.'
+    : (many ? 'They go to Metricool as drafts' : 'It goes to Metricool as a draft') + ' within the hour, between 7 AM and 7 PM.';
 }
 
 async function socReviewOk(id){
@@ -8596,7 +8700,7 @@ async function setSocialStatus(id, status){
   try{
     const { error } = await sb.from('social_posts').update({ status }).eq('id', id);
     if(error) throw error;
-    S.socNote = status === 'approved' ? 'Approved.' : status === 'skipped' ? 'Cleared.' : 'Back to draft.';
+    S.socNote = status === 'approved' ? 'Approved. ' + socAfterApprove() : status === 'skipped' ? 'Cleared.' : 'Back to draft.';
     S.socOpenId = null;
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
@@ -8655,7 +8759,7 @@ async function approveAllSocial(){
     const { error } = await sb.from('social_posts').update({ status:'approved' })
       .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'draft');
     if(error) throw error;
-    S.socNote = 'All drafts approved.';
+    S.socNote = 'All drafts approved. ' + socAfterApprove(true);
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
   S.socBusy = ''; render();
@@ -8696,6 +8800,10 @@ async function socReplace(mediaId, file){
     /* The old file is no longer referenced. Removing it is tidy-up, so a
        failure here is not worth stopping for. */
     try{ await sb.storage.from(SOC_BUCKET).remove([m.storage_path]); }catch(e){}
+    /* A re-edit waiting to be brought in is done once its video is swapped. */
+    const rj = socReeditJob(p);
+    if(rj && rj.status === 'ready' && m.kind === 'video')
+      await sb.from('social_jobs').update({ status:'done', finished_at: new Date().toISOString() }).eq('id', rj.id);
     await socSyncFormat(p.id);
     await reloadSocial();
   }catch(err){ S.socErr = 'The swap did not go through: ' + (err.message || err); }
@@ -8770,20 +8878,17 @@ async function requestSocialJob(kind){
   S.socBusy = 'job'; S.socErr = ''; S.socNote = ''; render();
   try{
     const who = await socWho();
-    if(kind === 'send'){
-      let q = sb.from('social_posts').update({ status:'queued' })
-        .eq('brand', SOC_BRAND).eq('month', S.socMonth).eq('status', 'approved');
-      if(socNeedsReview()) q = q.eq('review_status', 'ok');
-      const { error } = await q;
-      if(error) throw error;
-    }
-    const jobKind = kind === 'send' ? 'send_cloud' : kind;
-    const open = (S.socJobs||[]).find(j => j.kind === jobKind && j.status === 'pending');
+    const open = (S.socJobs||[]).find(j => j.kind === kind && j.status === 'pending');
     if(!open){
-      const options = (kind === 'generate' || kind === 'extras') && Object.keys(socMixTargets()).length
-        ? { mix: socMixTargets() } : null;
+      let options = null;
+      if(kind === 'generate' || kind === 'extras'){
+        options = {};
+        if(Object.keys(socMixTargets()).length) options.mix = socMixTargets();
+        if(S.socStyle) options.video_style = S.socStyle;
+        if(!Object.keys(options).length) options = null;
+      }
       const { error } = await sb.from('social_jobs').insert({
-        kind: jobKind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
+        kind, brand: SOC_BRAND, month: S.socMonth, status:'pending', requested_by: who, options });
       if(error) throw error;
     }
     await reloadSocial();
@@ -8886,7 +8991,7 @@ function wireSocial(){
       SOC_BRAND = b; SOC_FOCUS = SOC_FOCUS_BY[b];
       try{ localStorage.setItem('socBrand', b); }catch(e){}
       Object.assign(S, { socNote:'', socErr:'', socFilter:'all', socFocus:'all', socOpenId:null,
-                         socClearId:null, socMixOpen:false });
+                         socClearId:null, socMixOpen:false, socStyleOpen:false });
       S.loaded.social = false; render();
       try{ await loadSocial(); }
       catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
@@ -8953,7 +9058,17 @@ function wireSocial(){
     el.addEventListener('input',()=>{ S.socMixForm[el.dataset.socmix] = el.value; }));
   const ms = document.getElementById('socMixSave');
   if(ms) ms.addEventListener('click', saveSocialMix);
-  bind('socTags','hashtags'); bind('socTagsLi','hashtags_li');
+  bind('socTags','hashtags'); bind('socTagsLi','hashtags_li'); bind('socEdit','edit_notes');
+  const rx = document.getElementById('socReedit');
+  if(rx) rx.addEventListener('click',()=> saveSocial(null, null, true));
+  const so = document.getElementById('socStyleOpen');
+  if(so) so.addEventListener('click',()=>{ S.socStyleOpen = !S.socStyleOpen; S.socStyleForm = S.socStyle; render(); });
+  const sc = document.getElementById('socStyleClose');
+  if(sc) sc.addEventListener('click',()=>{ S.socStyleOpen = false; render(); });
+  const st = document.getElementById('socStyleText');
+  if(st) st.addEventListener('input',()=>{ S.socStyleForm = st.value; });
+  const ss = document.getElementById('socStyleSave');
+  if(ss) ss.addEventListener('click', saveSocialStyle);
 
   const cl = document.getElementById('socClose');
   if(cl) cl.addEventListener('click',()=>{ S.socOpenId = null; S.socErr = ''; render(); });
@@ -8974,8 +9089,6 @@ function wireSocial(){
 
   const ge = document.getElementById('socGenerate');
   if(ge) ge.addEventListener('click',()=> requestSocialJob('generate'));
-  const se = document.getElementById('socSend');
-  if(se) se.addEventListener('click',()=> requestSocialJob('send'));
   const aa = document.getElementById('socApproveAll');
   if(aa) aa.addEventListener('click', approveAllSocial);
   const im = document.getElementById('socImport');
@@ -9198,6 +9311,159 @@ function ecBoldStarter(brand){
   intro.text = 'Hi *|FNAME|*,\n\nA short opening that sets up the three points below.';
   return [o.phone ? ecBlock('callbar', brand) : null, head, ecBlock('hero', brand), intro, ...cards,
     ecBlock('pair', brand), ecBlock('buttons', brand), ecBlock('signoff', brand), ecBlock('brandfooter', brand)].filter(Boolean);
+}
+
+/* ---------- news templates ----------
+   Ready-made emails for the usual kinds of news, built from the same bold
+   blocks so everything stays editable. Square-bracket bits are the parts to
+   fill in; the review check will not let an email go out with one left. */
+const EC_TEMPLATES = {
+  haggerty: [
+    { key:'win', name:'Project win', use:'We were awarded a job or signed a new client.',
+      subject:'HAGGERTY selected to build [Project name]', preview:'[Owner] picked HAGGERTY for [project type] in [City].' },
+    { key:'done', name:'Project completed', use:'A job just wrapped. Show the finished space.',
+      subject:'Finished: [Project name] in [City]', preview:'[Size] of [project type], done on schedule.' },
+    { key:'event', name:'Event invite', use:'Open house, ribbon cutting, mixer or lunch and learn.',
+      subject:"You're invited: [Event name] on [Date]", preview:'Join the HAGGERTY team at [Place]. Save your spot.' },
+    { key:'team', name:'Team news and hiring', use:'A new hire, a promotion, or open roles.',
+      subject:'Meet [Name], our new [Role]', preview:'Plus the roles we are hiring for right now.' },
+    { key:'roundup', name:'News roundup', use:'Three things worth sharing, once a month or a quarter.',
+      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' }
+  ],
+  rhino: [
+    { key:'season', name:'Seasonal push', use:'Storm, freeze, wildfire or mold season reminders.',
+      subject:'Is your property ready for storm season?', preview:'Three things to check before the first big rain.' },
+    { key:'job', name:'Job spotlight', use:'A restoration job with before and after photos.',
+      subject:'Before and after: [Loss type] at [Property type] in [City]', preview:'How we had [Property] back open in [Number] days.' },
+    { key:'event', name:'Event or CE class', use:'Lunch and learn, CE credit class, or trade show booth.',
+      subject:'Free lunch and learn for property managers: [Date]', preview:'[Topic], with lunch on us. Seats are limited.' },
+    { key:'news', name:'Company news', use:'New certification, equipment, location or team member.',
+      subject:'[News headline]', preview:'What it means for your properties.' },
+    { key:'ready', name:'Save our number', use:'A short 24/7 reminder to keep RHINO on the vendor list.',
+      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' }
+  ]
+};
+function ecTemplateBlocks(brand, key){
+  const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
+  const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
+  const head = B('header');
+  if(o.logo){ head.logo = o.logo; head.bg = '#FFFFFF'; }
+  const top = [o.phone ? B('callbar') : null, head];
+  const end = [B('signoff'), B('brandfooter')];
+  const call = o.phone ? { label:'Call ' + o.phone, href:'tel:' + o.phone } : { label:'Get in touch', href:EC_BRANDS[brand].site };
+  const T = {
+    'haggerty:win': [
+      B('hero', { eyebrow:'Project award', title:'HAGGERTY selected to build [Project name]',
+        text:'[Owner] picked our team for a [size] [project type] in [City]. Work starts [Month].', label:'See our work', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\nWe wanted you to hear it from us first. [One or two sentences on why this job matters: the client, the community, the kind of work.]' }),
+      B('card', { eyebrow:'The project', title:'[Project name], [City]', text:'**Scope:** [What we are building]\n\n**Size:** [Square feet or value]\n**Timeline:** [Start] to [Finish]' }),
+      B('card', { eyebrow:'Why it matters', title:'[A short, plain headline]', text:'[Two or three sentences: a first for us, a repeat client, a local landmark, jobs it brings.]' }),
+      B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:done': [
+      B('hero', { eyebrow:'Project completed', title:'[Project name] is open',
+        text:'[Size] of [project type] in [City], handed over [on schedule / ahead of schedule].', label:'See the project', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One or two sentences about the job and the client.]' }),
+      B('pair', { label:'During construction', label2:'Finished', caption:'[One line about the photos.]' }),
+      B('checklist', { title:'By the numbers', items:'[Size] square feet\n[Number] days from start to finish\n[Number] local trades on site\n[Safety stat, e.g. zero lost-time incidents]' }),
+      B('card', { eyebrow:'From the owner', title:'"[A short quote from the client.]"', text:'[Name], [Title], [Company]' }),
+      B('buttons', { label:'See the project', href:EC_BRANDS.haggerty.site, label2:'Start your project', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:event': [
+      B('hero', { eyebrow:"You're invited", title:'[Event name]',
+        text:'[Date] at [Time], [Place]. [One line on why to come.]', label:'Save my spot', href:'mailto:[you@haggertybuilds.com]?subject=RSVP' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the event is, who will be there, what they get out of it.]' }),
+      B('card', { eyebrow:'When and where', title:'[Day, Month Date]', text:'**Time:** [Start] to [End]\n**Place:** [Venue, address]\n**Parking:** [Where to park]' }),
+      B('checklist', { title:'What to expect', items:'[Tour of the site or office]\n[Food and drinks]\n[Meet the project team]' }),
+      B('buttons', { label:'Save my spot', href:'mailto:[you@haggertybuilds.com]?subject=RSVP', label2:'Event details', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:team': [
+      B('hero', { eyebrow:'Team news', title:'Meet [Name], our new [Role]',
+        text:'[One line on what they will do for our clients.]', label:'See open roles', href:EC_BRANDS.haggerty.site }),
+      B('spotlight', { title:'[Name], [Role]', text:'[Two or three sentences: background, past projects, what they are excited about.]', link:'Say hello', href:'mailto:[name@haggertybuilds.com]' }),
+      B('divider'),
+      B('checklist', { title:"We're hiring", items:'[Role], [City]\n[Role], [City]\n[Role], [City]' }),
+      B('text', { text:'Know someone who would fit? Forward this email or send them to [our careers page](' + EC_BRANDS.haggerty.site + ').' }),
+      B('buttons', { label:'See open roles', href:EC_BRANDS.haggerty.site, label2:'Refer someone', href2:'mailto:[you@haggertybuilds.com]?subject=Referral' })
+    ],
+    'haggerty:roundup': [
+      B('hero', { eyebrow:'[Month] news', title:"What we've been building",
+        text:'Three quick updates from the HAGGERTY team.', label:'See our work', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One line to open the roundup.]' }),
+      B('spotlight', { title:'[Story 1 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('divider'),
+      B('spotlight', { title:'[Story 2 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('divider'),
+      B('spotlight', { title:'[Story 3 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
+    ],
+    'rhino:season': [
+      B('hero', { eyebrow:'[Storm] season', title:'Is your property ready for [storm season]?',
+        text:'Three things to check before the first [big rain], and who to call if it gets in.', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One or two sentences: what the season brings and what it costs a property when it goes wrong.]' }),
+      B('card', { eyebrow:'Check 1', title:'[Roofs, drains and gutters]', text:'[What to look for.]\n\n**What we do:** [How RHINO helps.]' }),
+      B('card', { eyebrow:'Check 2', title:'[Low spots and crawlspaces]', text:'[What to look for.]\n\n**What we do:** [How RHINO helps.]' }),
+      B('card', { eyebrow:'Check 3', title:'[A plan for after hours]', text:'[What to look for.]\n\n**What we do:** We answer 24/7 and are on site fast.' }),
+      B('checklist', { title:'Before the first big storm' }),
+      B('buttons', { ...call, label2:'Book a walk-through', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:job': [
+      B('hero', { eyebrow:'Job spotlight', title:'[Loss type] at a [property type] in [City]',
+        text:'[Property] was back open in [Number] days.', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One line on why this job is worth sharing.]' }),
+      B('pair', { caption:'[One line about the photos.]' }),
+      B('card', { eyebrow:'What happened', title:'[A short, plain headline]', text:'[Two sentences on the loss: what, when, how bad.]' }),
+      B('card', { eyebrow:'What we did', title:'[A short, plain headline]', text:'[Two or three sentences: response time, drying, demo, rebuild.]' }),
+      B('card', { eyebrow:'The result', title:'[A short, plain headline]', text:'[Days to reopen, claim handled direct with insurance, tenant impact.]' }),
+      B('buttons', { ...call, label2:'See more jobs', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:event': [
+      B('hero', { eyebrow:'Free for property managers', title:'[Lunch and learn: Topic]',
+        text:'[Date] at [Time], [Place]. Lunch is on us.', label:'Save my seat', href:'mailto:[you@rhinorestores.com]?subject=RSVP' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two sentences: what the class covers and who should come.]' }),
+      B('card', { eyebrow:'When and where', title:'[Day, Month Date]', text:'**Time:** [Start] to [End]\n**Place:** [Venue, address]\n**CE credit:** [Hours, if any]' }),
+      B('checklist', { title:"What you'll learn", items:'[What to do in the first hour of a water loss]\n[How insurance claims work with a restoration vendor]\n[How to spot mold before tenants do]' }),
+      B('buttons', { label:'Save my seat', href:'mailto:[you@rhinorestores.com]?subject=RSVP', label2:'Call us', href2:'tel:' + o.phone })
+    ],
+    'rhino:news': [
+      B('hero', { eyebrow:'RHINO news', title:'[News headline]',
+        text:'[One line: what changed and what it means for your properties.]', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences with the details.]' }),
+      B('spotlight', { title:'[Who or what]', text:'[Two sentences: a new certification, truck, location or team member.]', link:'Learn more' }),
+      B('card', { eyebrow:'What it means for you', title:'[A short, plain headline]', text:'[Two sentences on the benefit to a property manager.]' }),
+      B('buttons', { ...call, label2:'See our work', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:ready': [
+      B('hero', { eyebrow:'24/7 emergency response', title:'Save this number before you need it',
+        text:'Water, fire or mold, day or night. One call and we are on the way.', ...call }),
+      B('card', { eyebrow:'We answer', title:'A real person, 24/7', text:'[One or two sentences on response time.]' }),
+      B('card', { eyebrow:'We handle the claim', title:'We bill your insurance directly', text:'[One or two sentences on paperwork and adjusters.]' }),
+      B('card', { eyebrow:'We are certified', title:'IICRC certified crews', text:'[One or two sentences on training and standards.]' }),
+      B('checklist', {}),
+      B('buttons', { ...call, label2:'Add us as a vendor', href2:EC_BRANDS.rhino.site })
+    ]
+  };
+  const mid = T[brand + ':' + key];
+  return mid ? [...top, ...mid, ...end].filter(Boolean) : null;
+}
+// Unfilled [placeholders] left in an email, so it cannot go out half done.
+function ecLeftovers(c){
+  const words = [c.subject, c.preview_text, JSON.stringify(c.blocks || [])].join(' ');
+  return (words.match(/\[[^\]\n"]{1,60}\](?!\()/g) || []).filter((v, n, a) => a.indexOf(v) === n);
+}
+// Thumbnail of a template, with grey stand-ins where the photos go.
+const EC_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><rect width="600" height="340" fill="#8A8580"/><text x="300" y="182" font-family="Arial" font-size="28" fill="#E9E5DF" text-anchor="middle">Photo</text></svg>');
+function ecTemplateHtml(brand, key){
+  const blocks = ecTemplateBlocks(brand, key).map(b => {
+    const x = { ...b };
+    if(x.type === 'hero' || x.type === 'pair' || x.type === 'spotlight') x.src = x.src || EC_PHOTO;
+    if(x.type === 'pair') x.src2 = x.src2 || EC_PHOTO;
+    if(x.type === 'header' && brand === 'haggerty') x.logo = LOGO;
+    if(EC_FOOTERS.includes(x.type) && EC_BRANDS[brand].badge) x.badge = EC_BRANDS[brand].badge.data;
+    return x;
+  });
+  const t = EC_TEMPLATES[brand].find(x => x.key === key);
+  return ecHtml({ brand, accent:EC_BRANDS[brand].bold.accent, blocks, subject:t.subject, preview_text:t.preview }, true);
 }
 
 /* ---------- email HTML ---------- */
@@ -9437,7 +9703,9 @@ function ecReadyProblem(c){
   if(!c.subject) missing.push('a subject line');
   if(!c.from_name) missing.push('a from name');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.reply_to || '')) missing.push('a reply-to address');
-  return missing.length ? 'Add ' + missing.join(', ') + ' first.' : '';
+  if(missing.length) return 'Add ' + missing.join(', ') + ' first.';
+  const left = ecLeftovers(c);
+  return left.length ? 'Fill in the bracketed parts first: ' + left.slice(0, 4).join(', ') + (left.length > 4 ? ' and ' + (left.length - 4) + ' more.' : '.') : '';
 }
 async function ecSetReview(fields, note){
   const E = ecState();
@@ -9511,8 +9779,9 @@ function ecStatusLine(){
   el.textContent = E.saving ? 'Saving…' : E.dirty ? 'Unsaved changes' : E.saved ? 'Saved ' + fmtTime(E.saved.toISOString()) : '';
 }
 
-async function ecNew(brand, layout){
+async function ecNew(brand, layout, tpl){
   const E = ecState();
+  const t = tpl && (EC_TEMPLATES[brand] || []).find(x => x.key === tpl);
   const a = (S.mc && S.mc.audiences || []).find(x => !String(x.list_id).startsWith('seed-')) || {};
   const row = {
     brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
@@ -9520,6 +9789,8 @@ async function ecNew(brand, layout){
     list_id: a.list_id || null, accent: layout === 'bold' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
     blocks: layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
   };
+  if(t) Object.assign(row, { title:(brand === 'rhino' ? 'RHINO ' : 'HAGGERTY ') + t.name + ' ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
+    subject:t.subject, preview_text:t.preview, accent:EC_BRANDS[brand].bold.accent, blocks:ecTemplateBlocks(brand, t.key) });
   E.busy = 'new'; render();
   const head = row.blocks.find(x => x.type === 'header');
   if(brand === 'haggerty' && head) head.logo = await ecLogoUrl().catch(() => '');
@@ -9654,6 +9925,7 @@ function ecAudiences(){ return (S.mc && S.mc.audiences) || []; }
 
 function ecListPage(){
   const E = ecState();
+  const tb = E.tbrand || 'haggerty';
   const rows = E.list.map(c => {
     const st = EC_STATUS[c.status] || EC_STATUS.draft;
     return `<div class="ec-item">
@@ -9688,7 +9960,16 @@ function ecListPage(){
     </div>
     ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
     ${E.loadErr ? `<p class="hint err">Campaigns could not load: ${esc(E.loadErr)}</p>` : ''}
-    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>No campaigns yet</h2><p>Start one with the buttons above.</p></div>`}
+    <div class="ec-head" style="margin:6px 0 0;align-items:center">
+      <div><h3 class="ec-h3">Start from a template</h3>
+        <p class="hint" style="margin:0">Pick the kind of news. Fill in the [bracketed] parts and add photos.</p></div>
+      <div class="actions" style="margin:0">${['haggerty', 'rhino'].map(k => `<button class="btn small ${tb === k ? 'accent' : 'ghost'}" data-ec-tbrand="${k}">${esc(EC_BRANDS[k].name)}</button>`).join('')}</div>
+    </div>
+    <div class="ec-tpls">${EC_TEMPLATES[tb].map(t => `<button class="ec-tpl" data-ec-new="${tb}" data-layout="bold" data-tpl="${t.key}" ${E.busy ? 'disabled' : ''}>
+      <div class="ec-thumb"><iframe data-ec-thumb="${tb}:${t.key}" title="${esc(t.name)} preview" sandbox="" tabindex="-1" loading="lazy"></iframe></div>
+      <div class="ec-tpl-txt"><b>${esc(t.name)}</b><span>${esc(t.use)}</span></div></button>`).join('')}</div>
+    <h3 class="ec-h3">Your emails</h3>
+    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>No campaigns yet</h2><p>Start one from a template above, or with the buttons at the top.</p></div>`}
   </main>`;
 }
 
@@ -9919,7 +10200,9 @@ function ecPreview(){
 function wireCampaigns(){
   if(S.page !== 'campaigns') return;
   const E = ecState();
-  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew, b.dataset.layout)));
+  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew, b.dataset.layout, b.dataset.tpl)));
+  document.querySelectorAll('[data-ec-thumb]').forEach(f => { const [b, k] = f.dataset.ecThumb.split(':'); f.srcdoc = ecTemplateHtml(b, k); });
+  document.querySelectorAll('[data-ec-tbrand]').forEach(b => b.addEventListener('click', () => { ecState().tbrand = b.dataset.ecTbrand; render(); }));
   document.querySelectorAll('[data-ec-open]').forEach(b => b.addEventListener('click', () => ecOpen(b.dataset.ecOpen)));
   if(!E.cur) return;
   const c = E.cur;
