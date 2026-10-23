@@ -31,6 +31,9 @@
        never defined, so every border and font that used them silently
        dropped out. Pointing them at the real tokens brings them back. */
     --line:var(--rule); --sans:var(--body);
+    /* The review-card border (.ec-review) asked for --accent, which was
+       never defined, so the border silently fell back to currentColor. */
+    --accent:#F68922;
   }
   /* Dark mode. Follows the computer's setting unless someone picks Light
      or Dark in the sidebar, which sets data-theme on <html>. */
@@ -43,6 +46,7 @@
     --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
     --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
     --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    --accent:#F9A75C;
     color-scheme:dark }}
   :root[data-theme="dark"]{
     --ink:#EEEAE4; --paper:#151413; --card:#1E1D1B;
@@ -53,6 +57,7 @@
     --hover:#262422; --gold-active:#4A3014; --hot-ink:#F9B572;
     --on-ink:#1C1B1A; --ink-strong:#FFFFFF;
     --rail:#0F0E0D; --rail-on:#24221F; --rail-rule:#2A2825;
+    --accent:#F9A75C;
     color-scheme:dark }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -119,6 +124,8 @@
   .stat .v{font-family:var(--display);font-size:31px;font-weight:700;line-height:1.15;margin-top:2px}
   .stat .v small{font-size:15px;color:var(--slate);font-weight:600}
   .stat.accent .v{color:var(--orange-ink)}
+  /* Eight-figure dollar amounts ran past the screen edge on a phone. */
+  @media (max-width:480px){ .stat .v{font-size:24px;overflow-wrap:anywhere} }
 
   /* ---------- board ---------- */
   .split{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 54px)}
@@ -167,6 +174,8 @@
   .who .role{color:var(--grey);font-size:15px}
   .who .org-line{margin-top:2px;font-size:14px;color:var(--slate)}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:13px 0 0}
+  .clicks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 0}
+  .clicks .eyebrow{font-size:11.5px;color:var(--orange-ink)}
   .chip{font-family:var(--mono);font-size:11px;border:1px solid var(--rule);
         padding:3px 7px;color:var(--slate);background:var(--card);text-decoration:none}
   .chip.hot{border-color:var(--orange);color:var(--hot-ink);background:var(--orange-tint)}
@@ -1121,6 +1130,14 @@
   @media (max-width:1080px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width:420px){ .kpis{gap:8px} .kpi{padding:11px 12px 8px} }
   .stages{display:flex;flex-direction:column;gap:9px}
+  .cols > *,.cols3 > *{min-width:0}
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+  .scroll-x > table{min-width:460px}
+  .kpi-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:24px}
+  .kpi-charts .panel{margin:0}
+  .kpi-charts .panel-head{flex-wrap:wrap;row-gap:2px}
+  .kpi-charts .panel-head .hint{font-family:var(--mono);font-size:11.5px}
+  @media (max-width:760px){ .kpi-charts{grid-template-columns:minmax(0,1fr)} }
   .stage{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 6.5em;gap:10px;align-items:center;font-size:13px}
   .stage-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .stage-bar{height:14px;background:var(--wash);border-radius:3px;overflow:hidden}
@@ -1188,9 +1205,16 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 /* A social reviewer (sql/social_review.sql) sees the Social tab and the
    emails sent to them for review, locked to their brand. */
 const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns')
-  : (S.me === 'pat' ? PAGES.filter(([k]) => !OWNERS[k]) : PAGES)
+  : PAGES.filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
+
+/* A day list is its owner's. Liam runs both lists, so he can see and
+   work Iyanna's; Iyanna sees only her own, and Pat neither. The handlers
+   check canEditTasks as well, so a stale tab or a hand-typed #myday
+   cannot add to or tick someone else's list. */
+function canSeeDay(owner){ return S.me === 'liam' || S.me === owner; }
+const canEditTasks = canSeeDay;
 
 /* Every n8n call carries the signed-in session, so the workflows can
    refuse anyone who is not logged in to this dashboard. */
@@ -2520,6 +2544,12 @@ function apvChain(row){
   return chain;   // newest previous version first
 }
 
+/* Nobody signs off their own request. The buttons are hidden on cards
+   the signed-in person sent, and decideApproval refuses them too. */
+function apvMine(a){
+  return !!S.email && String(a.requested_by || '').trim().toLowerCase() === S.email;
+}
+
 function apvPendingCount(){
   return apvCurrent().filter(a => a.status === 'pending').length;
 }
@@ -2631,7 +2661,7 @@ async function saveApvCost(id, field, el){
 async function decideApproval(id, status){
   if(S.apvBusy) return;
   const row = (S.approvals||[]).find(a => a.id === id);
-  if(!row) return;
+  if(!row || apvMine(row)) return;
 
   let feedback = null;
   if(status === 'changes'){
@@ -2874,14 +2904,16 @@ async function loadKpis(){
     sb.from('kpi_manual').select('*').eq('year', yr).order('quarter'),
     sb.from('v_board_columns').select('*').order('order_nr'),
     sb.from('v_deal_board').select('*').eq('status','open'),
-    sb.from('pipedrive_users').select('*').eq('active', true)
+    sb.from('pipedrive_users').select('*').eq('active', true),
+    sb.from('kpi_config').select('key,value')
   ]);
   S.kpi = {
     score: score.data || [], quarters: quarters.data || [],
     monthly: monthly.data || [], outcomes: outcomes.data || {},
     open: open.data || {}, stages: stages.data || [],
     targets: targets.data || [], manual: manual.data || [], year: yr,
-    cols: cols.data || [], board: board.data || [], users: users.data || []
+    cols: cols.data || [], board: board.data || [], users: users.data || [],
+    config: Object.fromEntries((config.data || []).map(r => [r.key, r.value]))
   };
   if(!S.boardPipe){
     const pref = (S.kpi.targets.find(t=>t.pipeline_name)||{}).pipeline_name;
@@ -2909,6 +2941,8 @@ async function crmSearch(q){
 
   S.crmHits = error ? [] : (data || []);
   S.crmErr  = error ? error.message : '';
+  await loadClicks(S.crmHits.filter(h => h.kind !== 'company').map(h => h.id)).catch(() => {});
+  if(seq !== S.crmSeq) return;
   S.crmBusy = false;
   S.crmFocus = true; render(); S.crmFocus = false;
 }
@@ -3155,6 +3189,8 @@ const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
                       : me === 'iyanna' ? ['iyanna','reels','social','leads']
+                      /* Liam's own Home and Day lead; Outreach is Pat's. */
+                      : me === 'liam'   ? ['home','myday','approvals','kpis']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
@@ -3684,7 +3720,6 @@ function wirePage(){
 /* ================= today ================= */
 function pageToday(){
   if(!S.loaded.board) return loading();
-  const todayEvents = (S.week||[]).filter(e => dayKey(e.starts_at)===dayKey(new Date().toISOString()));
   const ds = dayStats(S.me);
 
   const side = `
@@ -4023,7 +4058,8 @@ function detailHtml(){
   const head = `<div class="who"><h1>${esc(r.full_name||'Unknown contact')}</h1>
     <div class="role">${esc(r.title||'No title on file')}</div>
     <div class="org-line">${esc(r.company_name||'')} &middot; <span class="mono">${esc(r.email)}</span></div>
-    <div class="chips">${chips}${isFollow?`<span class="chip hot">Follow-up ${esc(r.touch)}</span>`:''}</div></div>
+    <div class="chips">${chips}${isFollow?`<span class="chip hot">Follow-up ${esc(r.touch)}</span>`:''}</div>
+    ${clicksHtml(r.contact_id)}</div>
     ${warnBlock(r) ? `<div style="margin-top:16px">${warnBlock(r)}</div>` : ''}
     ${prevEmail(r)}
     <div class="panelbox"><span class="eyebrow">What we know</span>
@@ -4503,7 +4539,7 @@ function apvFileBlock(a){
     bits.push(`<div class="apv-file">
       ${url ? `<a class="chip" href="${esc(url)}" target="_blank" rel="noopener">Open ${esc(a.file_name)}</a>`
             : `<span class="chip">${esc(a.file_name)}</span>`}
-      ${(url && !isImg) ? `<span class="hint">Opens in a new tab. The link expires after an hour, so reopen the page if it stops working.</span>` : ''}
+      ${(url && !isImg) ? `<span class="hint">Opens in a new tab. The link renews itself while this page is open.</span>` : ''}
     </div>`);
   }
   if(a.link_url){
@@ -4591,7 +4627,10 @@ function approvalCard(a){
 
     <div class="apv-foot">
       <div class="apv-acts">
-        ${a.status === 'pending' ? `
+        ${apvMine(a) ? (a.status === 'changes'
+            ? `<button class="btn small accent" data-apv-reply="${a.id}" ${busy?'disabled':''}>Upload a new version</button>`
+            : `<span class="hint">${a.status === 'pending' ? 'You sent this, so it waits for someone else to decide.' : 'You sent this.'}</span>`)
+        : a.status === 'pending' ? `
           <button class="btn small" data-apv-do="${a.id}" data-val="approved" ${busy?'disabled':''}>Approve</button>
           <button class="btn small ghost" data-apv-do="${a.id}" data-val="changes" ${busy?'disabled':''}>Request changes</button>
           <button class="btn small ghost" data-apv-do="${a.id}" data-val="declined" ${busy?'disabled':''}>Decline</button>`
@@ -4819,6 +4858,116 @@ function kpiTarget(row){
   return row.unit==='currency' ? money(row.year_target) : num(row.year_target);
 }
 
+/* ---------- headline charts ----------
+   The tab opened on tables, so the shape of the year (is pipeline being
+   added, are we winning, is outreach landing) took reading four of
+   them. These four charts lead; the tables stay below for the detail.
+   They use Home's chart styles (.chart, .legend, .stages) and the same
+   axis rule as Home's budget chart, so a chart reads the same on both. */
+function niceStep(top){
+  const mag = Math.pow(10, Math.floor(Math.log10(top || 1)));
+  return top / mag > 5 ? mag * 2 : top / mag > 2 ? mag : Math.max(mag / 2, top < 5 ? 1 : 0);
+}
+/* rows: [{ tick, tip, v, v2 }]. v is the orange bar; v2, when given, a
+   narrower green bar in front of it (replies against sends). */
+function barChart(rows, o){
+  const W = 560, H = 170, L = o.left || 34, R = 6, T = 10, B = 24, iw = W - L - R, ih = H - T - B;
+  const top = Math.max(o.min || 4, ...rows.map(r => Number(r.v) || 0));
+  const step = niceStep(top) || 1, ymax = Math.ceil(top / step) * step;
+  const y = v => T + ih - v / ymax * ih;
+  const slot = iw / Math.max(1, rows.length), bw = Math.min(30, slot * .64);
+  const grid = [];
+  for(let v = 0; v <= ymax + 1e-9; v += step)
+    grid.push(`<line class="${v ? 'grid' : 'base'}" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
+      <text x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(o.fmt ? o.fmt(v) : String(v))}</text>`);
+  const cols = rows.map((r, i) => {
+    const x = L + slot * i + (slot - bw) / 2, v = Number(r.v) || 0, v2 = Number(r.v2) || 0;
+    const bars = [];
+    if(v) bars.push(`<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(T + ih - y(v)).toFixed(1)}" rx="3" fill="var(--orange)"/>`);
+    if(v2){ const w2 = bw * .5;
+      bars.push(`<rect x="${(x + (bw - w2) / 2).toFixed(1)}" y="${y(v2).toFixed(1)}" width="${w2.toFixed(1)}" height="${(T + ih - y(v2)).toFixed(1)}" rx="2" fill="var(--green)"/>`); }
+    const tick = (rows.length - 1 - i) % (o.every || 1) === 0
+      ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(r.tick)}</text>` : '';
+    return `<g><title>${esc(r.tip)}</title>
+      <rect x="${(L + slot * i).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>
+      ${bars.join('')}</g>${tick}`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria)}">${grid.join('')}${cols}</svg>`;
+}
+
+/* Horizontal bars in Home's "Pipeline by stage" style. */
+function hBars(rows){
+  const max = Math.max(...rows.map(r => Number(r.v) || 0)) || 1;
+  return `<div class="stages">${rows.map(r => `<div class="stage" title="${esc(r.tip || '')}">
+      <span class="stage-n">${esc(r.label)}</span>
+      <span class="stage-bar"><i style="width:${Math.max(1.5, 100 * (Number(r.v) || 0) / (r.of || max)).toFixed(1)}%;background:${r.color || 'var(--orange)'}"></i></span>
+      <span class="stage-v">${r.text}</span></div>`).join('')}</div>`;
+}
+
+function kpiCharts(k, m){
+  const o = k.outcomes || {};
+  const monthly = (k.monthly || []).slice(-12).map(x => {
+    const lab = new Date(x.month + 'T00:00:00').toLocaleDateString('en-US', { month:'short' });
+    const full = new Date(x.month + 'T00:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
+    return { tick:lab, v:Number(x.added || 0), tip:`${full}: ${money(x.added)} added across ${plural(Number(x.deals || 0), 'deal')}` };
+  });
+  const rolling = monthly.reduce((a, x) => a + x.v, 0);
+  const added = monthly.length
+    ? barChart(monthly, { aria:'Pipeline added each month, last twelve months', fmt:v => v ? moneyShort(v) : '0', left:44, every:2, min:1 })
+      + `<div class="legend"><span><i style="background:var(--orange)"></i>Added that month</span><span>Hover a month for its deals.</span></div>`
+    : `<p class="hint">No pipeline added in the last twelve months.</p>`;
+
+  const decided = Number(o.decided_deals || 0);
+  const won = decided ? hBars([
+      { label:'Won', v:o.won_value, color:'var(--green)', text:`${moneyShort(o.won_value)} <em>${num(o.won_deals)}</em>`,
+        tip:`Won ${money(o.won_value)} across ${plural(Number(o.won_deals || 0), 'deal')}` },
+      { label:'Lost', v:o.lost_value, color:'var(--red)', text:`${moneyShort(o.lost_value)} <em>${num(o.lost_deals)}</em>`,
+        tip:`Lost ${money(o.lost_value)} across ${plural(Number(o.lost_deals || 0), 'deal')}` }])
+      + `<div class="legend"><span>Value decided in the rolling twelve months. The small number is how many deals.</span></div>`
+    : `<p class="hint">No deals won or lost in the last twelve months.</p>`;
+
+  const rate = decided ? hBars([
+      { label:'By count', v:o.win_rate_count, of:100, text:`${o.win_rate_count != null ? o.win_rate_count + '%' : '&ndash;'}`,
+        tip:`${num(o.won_deals)} of ${num(decided)} decided deals won` },
+      { label:'By value', v:o.win_rate_value, of:100, text:`${o.win_rate_value != null ? o.win_rate_value + '%' : '&ndash;'}`,
+        tip:`${money(o.won_value)} won of ${money(Number(o.won_value || 0) + Number(o.lost_value || 0))} decided` }])
+      + `<div class="legend"><span>Share of decided deals won, against the whole bar.</span></div>`
+    : `<p class="hint">Nothing decided yet, so there is no win rate.</p>`;
+
+  let sends = `<p class="hint">Email numbers could not load.</p>`, sentN = 0, repN = 0;
+  if(m){
+    const by = new Map((m.daily || []).map(r => [String(r.day).slice(0, 10), r]));
+    const days = [];
+    for(let i = 13; i >= 0; i--){
+      const key = daysAgo(i), r = by.get(key) || {};
+      const lab = new Date(key + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+      const s = Number(r.sent || 0), rp = Number(r.replied || 0);
+      sentN += s; repN += rp;
+      days.push({ tick:lab, v:s, v2:rp, tip:`${lab}: ${plural(s, 'email')} sent, ${plural(rp, 'reply', 'replies')}` });
+    }
+    sends = barChart(days, { aria:'Emails sent and replies each day, last 14 days', every:3 })
+      + `<div class="legend"><span><i style="background:var(--orange)"></i>Sent</span><span><i style="background:var(--green)"></i>Replied</span><span>Hover a day for its numbers.</span></div>`;
+  }
+  const head = (t, sub) => `<div class="panel-head"><h2>${t}</h2>${sub ? `<span class="hint">${sub}</span>` : ''}</div>`;
+  return `<div class="kpi-charts">
+    <section class="panel">${head('Pipeline added', `${moneyShort(rolling)} in 12 months`)}${added}</section>
+    <section class="panel">${head('Won value', decided ? `${moneyShort(o.won_value)} won` : '')}${won}</section>
+    <section class="panel">${head('Win rate', decided ? `${num(o.won_deals)} of ${num(decided)} decided` : '')}${rate}</section>
+    <section class="panel">${head('Sends and replies, 14 days', m ? `${num(sentN)} sent, ${num(repN)} replied` : '')}${sends}</section>
+  </div>`;
+}
+
+/* Whose numbers these are. kpi_config.deal_owner is the Pipedrive owner
+   name the KPI views filter on; it is matched to the Pipedrive user and
+   then to the team's full name, and shown as stored if there is no match. */
+function kpiOwnerName(){
+  const k = S.kpi || {}, owner = String((k.config || {}).deal_owner || '').trim();
+  if(!owner) return 'No owner set';
+  const u = (k.users || []).find(x => String(x.name || '').trim().toLowerCase() === owner.toLowerCase());
+  const team = u && Object.values(EV_SENDERS).find(e => e.email === String(u.email || '').toLowerCase());
+  return team ? team.label : owner;
+}
+
 function pageKpis(){
   if(!S.loaded.kpis) return loading();
   const k = S.kpi, m = S.metrics;
@@ -4906,13 +5055,15 @@ function pageKpis(){
   return `<main class="page">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       ${kpiSwitch()}
-      <span class="eyebrow" style="flex:1;min-width:150px">Pat Dobson &middot; ${k.year} &middot; Q${qtr} to date</span>
+      <span class="eyebrow" style="flex:1;min-width:150px">${esc(kpiOwnerName())} &middot; ${k.year} &middot; Q${qtr} to date</span>
       <button class="btn small ghost" id="kpiEdit">${S.kpiEdit?'Hide targets':'Edit targets'}</button>
       <button class="btn small ghost" id="exportCsv">Export CSV</button>
       <button class="btn small ghost" id="printPage">Print</button>
     </div>
 
     ${S.kpiNote?`<div class="done-banner" style="margin-bottom:16px"><p style="margin:0">${esc(S.kpiNote)}</p></div>`:''}
+
+    ${kpiCharts(k, m)}
 
     <div class="stat-grid">
       <div class="stat accent"><div class="k">Open pipeline</div><div class="v">${money(op.open_value)}</div></div>
@@ -4923,9 +5074,9 @@ function pageKpis(){
 
     <div class="block">
       <h2 class="sec">Scorecard</h2>
-      <table><thead><tr><th>Metric</th><th class="num">Year target</th>
+      <div class="scroll-x"><table><thead><tr><th>Metric</th><th class="num">Year target</th>
         <th class="num">Year to date</th><th class="num">Pace</th>
-        <th style="width:24%">Progress</th></tr></thead><tbody>${score}</tbody></table>
+        <th style="width:24%">Progress</th></tr></thead><tbody>${score}</tbody></table></div>
       <p class="hint">Pace divides year to date by the target for the ${qtr} quarter${qtr===1?'':'s'} elapsed,
       so 100% means level. Progress is the same number his spreadsheet shows, against the full year.</p>
     </div>
@@ -4934,12 +5085,12 @@ function pageKpis(){
 
     <div class="cols">
       <div class="block"><h2 class="sec">Pipeline added by quarter</h2>
-        <table><thead><tr><th>Quarter</th><th class="num">Goal</th><th class="num">Added</th>
-          <th class="num">Deals</th><th style="width:26%"></th></tr></thead><tbody>${quarters}</tbody></table>
+        <div class="scroll-x"><table><thead><tr><th>Quarter</th><th class="num">Goal</th><th class="num">Added</th>
+          <th class="num">Deals</th><th style="width:26%"></th></tr></thead><tbody>${quarters}</tbody></table></div>
       </div>
       <div class="block"><h2 class="sec">Open funnel</h2>
-        <table><thead><tr><th class="num">#</th><th>Stage</th><th class="num">Deals</th>
-          <th class="num">Value</th><th style="width:22%"></th></tr></thead><tbody>${funnel}</tbody></table>
+        <div class="scroll-x"><table><thead><tr><th class="num">#</th><th>Stage</th><th class="num">Deals</th>
+          <th class="num">Value</th><th style="width:22%"></th></tr></thead><tbody>${funnel}</tbody></table></div>
       </div>
     </div>
 
@@ -5969,6 +6120,8 @@ function leadHtml(l){
         ${l.sales_nav_url?`<a class="chip" href="${esc(l.sales_nav_url)}" target="_blank" rel="noopener">Sales Nav &#8599;</a>`:''}
       </div>
 
+      ${clicksHtml(l.contact_id)}
+
       ${facts.length?`<dl class="facts">${facts.map(([k,v])=>
         `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:''}
 
@@ -6099,6 +6252,7 @@ function crmPanel(){
                 ${h.vertical?`<span class="chip">${esc(h.vertical)}</span>`:''}
               </div>
               ${h.sub?`<div class="hit-sub">${esc(h.sub)}</div>`:''}
+              ${h.kind === 'company' ? '' : clicksHtml(h.id)}
               <div class="hit-meta">
                 ${h.email?`<a href="mailto:${esc(h.email)}">${esc(h.email)}</a>`:''}
                 ${h.phone?`<span>${esc(h.phone)}</span>`:''}
@@ -6851,6 +7005,7 @@ async function addTask(){
 }
 
 async function cycleTask(id){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   const rows = S.tasks[owner] || [];
   const t = rows.find(x=>x.id===id);
@@ -6894,6 +7049,7 @@ async function cycleTask(id){
 }
 
 async function addSubtask(){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const d = S.subDraft;
   if(!d) return;
   const el = document.getElementById('subInput');
@@ -6936,6 +7092,7 @@ async function addSubtask(){
    so a drag that ends where it began costs no requests. Only unfinished
    rows take part: done rows have no handle and stay parked below. */
 function startTaskDrag(e){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   if(e.button !== undefined && e.button !== 0) return;
   const list = document.getElementById('taskList');
   const row = e.currentTarget.closest('.task');
@@ -6986,6 +7143,7 @@ function startTaskDrag(e){
 }
 
 async function saveTaskOrder(ids){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   const rows = S.tasks[owner] || [];
   const byId = Object.fromEntries(rows.map(r=>[r.id, r]));
@@ -7012,6 +7170,7 @@ async function saveTaskOrder(ids){
 }
 
 async function delTask(id){
+  if(!canEditTasks(S.dayOwner || S.me)) return;
   const owner = S.dayOwner || S.me;
   try{
     await sb.from('tasks').delete().eq('id', id);
@@ -10218,7 +10377,16 @@ const milNum = v => { if(v === null || v === undefined || String(v).trim() === '
   const n = parseFloat(String(v).replace(/[,$\s]/g, '')); return isFinite(n) ? n : null; };
 const milMi = n => (Math.round(Number(n || 0) * 10) / 10).toLocaleString('en-US');
 const milOdo = n => n === null || n === undefined ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits:1 });
-const milCost = t => Math.round(Number(t.miles || 0) * Number(t.rate ?? MIL_RATE) * 100) / 100;
+const milRate = t => Number(t && t.rate != null ? t.rate : MIL_RATE);
+const milCost = t => Math.round(Number(t.miles || 0) * milRate(t) * 100) / 100;
+/* Each trip keeps the rate it was logged at, and that is what its cost
+   uses, so the text says the same rather than always today's rate. */
+function milRateLine(trips){
+  const rates = [...new Set((trips || []).map(milRate))].sort((a, b) => a - b);
+  if(!rates.length) return `${apvMoney(MIL_RATE)} a mile for new trips.`;
+  if(rates.length === 1) return `${apvMoney(rates[0])} a mile.`;
+  return `Rates this month: ${rates.map(r => apvMoney(r)).join(', ')} a mile, each trip at the rate it was logged at.`;
+}
 const milMDY = ymd => { const [y, m, d] = ymd.split('-').map(Number); return `${m}/${d}/${y}`; };
 const milMonthName = ym => new Date(ym + '-15T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
 const milMonthEnd = ym => { const [y, m] = ym.split('-').map(Number);
@@ -10282,18 +10450,18 @@ function pageMileage(){
       <div class="stat"><div class="k">Miles</div><div class="v">${esc(milMi(miles))}</div></div>
       <div class="stat accent"><div class="k">Reimbursement</div><div class="v">${esc(apvMoney(owed))}</div></div>
     </div>
-    <p class="hint" style="margin:0 0 24px">${esc(apvMoney(MIL_RATE))} a mile. Only you can see your trips.</p>
+    <p class="hint" style="margin:0 0 24px">${esc(milRateLine(shown))} Only you can see your trips.</p>
     <div class="block"><h2 class="sec">Trips</h2>
     ${shown.length ? `<div class="bud-scroll"><table class="bud-log"><thead><tr><th style="width:90px">Date</th>
       <th>From</th><th>To</th><th>Job # / what for</th><th class="num" style="width:150px">Odometer</th>
-      <th class="num" style="width:80px">Miles</th><th class="num" style="width:100px">Amount</th><th style="width:60px"></th></tr></thead><tbody>
+      <th class="num" style="width:80px">Miles</th><th class="num" style="width:70px">Rate</th><th class="num" style="width:100px">Amount</th><th style="width:60px"></th></tr></thead><tbody>
       ${shown.map(t => `<tr>
         <td class="mono">${esc(shortDate(t.trip_date + 'T12:00:00'))}</td>
         <td>${esc(t.start_loc)}</td><td>${esc(t.destination)}</td><td>${esc(t.purpose)}</td>
         <td class="num mono">${t.odo_start != null || t.odo_end != null ? esc(milOdo(t.odo_start) + ' – ' + milOdo(t.odo_end)) : ''}</td>
-        <td class="num">${esc(milMi(t.miles))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
+        <td class="num">${esc(milMi(t.miles))}</td><td class="num muted">${esc(apvMoney(milRate(t)))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
         <td style="text-align:right"><button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button></td></tr>`).join('')}
-      <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
+      <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td></td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
       </tbody></table></div>`
     : `<div class="empty" style="padding:30px 0"><h2>No trips yet</h2><p>Nothing logged for ${esc(milMonthName(M.month))}. Use Add a trip after each drive.</p></div>`}
     </div>
@@ -10340,7 +10508,9 @@ function milForm(){
 
 function milSumLine(f){
   const n = milNum(f.miles);
-  return n ? `${milMi(n)} miles × ${apvMoney(MIL_RATE)} = ${apvMoney(Math.round(n * MIL_RATE * 100) / 100)}`
+  /* An existing trip keeps its own rate; a new one takes today's. */
+  const rate = milRate(f.id ? S.mil.trips.find(t => t.id === f.id) : null);
+  return n ? `${milMi(n)} miles × ${apvMoney(rate)} = ${apvMoney(Math.round(n * rate * 100) / 100)}`
            : 'Enter both odometer readings, or just the miles.';
 }
 
@@ -12531,7 +12701,6 @@ function homePat(){
   const inv = (S.invites || []).filter(v => v.decision === 'undecided' && !v.is_past && isLocal(v)).length;
   const apv = homeApprovals();
   const hot = S.home.hot;
-  const todayEvents = (S.week || []).filter(e => dayKey(e.starts_at) === dayKey(new Date().toISOString()));
   const days = homeDays();
 
   const needs = [];
@@ -12881,6 +13050,7 @@ async function boot(){
      data, but the screen should not offer what the account cannot have. */
   const email = (session.user && session.user.email || '').toLowerCase();
   S.me = WHOAMI[email];
+  S.email = email;
   if(!S.me){
     /* Not on the team list: maybe a social reviewer. The database only
        lets a reviewer see their own row. */
