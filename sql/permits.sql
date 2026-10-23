@@ -141,6 +141,8 @@ returns text language sql immutable set search_path = '' as $$
 $$;
 
 -- Columns are listed so new ones can go on the end with create or replace.
+-- Superseded by sql/permit_email.sql, which adds emailed_at, emailed_by and
+-- emailed_note on the end. Run that one, not this, if the view is rebuilt.
 create or replace view public.v_permits
 with (security_invoker = true) as
 select p.guid, p.agency_reference, p.record_type, p.module, p.status, p.name, p.description,
