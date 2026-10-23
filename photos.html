@@ -150,9 +150,11 @@ function header(){
 function card(i){
   const open = B.data.status === 'open';
   const cls = i.decision === 'approved' ? 'ok' : i.decision === 'rejected' ? 'no' : '';
+  /* After the batch is sent back, photos marked Not approved are taken
+     out of the bucket, so the page shows only their name and reason. */
   return `<div class="ph ${cls}" id="ph-${esc(i.id)}">
-    <a class="img" href="${esc(IMG(i.path))}" target="_blank" rel="noopener">
-      <img src="${esc(IMG(i.path))}" alt="${esc(i.name)}" loading="lazy" /></a>
+    ${i.path ? `<a class="img" href="${esc(IMG(i.path))}" target="_blank" rel="noopener">
+      <img src="${esc(IMG(i.path))}" alt="${esc(i.name)}" loading="lazy" /></a>` : ''}
     <div class="body">
       <p class="nm">${esc(i.name)}</p>
       ${open ? `<div class="pick">
@@ -179,6 +181,11 @@ function render(){
   if(!d){
     app.innerHTML = `<div class="empty"><h2>This link does not work</h2>
       <p>It may have been copied only partly. Ask whoever sent it for a fresh one.</p></div>`;
+    return;
+  }
+  if(d.expired){
+    app.innerHTML = `<div class="empty"><h2>This link has expired</h2>
+      <p>Photo links stop working after 30 days. Ask whoever sent it for a fresh one.</p></div>`;
     return;
   }
   const open = d.status === 'open';

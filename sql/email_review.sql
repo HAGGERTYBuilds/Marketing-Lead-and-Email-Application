@@ -80,3 +80,64 @@ end $$;
 drop trigger if exists email_review_guard on public.email_campaigns;
 create trigger email_review_guard before update on public.email_campaigns
   for each row execute function public.email_review_guard();
+
+-- ===== 2026-10-23 safety pass. Not applied yet when written;
+-- it is section 2 of sql/safety_2026_10_23.sql, which is the file to paste.
+
+-- Email review: the HTML counts as the words too.
+--   Staff: changing the html of an approved email (not just the subject,
+--   preview text or blocks) makes the approval lapse.
+--   Reviewer: may not send html on its own. The dashboard rebuilds the
+--   html from the blocks on every save, so an html change is accepted only
+--   together with a change to the words, and the "Your own HTML" blocks
+--   (raw code) cannot be added, removed or edited by a reviewer at all.
+
+-- The raw-code blocks of an email, in a stable order.
+create or replace function public.ec_code_blocks(p_blocks jsonb)
+returns jsonb language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(coalesce(b ->> 'code', '') order by coalesce(b ->> 'code', '')), '[]'::jsonb)
+    from jsonb_array_elements(case when jsonb_typeof(p_blocks) = 'array' then p_blocks else '[]'::jsonb end) b
+   where b ->> 'type' = 'html';
+$$;
+
+create or replace function public.email_review_guard()
+returns trigger language plpgsql set search_path = public, pg_temp as $$
+declare who text := lower(coalesce(auth.jwt() ->> 'email', ''));
+begin
+  if public.is_social_reviewer() then
+    if (new.brand, new.title, new.from_name, new.reply_to, new.list_id, new.tag_id, new.tag_name,
+        new.accent, new.status, new.mc_campaign_id, new.mc_web_id, new.pushed_at, new.send_at,
+        new.scheduled_for, new.created_by, new.review_requested_at, new.last_test_at)
+       is distinct from
+       (old.brand, old.title, old.from_name, old.reply_to, old.list_id, old.tag_id, old.tag_name,
+        old.accent, old.status, old.mc_campaign_id, old.mc_web_id, old.pushed_at, old.send_at,
+        old.scheduled_for, old.created_by, old.review_requested_at, old.last_test_at) then
+      raise exception 'A reviewer can change the words and the review, not the audience, sender or date.';
+    end if;
+    if old.review_status is distinct from 'pending' then
+      raise exception 'This email is not waiting on your review.';
+    end if;
+    if public.ec_code_blocks(new.blocks) is distinct from public.ec_code_blocks(old.blocks) then
+      raise exception 'A reviewer cannot add or change a Your own HTML block. Ask marketing to.';
+    end if;
+    if new.html is distinct from old.html
+       and (new.subject, new.preview_text, new.blocks) is not distinct from (old.subject, old.preview_text, old.blocks) then
+      raise exception 'A reviewer cannot change the HTML directly, only the words.';
+    end if;
+    if new.review_status is distinct from old.review_status then
+      if new.review_status not in ('ok','changes') then
+        raise exception 'A review is either OK or needs changes.';
+      end if;
+      new.reviewed_by := who;
+      new.reviewed_at := now();
+    end if;
+  elsif old.review_status = 'ok' and new.review_status = 'ok'
+        and (new.subject, new.preview_text, new.blocks, new.html)
+            is distinct from (old.subject, old.preview_text, old.blocks, old.html) then
+    new.review_status := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists email_review_guard on public.email_campaigns;
+create trigger email_review_guard before update on public.email_campaigns
+  for each row execute function public.email_review_guard();

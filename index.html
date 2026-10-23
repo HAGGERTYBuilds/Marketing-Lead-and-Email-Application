@@ -3889,7 +3889,7 @@ function rowHtml(r,i){
     <span class="name">${esc(r.full_name||r.email)}</span>
     ${r.handled?'<span class="tick">&#10003;</span>':''}</span>
     <span class="org">${esc(r.company_name||r.vertical)}</span>
-    ${carryTag}</button>`;
+    ${carryTag}${r.verify_missed_at ? `<span class="carry" title="${esc(r.verify_missed_reason || 'Evaboot did not answer.')}">NOT VERIFIED &middot; EVABOOT DID NOT ANSWER</span>` : ''}</button>`;
 }
 
 /* A div, not a button, because the Undo inside it is itself a button and
@@ -10365,7 +10365,11 @@ function wireBudget(){
    The PDF has its own form fields: 20 trip rows, a name, and total
    mileage and total reimbursement. More than 20 trips print as more
    pages, each with its own totals. */
-const MIL_RATE = 0.70;
+/* The rate for new trips comes from kpi_config (key mileage_rate) when
+   the tab loads; each trip keeps the rate it was saved with (t.rate).
+   A trip on a printed or reimbursed form is locked by the database
+   (sql/mileage.sql), so it shows Printed or Paid instead of Edit. */
+let MIL_RATE = 0.70;
 const MIL_ROWS = 20;
 const MIL_FORM = 'forms/mileage-reimbursement-2026.pdf';
 const PDFLIB_SRC = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
@@ -10398,10 +10402,13 @@ async function loadMileage(){
   const M = S.mil;
   let who = '';
   try{ const { data } = await sb.auth.getUser(); who = (data && data.user && data.user.email) || ''; }catch(e){}
-  const [t, d] = await Promise.all([
+  const [t, d, r] = await Promise.all([
     sb.from('mileage_trips').select('*').order('trip_date').order('created_at'),
-    who ? sb.from('staff_directory').select('name').ilike('email', who).limit(1) : Promise.resolve({ data:[] })
+    who ? sb.from('staff_directory').select('name').ilike('email', who).limit(1) : Promise.resolve({ data:[] }),
+    sb.from('kpi_config').select('value').eq('key', 'mileage_rate').maybeSingle()
   ]);
+  const rate = parseFloat(r && r.data && r.data.value);
+  if(isFinite(rate) && rate > 0) MIL_RATE = rate;
   if(t.error){
     const m = t.error.message || String(t.error);
     M.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (t.error.code || ''))
@@ -10460,7 +10467,9 @@ function pageMileage(){
         <td>${esc(t.start_loc)}</td><td>${esc(t.destination)}</td><td>${esc(t.purpose)}</td>
         <td class="num mono">${t.odo_start != null || t.odo_end != null ? esc(milOdo(t.odo_start) + ' – ' + milOdo(t.odo_end)) : ''}</td>
         <td class="num">${esc(milMi(t.miles))}</td><td class="num muted">${esc(apvMoney(milRate(t)))}</td><td class="num">${esc(apvMoney(milCost(t)))}</td>
-        <td style="text-align:right"><button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button></td></tr>`).join('')}
+        <td style="text-align:right">${t.reimbursed_at ? `<span class="chip good" title="Reimbursed ${esc(shortDate(t.reimbursed_at))}">Paid</span>`
+          : t.printed_at ? `<span class="chip" title="On a form printed ${esc(shortDate(t.printed_at))}. Locked; add a correcting trip if something is wrong.">Printed</span>`
+          : `<button class="linkbtn" data-mil-open="${esc(t.id)}">Edit</button>`}</td></tr>`).join('')}
       <tr class="bud-tot"><td colspan="5">Total</td><td class="num">${esc(milMi(miles))}</td><td></td><td class="num">${esc(apvMoney(owed))}</td><td></td></tr>
       </tbody></table></div>`
     : `<div class="empty" style="padding:30px 0"><h2>No trips yet</h2><p>Nothing logged for ${esc(milMonthName(M.month))}. Use Add a trip after each drive.</p></div>`}
@@ -10534,8 +10543,10 @@ function milPrintSheet(){
         esc(apvMoney(ts.reduce((s, t) => s + milCost(t), 0)))} on ${pages} page${pages === 1 ? '' : 's'}.` : 'No trips in these dates.'}</p>
       ${M.err ? `<p class="hint err">${esc(M.err)}</p>` : ''}
       <div class="sheet-foot">
-        ${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;text-align:center">Open the form to print</a>
-          <p style="margin:12px 0 0;text-align:center"><a class="linkbtn" href="${esc(p.url)}" download="${esc(p.file)}">Save the PDF</a></p>`
+        ${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener" style="display:block;text-align:center" data-mil-printed="1">Open the form to print</a>
+          <p style="margin:12px 0 0;text-align:center"><a class="linkbtn" href="${esc(p.url)}" download="${esc(p.file)}" data-mil-printed="1">Save the PDF</a>
+            ${ts.some(t => !t.reimbursed_at) ? ` &middot; <button class="linkbtn" id="milPaid">Mark these reimbursed</button>` : ''}</p>
+          <p class="hint" style="text-align:center">Opening or saving the form locks these trips.</p>`
         : `<button class="btn" id="milPGo" ${M.saving || !ts.length ? 'disabled' : ''}>${M.saving ? 'Filling in&hellip;' : 'Fill in the form'}</button>`}
       </div>
     </div>
@@ -10609,6 +10620,22 @@ async function milMakePdf(){
     p.file = `Mileage ${p.from} to ${p.to} - ${p.name.trim()}.pdf`;
   }catch(err){ M.err = err.message || String(err); }
   M.saving = false; render();
+}
+
+/* Printing locks the trips on the form; marking them reimbursed records
+   the payment. Both are one-way (the database refuses to undo them). */
+async function milStamp(field){
+  const M = S.mil, ids = milPicked().filter(t => !t[field]).map(t => t.id);
+  if(!ids.length) return;
+  const { data, error } = await sb.from('mileage_trips').update({ [field]:new Date().toISOString() })
+    .in('id', ids).is(field, null).select();
+  /* Before sql/safety_2026_10_23.sql has run the columns are missing;
+     printing still works, it just does not lock anything yet. */
+  if(error && /printed_at|reimbursed_at|schema cache/i.test(error.message || '') && field === 'printed_at') return;
+  if(error){ M.err = 'Could not mark the trips. ' + (error.message || ''); return render(); }
+  (data || []).forEach(row => { const i = M.trips.findIndex(t => t.id === row.id); if(i >= 0) M.trips[i] = row; });
+  if(field === 'reimbursed_at'){ M.note = `${(data || []).length} trip${(data || []).length === 1 ? '' : 's'} marked reimbursed.`; M.print = null; }
+  render();
 }
 
 async function milSave(andReturn){
@@ -10703,6 +10730,9 @@ function wireMileage(){
     nm && nm.addEventListener('change', () => { p.url = null; render(); });
     const go = document.getElementById('milPGo');
     if(go) go.addEventListener('click', milMakePdf);
+    document.querySelectorAll('[data-mil-printed]').forEach(el => el.addEventListener('click', () => milStamp('printed_at')));
+    const pd = document.getElementById('milPaid');
+    if(pd) pd.addEventListener('click', () => { if(confirm('Mark the trips on this form as reimbursed? They stay locked.')) milStamp('reimbursed_at'); });
     const cl = document.getElementById('milPClose');
     if(cl) cl.addEventListener('click', () => { M.print = null; M.err = ''; render(); });
   }
@@ -10769,7 +10799,7 @@ function bulkNew(){
   const M = S.mrw;
   M.open = 'new'; M.err = ''; M.note = ''; M.preview = null; M.confirm = false; M.recips = []; M.replies = [];
   M.form = { name:'', sender:S.me === 'pat' ? 'pat' : 'liam', include:[], exclude:[], match_all:false, cooldown:'90',
-    skip_deals:true, cap:'300', brief:'', subject:'', body:'', options:[] };
+    skip_deals:true, cap:'100', brief:'', subject:'', body:'', options:[] };
 }
 
 /* Saves the draft and returns its id. Counting, writing and testing all
@@ -10779,7 +10809,7 @@ async function bulkSave(quiet){
   const cap = parseInt(f.cap, 10), cool = parseInt(f.cooldown, 10);
   if(!f.name.trim()){ M.err = 'Give the campaign a name.'; return null; }
   if(!(cap >= 10 && cap <= 1500)){ M.err = 'The daily limit has to be between 10 and 1,500.'; return null; }
-  if(!(cool >= 0 && cool <= 365)){ M.err = 'The rest period has to be between 0 and 365 days.'; return null; }
+  if(!(cool >= 14 && cool <= 365)){ M.err = 'The rest period has to be between 14 and 365 days.'; return null; }
   const row = { name:f.name.trim(), sender:f.sender, include_labels:f.include, exclude_labels:f.exclude,
     match_all:f.match_all, cooldown_days:cool, skip_open_deals:f.skip_deals, daily_cap:cap,
     brief:f.brief, subject:f.subject.trim(), body:f.body.replace(/\r/g, '').trim(), updated_at:new Date().toISOString() };
@@ -10842,7 +10872,7 @@ const bulkStart = () => bulkRun('start', async () => {
   const { data, error } = await sb.rpc('bulk_start', { p_campaign:M.open });
   if(error) throw new Error('Could not start. ' + error.message);
   M.confirm = false;
-  M.note = data && data.resumed ? 'Sending again.' : `Started. ${num(data && data.total)} people are queued and the first emails go out within 5 minutes on a weekday between 7am and 5pm.`;
+  M.note = data && data.resumed ? 'Sending again.' : `Started. ${num(data && data.total)} people are queued${data && data.to_verify ? `, ${num(data.to_verify)} of them waiting on an Evaboot check` : ''}${data && data.left_out ? `; ${num(data.left_out)} left out for an unchecked or risky address` : ''}. The first emails go out within 5 minutes on a weekday between 7am and 5pm.`;
   await loadBulk(); await bulkOpen(M.open, true);
 });
 
@@ -10947,7 +10977,7 @@ function pageBulkCampaign(){
           <select id="mrwMatch"><option value="any" ${f.match_all ? '' : 'selected'}>Any of the picked labels</option>
             <option value="all" ${f.match_all ? 'selected' : ''}>All of the picked labels</option></select></div>
         <div class="field"><label for="mrwCool">Skip anyone emailed in the last</label>
-          <select id="mrwCool">${[[0,'No rest, email them anyway'],[30,'30 days'],[60,'60 days'],[90,'90 days (same as Pat\'s board)'],[180,'180 days']]
+          <select id="mrwCool">${[[14,'14 days (the shortest allowed)'],[30,'30 days'],[60,'60 days'],[90,'90 days (same as Pat\'s board)'],[180,'180 days']]
             .map(([v, t]) => `<option value="${v}" ${String(v) === String(f.cooldown) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
         <div class="field"><label for="mrwCap">Most emails a day</label>
           <input type="text" inputmode="numeric" id="mrwCap" value="${esc(f.cap)}" autocomplete="off" /></div>
@@ -10955,7 +10985,7 @@ function pageBulkCampaign(){
       <label class="hint" style="display:flex;gap:8px;align-items:center;margin-top:10px">
         <input type="checkbox" id="mrwDeals" ${f.skip_deals ? 'checked' : ''} /> Leave out anyone on an open deal</label>
       <div class="actions"><button class="btn small ghost" id="mrwCount" ${busy ? 'disabled' : ''}>${busy === 'count' ? 'Counting&hellip;' : 'Count who gets it'}</button>
-        ${p ? `<span><b>${num(p.count)}</b> people${p.unverified ? `, ${num(p.unverified)} never checked by Evaboot` : ''}. ${p.count ? `About ${bulkDays(p.count, parseInt(f.cap, 10) || 300)} weekday${bulkDays(p.count, parseInt(f.cap, 10) || 300) === 1 ? '' : 's'} to send.` : ''}</span>` : ''}</div>
+        ${p ? `<span><b>${num(p.count)}</b> people${p.to_verify || (p.to_verify === undefined && p.unverified) ? `, ${num(p.to_verify ?? p.unverified)} checked by Evaboot first` : ''}${p.risky ? `, ${num(p.risky)} risky address${p.risky === 1 ? '' : 'es'} left out` : ''}. ${p.count ? `About ${bulkDays(p.count, parseInt(f.cap, 10) || 100)} weekday${bulkDays(p.count, parseInt(f.cap, 10) || 100) === 1 ? '' : 's'} to send.` : ''}</span>` : ''}</div>
       ${p && p.sample && p.sample.length ? `<p class="hint" style="margin-top:8px">For example: ${p.sample.map(x => esc([x.name, x.title, x.company].filter(Boolean).join(', '))).join(' &middot; ')}</p>` : ''}
     </div>
 
@@ -10975,7 +11005,7 @@ function pageBulkCampaign(){
       ${f.subject || f.body ? `<div class="panelbox"><p class="eyebrow" style="margin:0">Preview${sample ? ' for ' + esc(sample.name || sample.email) : ''}</p>
         <p style="color:var(--ink);font-weight:600">${esc(bulkFill(f.subject, sample))}</p>
         <p style="white-space:pre-wrap;color:var(--ink)">${esc(bulkFill(f.body, sample))}</p>
-        <p style="font-size:11.5px">${esc(((M.senders.find(s => s.key === f.sender) || {}).footer_line) || '')}</p>
+        <p style="font-size:11.5px">${esc(((M.senders.find(s => s.key === f.sender) || {}).footer_line) || '')}<br><u>Unsubscribe</u> (each person's own one-click link)</p>
         ${sample ? '' : '<p class="none">Press Count who gets it to fill this in for a real person.</p>'}</div>` : ''}
     </div>
 
@@ -11011,7 +11041,7 @@ function bulkLabelPicker(){
 function bulkConfirm(c){
   const M = S.mrw, f = M.form, p = M.preview;
   if(!M.confirm) return '';
-  const cap = parseInt(f.cap, 10) || 300;
+  const cap = parseInt(f.cap, 10) || 100;
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Start sending">
     <div class="sheet-in">
       <div class="sheet-head"><h2>Start sending?</h2><button class="linkbtn" id="mrwNo">Close</button></div>
@@ -11027,7 +11057,7 @@ function bulkConfirm(c){
 
 function bulkLive(c, back, msgs){
   const M = S.mrw, s = M.stats[c.id] || {}, busy = M.busy;
-  const left = Number(s.queued || 0) + Number(s.sending || 0);
+  const left = Number(s.queued || 0) + Number(s.sending || 0) + Number(s.verifying || 0);
   return `<main class="page" style="max-width:1060px">
     <p style="margin:0 0 10px">${back}</p>
     <div class="bud-head"><h2 class="sec" style="margin:0">${esc(c.name)}</h2>${bulkStatusChip(c.status)}
@@ -11046,7 +11076,7 @@ function bulkLive(c, back, msgs){
       <div class="stat"><div class="k">Unsubscribed</div><div class="v">${num(s.unsubscribed)}</div></div>
       <div class="stat"><div class="k">Still to send</div><div class="v">${num(left)}</div></div>
     </div>
-    <p class="hint" style="margin:0 0 24px">From ${esc(bulkSenderName(c.sender))}, up to ${num(c.daily_cap)} a day. Labels: ${esc((c.include_labels || []).map(bulkLabelName).join(c.match_all ? ' and ' : ' or '))}${(c.exclude_labels || []).length ? `, leaving out ${esc(c.exclude_labels.map(bulkLabelName).join(', '))}` : ''}.${Number(s.failed) ? ` ${num(s.failed)} could not be sent and were not retried.` : ''}${Number(s.skipped) ? ` ${num(s.skipped)} were skipped because they unsubscribed, bounced or became a client after the start.` : ''}</p>
+    <p class="hint" style="margin:0 0 24px">From ${esc(bulkSenderName(c.sender))}, up to ${num(c.daily_cap)} a day. Labels: ${esc((c.include_labels || []).map(bulkLabelName).join(c.match_all ? ' and ' : ' or '))}${(c.exclude_labels || []).length ? `, leaving out ${esc(c.exclude_labels.map(bulkLabelName).join(', '))}` : ''}.${Number(s.failed) ? ` ${num(s.failed)} could not be sent and were not retried.` : ''}${Number(s.verifying) ? ` ${num(s.verifying)} are waiting on an Evaboot check.` : ''}${Number(s.skipped) ? ` ${num(s.skipped)} were left out: an unchecked or risky address, or they unsubscribed, bounced or became a client after the start.` : ''}</p>
     <div class="block"><h2 class="sec">Replies</h2>
       ${M.replies.length ? `<div class="bud-scroll"><table class="bud-log"><tbody>${M.replies.map(r => `<tr>
         <td class="mono" style="width:80px">${esc(shortDate(r.replied_at))}</td><td style="width:220px">${esc(r.email)}${r.unsubscribed_at ? ' <span class="chip bad">Unsubscribed</span>' : ''}</td>
@@ -11272,7 +11302,7 @@ function phoDetail(b){
         <span class="pho-fn">${esc(i.file_name)}</span>
       </figcaption></figure>`).join('')}</div>
     <p class="hint" style="margin-top:22px">
-      ${b.status === 'submitted' ? `<button class="linkbtn" id="phoReopen" style="padding-left:0">Let them change their picks</button> &middot; ` : ''}
+      ${b.status === 'submitted' ? `<span class="hint">Sent back, so it is read-only. Send a new batch to ask again. </span>` : ''}
       <button class="linkbtn" id="phoDelete" style="color:var(--red)${b.status === 'submitted' ? '' : ';padding-left:0'}">Delete this batch</button></p>`;
 }
 
@@ -11750,7 +11780,7 @@ function exvPieceCard(pc){
     <p class="hint" style="margin:4px 0 0">${blog ? 'Lines starting with ## become headings and lines starting with &gt; become quotes when you copy it for WordPress.' : ''}
       ${needsOk && ['approved','changes','needs_ok'].includes(pc.status) ? ' Saving an edit means it goes back for another OK.' : ''}</p>
     <div class="actions">
-      <button class="btn small ghost" data-exv-save="${esc(pc.id)}">Save edits</button>
+      ${pc.status !== 'published' ? `<button class="btn small ghost" data-exv-save="${esc(pc.id)}">Save edits</button>` : ''}
       ${blog ? `<button class="btn small ghost" data-exv-wp="${esc(pc.id)}">Copy for WordPress</button>` : ''}
       <button class="btn small ghost" data-exv-plain="${esc(pc.id)}">Copy text</button>
       ${needsOk && pc.status !== 'published' && pc.status !== 'approved' ? `<a class="btn small" href="${esc(exvSms(ap.phone, okTxt))}" data-exv-askok="${esc(pc.id)}"
