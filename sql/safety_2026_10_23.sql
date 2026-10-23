@@ -20,6 +20,7 @@
 --   7. Verify before send  (sql/verify_before_send.sql)
 --   8. Social send wording (sql/social_send.sql; comment only, nothing to run)
 --   9. Dashboard users     (sql/policies_dashboard_users.sql)
+--  10. Live updates        (Realtime publication, for the dashboard's live refresh)
 
 begin;
 
@@ -1465,5 +1466,34 @@ alter policy social_media_authed_delete on storage.objects
 --   select tablename, policyname, cmd from pg_policies
 --    where schemaname = 'public' and 'authenticated' = any(roles)
 --      and (qual = 'true' or with_check = 'true');
+
+
+-- =====================================================================
+-- 10. Live updates. The dashboard listens for changes on these tables
+--     (index.html LOADERS / liveStart) so a change on one device shows on
+--     the others without a reload. Until a table is in the publication
+--     the page falls back to refreshing on focus and every 3 minutes.
+--     Realtime respects row-level security, so it only sends a person
+--     the rows they could read anyway.
+-- =====================================================================
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'approvals','tasks','requests','request_files',
+    'social_posts','social_post_media','social_jobs','social_results',
+    'email_queue','email_drafts','email_sends','email_events',
+    'asset_clicks','hot_lead_done','event_invites','event_invitations',
+    'calendar_events','deals','deal_sources','kpi_targets','kpi_manual',
+    'expenses','budget_plan','mileage_trips','reel_ideas','permit_marks',
+    'email_campaigns','bulk_campaigns','photo_batches','exv_answers','workflow_alerts']
+  loop
+    if to_regclass('public.' || t) is not null and not exists (
+      select 1 from pg_publication_tables
+       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 commit;
