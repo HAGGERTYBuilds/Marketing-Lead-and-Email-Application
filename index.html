@@ -901,6 +901,15 @@
   /* ---------- email campaigns ---------- */
   .ec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
   .ec-list{border:1px solid var(--rule);background:var(--card)}
+  .ec-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:10px 0 26px}
+  .ec-tpl{background:var(--card);border:1px solid var(--rule);display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer;color:var(--ink)}
+  .ec-tpl:hover,.ec-tpl:focus-visible{border-color:var(--accent)}
+  .ec-tpl[disabled]{opacity:.5;cursor:default}
+  .ec-thumb{height:250px;overflow:hidden;background:#F4F2EE;border-bottom:1px solid var(--rule);position:relative}
+  .ec-thumb iframe{position:absolute;top:0;left:50%;width:640px;height:820px;border:0;transform:translateX(-50%) scale(.3);transform-origin:top center;pointer-events:none}
+  .ec-tpl-txt{padding:9px 11px 11px;display:flex;flex-direction:column;gap:3px}
+  .ec-tpl-txt b{font-size:14px}
+  .ec-tpl-txt span{font-size:12.5px;color:var(--muted);line-height:1.4}
   .ec-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--rule-soft)}
   .ec-item:first-child{border-top:0}
   .ec-open{flex:1 1 260px;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;color:var(--ink);display:flex;flex-direction:column}
@@ -9206,6 +9215,159 @@ function ecBoldStarter(brand){
     ecBlock('pair', brand), ecBlock('buttons', brand), ecBlock('signoff', brand), ecBlock('brandfooter', brand)].filter(Boolean);
 }
 
+/* ---------- news templates ----------
+   Ready-made emails for the usual kinds of news, built from the same bold
+   blocks so everything stays editable. Square-bracket bits are the parts to
+   fill in; the review check will not let an email go out with one left. */
+const EC_TEMPLATES = {
+  haggerty: [
+    { key:'win', name:'Project win', use:'We were awarded a job or signed a new client.',
+      subject:'HAGGERTY selected to build [Project name]', preview:'[Owner] picked HAGGERTY for [project type] in [City].' },
+    { key:'done', name:'Project completed', use:'A job just wrapped. Show the finished space.',
+      subject:'Finished: [Project name] in [City]', preview:'[Size] of [project type], done on schedule.' },
+    { key:'event', name:'Event invite', use:'Open house, ribbon cutting, mixer or lunch and learn.',
+      subject:"You're invited: [Event name] on [Date]", preview:'Join the HAGGERTY team at [Place]. Save your spot.' },
+    { key:'team', name:'Team news and hiring', use:'A new hire, a promotion, or open roles.',
+      subject:'Meet [Name], our new [Role]', preview:'Plus the roles we are hiring for right now.' },
+    { key:'roundup', name:'News roundup', use:'Three things worth sharing, once a month or a quarter.',
+      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' }
+  ],
+  rhino: [
+    { key:'season', name:'Seasonal push', use:'Storm, freeze, wildfire or mold season reminders.',
+      subject:'Is your property ready for storm season?', preview:'Three things to check before the first big rain.' },
+    { key:'job', name:'Job spotlight', use:'A restoration job with before and after photos.',
+      subject:'Before and after: [Loss type] at [Property type] in [City]', preview:'How we had [Property] back open in [Number] days.' },
+    { key:'event', name:'Event or CE class', use:'Lunch and learn, CE credit class, or trade show booth.',
+      subject:'Free lunch and learn for property managers: [Date]', preview:'[Topic], with lunch on us. Seats are limited.' },
+    { key:'news', name:'Company news', use:'New certification, equipment, location or team member.',
+      subject:'[News headline]', preview:'What it means for your properties.' },
+    { key:'ready', name:'Save our number', use:'A short 24/7 reminder to keep RHINO on the vendor list.',
+      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' }
+  ]
+};
+function ecTemplateBlocks(brand, key){
+  const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
+  const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
+  const head = B('header');
+  if(o.logo){ head.logo = o.logo; head.bg = '#FFFFFF'; }
+  const top = [o.phone ? B('callbar') : null, head];
+  const end = [B('signoff'), B('brandfooter')];
+  const call = o.phone ? { label:'Call ' + o.phone, href:'tel:' + o.phone } : { label:'Get in touch', href:EC_BRANDS[brand].site };
+  const T = {
+    'haggerty:win': [
+      B('hero', { eyebrow:'Project award', title:'HAGGERTY selected to build [Project name]',
+        text:'[Owner] picked our team for a [size] [project type] in [City]. Work starts [Month].', label:'See our work', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\nWe wanted you to hear it from us first. [One or two sentences on why this job matters: the client, the community, the kind of work.]' }),
+      B('card', { eyebrow:'The project', title:'[Project name], [City]', text:'**Scope:** [What we are building]\n\n**Size:** [Square feet or value]\n**Timeline:** [Start] to [Finish]' }),
+      B('card', { eyebrow:'Why it matters', title:'[A short, plain headline]', text:'[Two or three sentences: a first for us, a repeat client, a local landmark, jobs it brings.]' }),
+      B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:done': [
+      B('hero', { eyebrow:'Project completed', title:'[Project name] is open',
+        text:'[Size] of [project type] in [City], handed over [on schedule / ahead of schedule].', label:'See the project', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One or two sentences about the job and the client.]' }),
+      B('pair', { label:'During construction', label2:'Finished', caption:'[One line about the photos.]' }),
+      B('checklist', { title:'By the numbers', items:'[Size] square feet\n[Number] days from start to finish\n[Number] local trades on site\n[Safety stat, e.g. zero lost-time incidents]' }),
+      B('card', { eyebrow:'From the owner', title:'"[A short quote from the client.]"', text:'[Name], [Title], [Company]' }),
+      B('buttons', { label:'See the project', href:EC_BRANDS.haggerty.site, label2:'Start your project', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:event': [
+      B('hero', { eyebrow:"You're invited", title:'[Event name]',
+        text:'[Date] at [Time], [Place]. [One line on why to come.]', label:'Save my spot', href:'mailto:[you@haggertybuilds.com]?subject=RSVP' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the event is, who will be there, what they get out of it.]' }),
+      B('card', { eyebrow:'When and where', title:'[Day, Month Date]', text:'**Time:** [Start] to [End]\n**Place:** [Venue, address]\n**Parking:** [Where to park]' }),
+      B('checklist', { title:'What to expect', items:'[Tour of the site or office]\n[Food and drinks]\n[Meet the project team]' }),
+      B('buttons', { label:'Save my spot', href:'mailto:[you@haggertybuilds.com]?subject=RSVP', label2:'Event details', href2:EC_BRANDS.haggerty.site })
+    ],
+    'haggerty:team': [
+      B('hero', { eyebrow:'Team news', title:'Meet [Name], our new [Role]',
+        text:'[One line on what they will do for our clients.]', label:'See open roles', href:EC_BRANDS.haggerty.site }),
+      B('spotlight', { title:'[Name], [Role]', text:'[Two or three sentences: background, past projects, what they are excited about.]', link:'Say hello', href:'mailto:[name@haggertybuilds.com]' }),
+      B('divider'),
+      B('checklist', { title:"We're hiring", items:'[Role], [City]\n[Role], [City]\n[Role], [City]' }),
+      B('text', { text:'Know someone who would fit? Forward this email or send them to [our careers page](' + EC_BRANDS.haggerty.site + ').' }),
+      B('buttons', { label:'See open roles', href:EC_BRANDS.haggerty.site, label2:'Refer someone', href2:'mailto:[you@haggertybuilds.com]?subject=Referral' })
+    ],
+    'haggerty:roundup': [
+      B('hero', { eyebrow:'[Month] news', title:"What we've been building",
+        text:'Three quick updates from the HAGGERTY team.', label:'See our work', href:EC_BRANDS.haggerty.site }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One line to open the roundup.]' }),
+      B('spotlight', { title:'[Story 1 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('divider'),
+      B('spotlight', { title:'[Story 2 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('divider'),
+      B('spotlight', { title:'[Story 3 headline]', text:'[Two sentences.]', link:'Read more' }),
+      B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
+    ],
+    'rhino:season': [
+      B('hero', { eyebrow:'[Storm] season', title:'Is your property ready for [storm season]?',
+        text:'Three things to check before the first [big rain], and who to call if it gets in.', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One or two sentences: what the season brings and what it costs a property when it goes wrong.]' }),
+      B('card', { eyebrow:'Check 1', title:'[Roofs, drains and gutters]', text:'[What to look for.]\n\n**What we do:** [How RHINO helps.]' }),
+      B('card', { eyebrow:'Check 2', title:'[Low spots and crawlspaces]', text:'[What to look for.]\n\n**What we do:** [How RHINO helps.]' }),
+      B('card', { eyebrow:'Check 3', title:'[A plan for after hours]', text:'[What to look for.]\n\n**What we do:** We answer 24/7 and are on site fast.' }),
+      B('checklist', { title:'Before the first big storm' }),
+      B('buttons', { ...call, label2:'Book a walk-through', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:job': [
+      B('hero', { eyebrow:'Job spotlight', title:'[Loss type] at a [property type] in [City]',
+        text:'[Property] was back open in [Number] days.', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[One line on why this job is worth sharing.]' }),
+      B('pair', { caption:'[One line about the photos.]' }),
+      B('card', { eyebrow:'What happened', title:'[A short, plain headline]', text:'[Two sentences on the loss: what, when, how bad.]' }),
+      B('card', { eyebrow:'What we did', title:'[A short, plain headline]', text:'[Two or three sentences: response time, drying, demo, rebuild.]' }),
+      B('card', { eyebrow:'The result', title:'[A short, plain headline]', text:'[Days to reopen, claim handled direct with insurance, tenant impact.]' }),
+      B('buttons', { ...call, label2:'See more jobs', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:event': [
+      B('hero', { eyebrow:'Free for property managers', title:'[Lunch and learn: Topic]',
+        text:'[Date] at [Time], [Place]. Lunch is on us.', label:'Save my seat', href:'mailto:[you@rhinorestores.com]?subject=RSVP' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two sentences: what the class covers and who should come.]' }),
+      B('card', { eyebrow:'When and where', title:'[Day, Month Date]', text:'**Time:** [Start] to [End]\n**Place:** [Venue, address]\n**CE credit:** [Hours, if any]' }),
+      B('checklist', { title:"What you'll learn", items:'[What to do in the first hour of a water loss]\n[How insurance claims work with a restoration vendor]\n[How to spot mold before tenants do]' }),
+      B('buttons', { label:'Save my seat', href:'mailto:[you@rhinorestores.com]?subject=RSVP', label2:'Call us', href2:'tel:' + o.phone })
+    ],
+    'rhino:news': [
+      B('hero', { eyebrow:'RHINO news', title:'[News headline]',
+        text:'[One line: what changed and what it means for your properties.]', ...call }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences with the details.]' }),
+      B('spotlight', { title:'[Who or what]', text:'[Two sentences: a new certification, truck, location or team member.]', link:'Learn more' }),
+      B('card', { eyebrow:'What it means for you', title:'[A short, plain headline]', text:'[Two sentences on the benefit to a property manager.]' }),
+      B('buttons', { ...call, label2:'See our work', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:ready': [
+      B('hero', { eyebrow:'24/7 emergency response', title:'Save this number before you need it',
+        text:'Water, fire or mold, day or night. One call and we are on the way.', ...call }),
+      B('card', { eyebrow:'We answer', title:'A real person, 24/7', text:'[One or two sentences on response time.]' }),
+      B('card', { eyebrow:'We handle the claim', title:'We bill your insurance directly', text:'[One or two sentences on paperwork and adjusters.]' }),
+      B('card', { eyebrow:'We are certified', title:'IICRC certified crews', text:'[One or two sentences on training and standards.]' }),
+      B('checklist', {}),
+      B('buttons', { ...call, label2:'Add us as a vendor', href2:EC_BRANDS.rhino.site })
+    ]
+  };
+  const mid = T[brand + ':' + key];
+  return mid ? [...top, ...mid, ...end].filter(Boolean) : null;
+}
+// Unfilled [placeholders] left in an email, so it cannot go out half done.
+function ecLeftovers(c){
+  const words = [c.subject, c.preview_text, JSON.stringify(c.blocks || [])].join(' ');
+  return (words.match(/\[[^\]\n"]{1,60}\](?!\()/g) || []).filter((v, n, a) => a.indexOf(v) === n);
+}
+// Thumbnail of a template, with grey stand-ins where the photos go.
+const EC_PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><rect width="600" height="340" fill="#8A8580"/><text x="300" y="182" font-family="Arial" font-size="28" fill="#E9E5DF" text-anchor="middle">Photo</text></svg>');
+function ecTemplateHtml(brand, key){
+  const blocks = ecTemplateBlocks(brand, key).map(b => {
+    const x = { ...b };
+    if(x.type === 'hero' || x.type === 'pair' || x.type === 'spotlight') x.src = x.src || EC_PHOTO;
+    if(x.type === 'pair') x.src2 = x.src2 || EC_PHOTO;
+    if(x.type === 'header' && brand === 'haggerty') x.logo = LOGO;
+    if(EC_FOOTERS.includes(x.type) && EC_BRANDS[brand].badge) x.badge = EC_BRANDS[brand].badge.data;
+    return x;
+  });
+  const t = EC_TEMPLATES[brand].find(x => x.key === key);
+  return ecHtml({ brand, accent:EC_BRANDS[brand].bold.accent, blocks, subject:t.subject, preview_text:t.preview }, true);
+}
+
 /* ---------- email HTML ---------- */
 /* Built the way email has to be: tables, inline styles, web-safe fonts,
    600px wide, with a media query that stacks the spotlight on phones.
@@ -9443,7 +9605,9 @@ function ecReadyProblem(c){
   if(!c.subject) missing.push('a subject line');
   if(!c.from_name) missing.push('a from name');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.reply_to || '')) missing.push('a reply-to address');
-  return missing.length ? 'Add ' + missing.join(', ') + ' first.' : '';
+  if(missing.length) return 'Add ' + missing.join(', ') + ' first.';
+  const left = ecLeftovers(c);
+  return left.length ? 'Fill in the bracketed parts first: ' + left.slice(0, 4).join(', ') + (left.length > 4 ? ' and ' + (left.length - 4) + ' more.' : '.') : '';
 }
 async function ecSetReview(fields, note){
   const E = ecState();
@@ -9517,8 +9681,9 @@ function ecStatusLine(){
   el.textContent = E.saving ? 'Saving…' : E.dirty ? 'Unsaved changes' : E.saved ? 'Saved ' + fmtTime(E.saved.toISOString()) : '';
 }
 
-async function ecNew(brand, layout){
+async function ecNew(brand, layout, tpl){
   const E = ecState();
+  const t = tpl && (EC_TEMPLATES[brand] || []).find(x => x.key === tpl);
   const a = (S.mc && S.mc.audiences || []).find(x => !String(x.list_id).startsWith('seed-')) || {};
   const row = {
     brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
@@ -9526,6 +9691,8 @@ async function ecNew(brand, layout){
     list_id: a.list_id || null, accent: layout === 'bold' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
     blocks: layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
   };
+  if(t) Object.assign(row, { title:(brand === 'rhino' ? 'RHINO ' : 'HAGGERTY ') + t.name + ' ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
+    subject:t.subject, preview_text:t.preview, accent:EC_BRANDS[brand].bold.accent, blocks:ecTemplateBlocks(brand, t.key) });
   E.busy = 'new'; render();
   const head = row.blocks.find(x => x.type === 'header');
   if(brand === 'haggerty' && head) head.logo = await ecLogoUrl().catch(() => '');
@@ -9660,6 +9827,7 @@ function ecAudiences(){ return (S.mc && S.mc.audiences) || []; }
 
 function ecListPage(){
   const E = ecState();
+  const tb = E.tbrand || 'haggerty';
   const rows = E.list.map(c => {
     const st = EC_STATUS[c.status] || EC_STATUS.draft;
     return `<div class="ec-item">
@@ -9694,7 +9862,16 @@ function ecListPage(){
     </div>
     ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
     ${E.loadErr ? `<p class="hint err">Campaigns could not load: ${esc(E.loadErr)}</p>` : ''}
-    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>No campaigns yet</h2><p>Start one with the buttons above.</p></div>`}
+    <div class="ec-head" style="margin:6px 0 0;align-items:center">
+      <div><h3 class="ec-h3">Start from a template</h3>
+        <p class="hint" style="margin:0">Pick the kind of news. Fill in the [bracketed] parts and add photos.</p></div>
+      <div class="actions" style="margin:0">${['haggerty', 'rhino'].map(k => `<button class="btn small ${tb === k ? 'accent' : 'ghost'}" data-ec-tbrand="${k}">${esc(EC_BRANDS[k].name)}</button>`).join('')}</div>
+    </div>
+    <div class="ec-tpls">${EC_TEMPLATES[tb].map(t => `<button class="ec-tpl" data-ec-new="${tb}" data-layout="bold" data-tpl="${t.key}" ${E.busy ? 'disabled' : ''}>
+      <div class="ec-thumb"><iframe data-ec-thumb="${tb}:${t.key}" title="${esc(t.name)} preview" sandbox="" tabindex="-1" loading="lazy"></iframe></div>
+      <div class="ec-tpl-txt"><b>${esc(t.name)}</b><span>${esc(t.use)}</span></div></button>`).join('')}</div>
+    <h3 class="ec-h3">Your emails</h3>
+    ${rows ? `<div class="ec-list">${rows}</div>` : `<div class="empty"><h2>No campaigns yet</h2><p>Start one from a template above, or with the buttons at the top.</p></div>`}
   </main>`;
 }
 
@@ -9925,7 +10102,9 @@ function ecPreview(){
 function wireCampaigns(){
   if(S.page !== 'campaigns') return;
   const E = ecState();
-  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew, b.dataset.layout)));
+  document.querySelectorAll('[data-ec-new]').forEach(b => b.addEventListener('click', () => ecNew(b.dataset.ecNew, b.dataset.layout, b.dataset.tpl)));
+  document.querySelectorAll('[data-ec-thumb]').forEach(f => { const [b, k] = f.dataset.ecThumb.split(':'); f.srcdoc = ecTemplateHtml(b, k); });
+  document.querySelectorAll('[data-ec-tbrand]').forEach(b => b.addEventListener('click', () => { ecState().tbrand = b.dataset.ecTbrand; render(); }));
   document.querySelectorAll('[data-ec-open]').forEach(b => b.addEventListener('click', () => ecOpen(b.dataset.ecOpen)));
   if(!E.cur) return;
   const c = E.cur;
