@@ -1231,7 +1231,7 @@ const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
-  ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits']
+  ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -1244,9 +1244,13 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
 /* A social reviewer (sql/social_review.sql) sees the Social tab and the
-   emails sent to them for review, locked to their brand. */
-const visiblePages = () => S.me === 'reviewer' ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns')
-  : PAGES.filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
+   emails sent to them for review, locked to their brand. RHINO's reviewer
+   (Freddie) also gets RHINO jobs, the permits emailed to him; the team
+   sees those on the Permits tab. */
+const visiblePages = () => S.me === 'reviewer'
+  ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns' || (k === 'rjobs' && SOC_BRAND === 'rhino'))
+  : PAGES.filter(([k]) => k !== 'rjobs')
+  .filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
 
@@ -1309,6 +1313,8 @@ const S = {
   /* permits */
   permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
   permitBusy:'', permitErr:'', permitSend:'', permitTo:'pat', permitNote:'', permitMsg:'',
+  /* RHINO jobs (Freddie) */
+  rjobs:null, rjobView:'open', rjobBusy:'', rjobErr:'',
   /* leads */
   batches:null, leads:null, verticals:[], batchId:'all', leadFilter:'all',
   picked:new Set(), leadOpen:{}, leadNote:'', leadErr:'', leadProg:null,
@@ -3194,6 +3200,7 @@ async function ensureOnce(page){
   if(page==='reels' && !S.loaded.reels) await loadReels();
   if(page==='social' && !S.loaded.social) await loadSocial();
   if(page==='permits' && !S.loaded.permits) await loadPermits();
+  if(page==='rjobs' && !S.loaded.rjobs) await loadRhinoJobs();
   if(page==='campaigns' && !S.loaded.ec) await loadCampaigns();
   if(page==='bulk') await Promise.all([!S.loaded.bulk && loadBulk(), !S.loaded.labels && loadLabels()].filter(Boolean));
   if(page==='leads'){
@@ -3218,7 +3225,7 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
 /* The sidebar groups the tabs by what they are for. A tab someone cannot
    see (visiblePages) drops out, and an empty group goes with it. */
 const NAV_GROUPS = [
-  ['Today',   ['home','today','approvals']],
+  ['Today',   ['home','rjobs','today','approvals']],
   ['People',  ['myday','calendar','iyanna']],
   ['Content', ['social','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','leads','bulk','permits']],
@@ -3226,10 +3233,10 @@ const NAV_GROUPS = [
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
-const NAV_PHONE = me => me === 'reviewer' ? ['social','campaigns']
+const NAV_PHONE = me => me === 'reviewer' ? (SOC_BRAND === 'rhino' ? ['rjobs','social','campaigns'] : ['social','campaigns'])
                       : me === 'iyanna' ? ['iyanna','reels','social','leads']
                       /* Liam's own Home and Day lead; Outreach is Pat's. */
                       : me === 'liam'   ? ['home','myday','approvals','kpis']
@@ -3252,6 +3259,7 @@ const NAV_ICON = {
   voices:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   bulk:'<path d="M3 11 21 3l-6 18-4-7z"/><path d="M11 14 21 3"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
+  rjobs:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
 const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] || ''}</svg>`;
@@ -3262,6 +3270,7 @@ const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] 
    not the count, is the to-do. */
 function navCount(k){
   if(k === 'approvals' && S.loaded.approvals) return { n:apvPendingCount() };
+  if(k === 'rjobs' && S.loaded.rjobs) return { n:(S.rjobs || []).filter(j => !j.state).length };
   if(k === 'voices' && S.loaded.voices) return { n:S.exv.answers.filter(a => a.status === 'ready' && a.use_status === 'new').length };
   if(k === 'today' && S.me === 'pat' && S.loaded.board) return { n:homeBoardCounts().open.length, quiet:true };
   return { n:0 };
@@ -3625,6 +3634,7 @@ function pageHtml(){
   if(OWNERS[S.page])       return pageDay(OWNERS[S.page]);
   if(S.page==='leads')     return pageLeads();
   if(S.page==='permits')   return pagePermits();
+  if(S.page==='rjobs')     return pageRhinoJobs();
   if(S.page==='bulk')      return pageBulk();
   return '';
 }
@@ -3767,6 +3777,7 @@ function wirePage(){
   wireVoices();
   wireReels();
   wirePermits();
+  wireRhinoJobs();
   wireSocial();
   wireCampaigns();
   wireBulk();
@@ -7736,6 +7747,7 @@ function permitCard(p){
       ${p.mark==='pat' ? '<span class="chip hot">Sent to Pat</span>' : ''}
       ${p.mark==='contacted' ? '<span class="chip good">Pat contacted</span>' : ''}
       ${p.emailed_at ? `<span class="chip good" title="Emailed by ${esc(HOME_NAMES[p.emailed_by] || p.emailed_by || '')}">Emailed Freddie ${esc(permitDate(String(p.emailed_at).slice(0,10)))}</span>` : ''}
+      ${p.emailed_state ? `<span class="chip ${p.emailed_state==='contacted'?'good':''}">${p.emailed_state==='contacted'?'Freddie contacted':'Freddie: not a fit'}</span>` : ''}
       <span class="m">${esc(p.agency_reference)} · ${esc(p.record_type||'')} · ${esc(p.status||'')} · ${esc(permitDate(p.record_date))}</span>
     </div>
     <h4>${esc(p.name || p.record_type || p.agency_reference)}</h4>
@@ -7997,6 +8009,98 @@ function wirePermits(){
       }, 250);
     });
   }
+}
+
+/* ================= RHINO jobs ================= */
+/* Freddie's list: permits Liam or Pat emailed him from the Permits tab
+   (RHINO ones), newest first, until he marks each contacted or not a
+   fit. His login is a social reviewer's, closed to every table, so it
+   reads and writes through rhino_jobs() and rhino_job_mark()
+   (sql/rhino_jobs.sql). Emailing one again puts it back on his list. */
+async function loadRhinoJobs(){
+  /* A GET, so it also reads while Liam views as Freddie. */
+  const { data, error } = await sb.rpc('rhino_jobs', {}, { get:true });
+  if(error) throw error;
+  S.rjobs = data || [];
+  S.loaded.rjobs = true;
+}
+
+const RJOB_STATE = { contacted:'Contacted', not_fit:'Not a fit' };
+
+function rjobCard(j){
+  const busy = S.rjobBusy === j.guid;
+  const tel = j.pro_phone ? String(j.pro_phone).replace(/[^0-9+]/g, '') : '';
+  const telTxt = tel.length === 10 ? `(${tel.slice(0,3)}) ${tel.slice(3,6)}-${tel.slice(6)}` : j.pro_phone;
+  const from = HOME_NAMES[j.emailed_by] || 'Liam';
+  return `<article class="permit rhino">
+    <div class="ptop">
+      ${j.state ? `<span class="chip ${j.state==='contacted'?'good':''}">${esc(RJOB_STATE[j.state])}</span>` : '<span class="chip bad">New</span>'}
+      <span class="m">Sent by ${esc(from)} ${esc(shortDate(j.emailed_at))} · ${esc(j.agency_reference)} · ${esc(j.status||'')}</span>
+    </div>
+    <h4>${esc(j.name || j.record_type || j.agency_reference)}</h4>
+    <div class="addr">${esc(j.address || 'No address on record')}</div>
+    ${j.note ? `<div class="pnote"><b>From ${esc(from)}:</b> ${esc(j.note)}</div>` : ''}
+    ${j.description ? `<p class="desc ${S.permitOpen && S.permitOpen[j.guid] ? 'open' : ''}" data-permit-more="${esc(j.guid)}">${esc(j.description)}</p>` : ''}
+    ${Number(j.job_value) > 0 ? `<div class="nums">${money(j.job_value)} job value · filed ${esc(permitDate(j.record_date))}</div>` : ''}
+    ${j.pro_company || j.pro_name ? `<div class="ppro">
+      <span class="lbl">Contractor on file</span>
+      <b>${esc(j.pro_company || j.pro_name)}</b>${j.pro_name && j.pro_company ? ` · ${esc(j.pro_name)}` : ''}
+      ${tel ? ` · <a href="tel:${esc(tel)}" class="mono">${esc(telTxt)}</a>` : ''}
+      ${j.pro_license ? `<div class="sub">License ${esc(j.pro_license)}</div>` : ''}
+    </div>` : `<div class="ppro none">No contractor on file with the city yet.</div>`}
+    <div class="acts">
+      <a class="btn small ghost" href="${esc(j.url)}" target="_blank" rel="noopener">Open record</a>
+      ${j.state
+        ? `<button class="btn small ghost" data-rjob="${esc(j.guid)}" data-val="" ${busy?'disabled':''}>${busy?'Saving&hellip;':'Back to open'}</button>`
+        : `<button class="btn small" data-rjob="${esc(j.guid)}" data-val="contacted" ${busy?'disabled':''}>${busy?'Saving&hellip;':'Contacted'}</button>
+           <button class="btn small ghost" data-rjob="${esc(j.guid)}" data-val="not_fit" ${busy?'disabled':''}>Not a fit</button>`}
+    </div>
+  </article>`;
+}
+
+function pageRhinoJobs(){
+  if(!S.loaded.rjobs) return loading();
+  const all = S.rjobs || [];
+  const open = all.filter(j => !j.state), done = all.filter(j => j.state);
+  const rows = S.rjobView === 'done' ? done : open;
+  const views = [['open','To follow up', open.length], ['done','Done', done.length]]
+    .map(([k,label,n])=>`<button class="fchip ${S.rjobView===k?'on':''}" data-rjobview="${k}">${label} <b>${n}</b></button>`).join('');
+  return `<main class="page wide">
+    <div class="fchips" style="margin:0 0 10px">${views}</div>
+    <p class="hint" style="margin:0 0 14px">City of Sacramento permits that look like RHINO work, sent to you from the
+      HAGGERTY dashboard. Each one is in your email too. Mark it contacted once you've reached out, or not a fit.</p>
+    ${S.rjobErr?`<p class="hint err" style="margin-bottom:14px">${esc(S.rjobErr)}</p>`:''}
+    ${rows.length
+      ? `<div class="permit-list">${rows.map(rjobCard).join('')}</div>`
+      : `<div class="empty" style="padding:44px 0">
+           <h2>${S.rjobView === 'done' ? 'Nothing marked yet' : 'All caught up'}</h2>
+           <p>${S.rjobView === 'done' ? 'Jobs you mark contacted or not a fit land here.' : 'New permits show up here as soon as they are sent to you.'}</p>
+         </div>`}
+  </main>`;
+}
+
+async function markRhinoJob(guid, state){
+  if(S.rjobBusy) return;
+  const j = (S.rjobs||[]).find(x => x.guid === guid);
+  if(!j) return;
+  S.rjobBusy = guid; S.rjobErr = ''; render();
+  try{
+    const { data, error } = await sb.rpc('rhino_job_mark', { p_guid:guid, p_state:state || null });
+    if(error) throw error;
+    Object.assign(j, { state:state || null, state_at:state ? data : null, state_by:state ? S.email : null });
+  }catch(e){
+    S.rjobErr = 'Could not save that: ' + (e.message || e);
+  }
+  S.rjobBusy = ''; render();
+}
+
+function wireRhinoJobs(){
+  if(S.page !== 'rjobs') return;
+  document.querySelectorAll('[data-rjobview]').forEach(el=>
+    el.addEventListener('click',()=>{ S.rjobView = el.dataset.rjobview; render(); }));
+  document.querySelectorAll('[data-rjob]').forEach(el=>
+    el.addEventListener('click',()=>markRhinoJob(el.dataset.rjob, el.dataset.val)));
+  /* Tapping a description to open it is wired by wirePermits. */
 }
 
 /* ================= social calendar ================= */
@@ -13382,7 +13486,7 @@ const LOADERS = {
   board:loadBoard, tiles:loadTiles, week:loadWeek, seq:loadSequences, assets:loadAssets,
   voice:loadVoice, health:loadHealth, mc:loadMailchimp, invites:loadInvites,
   approvals:loadApprovals, budget:loadBudget, mileage:loadMileage, requests:loadRequests,
-  reels:loadReels, social:loadSocial, permits:loadPermits, ec:loadCampaigns, bulk:loadBulk,
+  reels:loadReels, social:loadSocial, permits:loadPermits, rjobs:loadRhinoJobs, ec:loadCampaigns, bulk:loadBulk,
   photos:loadPhotos, voices:loadVoices, kpis:loadKpis, metrics:loadMetrics, ret:loadReturn,
   'tasks.liam':() => loadTasks('liam'), 'tasks.iyanna':() => loadTasks('iyanna'),
   clicks:() => { const ids = Object.keys(S.clicks); S.clicks = {}; return loadClicks(ids); }
@@ -13411,7 +13515,7 @@ function pageKeys(page){
     mileage: () => ['mileage'], photos: () => ['photos'], voices: () => ['voices'],
     kpis: () => ['kpis','metrics'].concat(S.kpiView === 'scorecard' ? [] : ['ret']),
     myday: () => ['tasks.liam','requests'], iyanna: () => ['tasks.iyanna'],
-    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'],
+    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'], rjobs: () => ['rjobs'],
     campaigns: () => ['ec'], bulk: () => ['bulk'], leads: () => ['clicks']
   };
   return P[page] ? P[page]() : [];
@@ -13438,7 +13542,7 @@ const LIVE_TABLES = {
   deals:['kpis','home.pipe','home.stages','home.monthly','ret'], deal_sources:['ret'],
   kpi_targets:['kpis'], kpi_manual:['kpis'],
   expenses:['budget'], budget_plan:['budget'],
-  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'], permit_emails:['permits'],
+  mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'], permit_emails:['permits','rjobs'],
   email_campaigns:['ec'], bulk_campaigns:['bulk'],
   photo_batches:['photos'], exv_answers:['voices']
 };
@@ -13563,7 +13667,7 @@ async function boot(){
      Home, and Iyanna on her own list. */
   const { page:want, view } = parseHash(location.hash);
   S.page = visiblePages().some(([k]) => k === want) ? want
-         : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? 'social' : 'home');
+         : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? (SOC_BRAND === 'rhino' ? 'rjobs' : 'social') : 'home');
   if(S.page === want && view && SUBVIEW[want]) SUBVIEW[want].set(view);
   S._hashReady = false;
   try{
