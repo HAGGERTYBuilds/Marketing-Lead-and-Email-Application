@@ -218,6 +218,13 @@
   .btn.ghost:hover{background:var(--wash);color:var(--ink)}
   .btn.accent{background:var(--orange);color:#fff}
   .btn.accent:hover{background:#DE7A16}
+  .previewbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;
+              background:var(--orange-tint);border-bottom:1px solid var(--orange);color:var(--hot-ink);font-size:13.5px}
+  .previewbar span{flex:1;min-width:0}
+  .revtodo{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--orange);
+           padding:14px 17px;margin:0 0 14px}
+  .revtodo h3{margin:0 0 6px;font-size:15px}
+  .revtodo ol{margin:6px 0 0;padding-left:20px;color:var(--grey);font-size:13.5px;line-height:1.55}
   .done-banner{background:var(--card);border:1px solid var(--rule);
                border-left:3px solid var(--green);padding:15px 17px;margin-bottom:18px}
   .done-banner .eyebrow{color:var(--green)}
@@ -1177,6 +1184,26 @@ const MCPUSH_URL   = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-mail
    screen report progress as it goes. */
 const APPROVE_CHUNK = 8;
 
+/* View as the reviewer (Liam only). The screen is the reviewer's, but the
+   signed-in account is still Liam's, so while it is on every write is
+   stopped here, before it leaves the page: only reads, sign-in and the
+   signed links that show photos go through. supabase-js keeps the fetch
+   it finds when the client is made, so this has to come first. */
+const PREVIEW_KEY = 'hg-preview-as';
+let PREVIEW_ON = false;
+const pageFetch = window.fetch.bind(window);
+window.fetch = (input, init) => {
+  if(PREVIEW_ON){
+    const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
+    const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    const read = method === 'GET' || method === 'HEAD' || url.includes('/auth/v1/') || url.includes('/storage/v1/object/sign/');
+    if(!read) return Promise.resolve(new Response(JSON.stringify({
+      message: 'Preview only: nothing is saved while you view as ' + ((S && S.revName) || 'the reviewer') + '.' }),
+      { status:403, headers:{ 'Content-Type':'application/json' } }));
+  }
+  return pageFetch(input, init);
+};
+
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById('app');
 
@@ -1241,7 +1268,7 @@ const BOARD_CAP = 5;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-23a';
+const BUILD = '2026-10-23b';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3292,7 +3319,20 @@ function bottomBar(){
 /* Every page sits in the same frame: sidebar, then the top bar and the
    page itself. On a phone the sidebar becomes the bar along the bottom. */
 function shell(inner){
-  return `<div class="shell">${rail()}<div class="mainwrap">${topbar()}${crmPanel()}${inner}</div></div>${bottomBar()}`;
+  return `<div class="shell">${rail()}<div class="mainwrap">${previewBar()}${topbar()}${crmPanel()}${inner}</div></div>${bottomBar()}`;
+}
+
+/* The strip across the top while Liam views as the reviewer. */
+function previewBar(){
+  if(!S.preview) return '';
+  return `<div class="previewbar"><span>Viewing as <b>${esc(S.revName)}</b>, the ${esc(SOC_BRANDS[SOC_BRAND])} reviewer.
+    This is what they see. Nothing you click is saved.</span>
+    <button class="btn small" data-preview-exit>Back to my view</button></div>`;
+}
+function previewSwitch(email){
+  try{ email ? sessionStorage.setItem(PREVIEW_KEY, email) : sessionStorage.removeItem(PREVIEW_KEY); }catch(e){}
+  location.hash = '#social';
+  location.reload();
 }
 
 function topbar(){
@@ -3364,10 +3404,12 @@ window.addEventListener('hashchange', () => {
    The sidebar, phone bar and search box are handled by listeners on the
    document, so they are never re-attached when the page repaints. */
 document.addEventListener('click', async e => {
-  const el = e.target && e.target.closest ? e.target.closest('[data-page],[data-signout],[data-theme-cycle],[data-more],#crmClose,#crmClear') : null;
+  const el = e.target && e.target.closest ? e.target.closest('[data-page],[data-signout],[data-theme-cycle],[data-more],[data-preview-as],[data-preview-exit],#crmClose,#crmClear') : null;
   if(!el || !app.contains(el)) return;
+  if(el.hasAttribute('data-preview-as')) return previewSwitch(el.dataset.previewAs);
+  if(el.hasAttribute('data-preview-exit')) return previewSwitch(null);
   if(el.hasAttribute('data-page')) return goPage(el.dataset.page);
-  if(el.hasAttribute('data-signout')){ S.day = null; S.moreOpen = false; liveStop(); await sb.auth.signOut(); return renderLogin(); }
+  if(el.hasAttribute('data-signout')){ try{ sessionStorage.removeItem(PREVIEW_KEY); }catch(err){} PREVIEW_ON = false; S.preview = null; S.day = null; S.moreOpen = false; liveStop(); await sb.auth.signOut(); return renderLogin(); }
   if(el.hasAttribute('data-theme-cycle')) return cycleTheme();
   /* Lead cards use data-more for their own toggle, so only the phone
      bar's More button opens the sheet. */
@@ -8124,6 +8166,26 @@ function socResultsView(){
    Needs changes, with a note. Only drafts and approved posts wait on it. */
 function socIsReviewer(){ return S.me === 'reviewer'; }
 function socNeedsReview(){ return (S.socReviewers || []).length > 0; }
+/* What the reviewer has to do this month, at the top of their Social tab. */
+function socReviewerTodo(all){
+  const open = p => p.status === 'draft' || p.status === 'approved';
+  const todo = all.filter(p => open(p) && !p.review_status).length;
+  const back = all.filter(p => open(p) && p.review_status === 'changes').length;
+  const ok = all.filter(p => p.review_status === 'ok').length;
+  const ec = S.ec && S.ec.list ? S.ec.list.filter(c => c.review_status === 'pending').length : 0;
+  const first = String(S.revName || '').split(' ')[0];
+  const head = todo ? `${todo} post${todo===1?'':'s'} waiting on you this month`
+             : `Nothing waiting on you this month${first ? ', ' + esc(first) : ''}`;
+  return `<div class="revtodo"><h3>${head}</h3>
+    <p class="hint" style="margin:0">${ok} OK to post${back ? ', ' + back + ' sent back for changes' : ''}.
+      ${ec ? `${ec} email${ec===1?'':'s'} also waiting on the <a href="#campaigns" data-page="campaigns">Email tab</a>.` : 'Use the arrows to check next month.'}</p>
+    ${todo ? `<ol>
+      <li>Find the posts marked <b>Waiting on review</b>. Tap the photo to see it full size.</li>
+      <li>Check the photo and the words: safety gear, client names, addresses, anything that should not go public.</li>
+      <li>All good? Tap <b>OK to post</b>. Only posts you OK get sent.</li>
+      <li>Something to fix? Tap <b>Edit or flag</b>, fix the words or say what needs to change, and save.</li></ol>` : ''}
+  </div>`;
+}
 function socReviewerName(email){
   const r = (S.socReviewers || []).find(x => x.email === email);
   return (r && r.name) || (email ? String(email).split('@')[0] : 'Reviewer');
@@ -8426,6 +8488,8 @@ function pageSocial(){
       <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
       <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
       <span style="flex:1"></span>
+      ${!rev && S.me === 'liam' && socNeedsReview() ? `<button class="btn small ghost" data-preview-as="${esc(S.socReviewers[0].email)}"
+              title="See this tab and the Email tab exactly as ${esc(socReviewerName(S.socReviewers[0].email))} does. Read-only.">View as ${esc(socReviewerName(S.socReviewers[0].email).split(' ')[0])}</button>` : ''}
       ${rev ? '' : `<button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
               title="${all.length?'This month already has posts.':'Ask for a month of posts built from the ' + SOC_BRANDS[SOC_BRAND] + ' photo archive.'}">Generate month</button>
       ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
@@ -8436,7 +8500,7 @@ function pageSocial(){
       <button class="btn small" id="socSend" ${busy||!sendable?'disabled':''}
               ${waiting?`title="${waiting} approved post${waiting===1?' is':'s are'} waiting on review"`:''}>Send ${sendable||''} ${socNeedsReview()?'reviewed':'approved'} to Metricool</button>`}
     </div>
-    ${rev ? `<p class="hint" style="margin:0 0 14px">Look over each post before it goes out. Mark it OK to post, or Edit or flag to fix the words or say what needs to change, such as a safety issue in a photo. Only posts you OK get sent.</p>`
+    ${rev ? socReviewerTodo(all)
       : waiting ? `<p class="hint" style="margin:0 0 14px">${waiting} approved post${waiting===1?' is':'s are'} waiting on ${esc(socReviewerName((S.socReviewers[0]||{}).email))} to review before they can be sent.</p>` : ''}
 
     ${socResultsStrip()}
@@ -9081,6 +9145,9 @@ async function loadCampaigns(){
     ]);
     if(c.error) throw c.error;
     E.list = c.data || [];
+    /* The database narrows a real reviewer to their brand's emails that
+       were sent for review; Liam's account sees all, so narrow it here. */
+    if(S.preview) E.list = E.list.filter(x => x.brand === SOC_BRAND && x.review_status != null);
     E.loadErr = '';
     // Pasted RHINO emails link the IICRC logo here, so make sure it is hosted.
     if(!ecIsRev()) ecBadgeUrl('rhino').catch(() => {});
@@ -13149,6 +13216,20 @@ async function boot(){
     if(rv.error || !rv.data || !SOC_BRANDS[rv.data.brand]) return renderNoAccess(email);
     S.me = 'reviewer'; S.revName = rv.data.name || email.split('@')[0];
     SOC_BRAND = rv.data.brand; SOC_FOCUS = SOC_FOCUS_BY[SOC_BRAND];
+  }else if(S.me === 'liam'){
+    /* View as the reviewer, switched on from the Social tab. Kept per
+       browser tab (sessionStorage), so other tabs stay Liam's own. */
+    let as = null;
+    try{ as = sessionStorage.getItem(PREVIEW_KEY); }catch(e){}
+    if(as){
+      const rv = await sb.from('social_reviewers').select('email,brand,name').eq('email', as).maybeSingle();
+      if(!rv.error && rv.data && SOC_BRANDS[rv.data.brand]){
+        PREVIEW_ON = true;
+        S.preview = { email: rv.data.email };
+        S.me = 'reviewer'; S.revName = rv.data.name || as.split('@')[0];
+        SOC_BRAND = rv.data.brand; SOC_FOCUS = SOC_FOCUS_BY[SOC_BRAND];
+      }else{ try{ sessionStorage.removeItem(PREVIEW_KEY); }catch(e){} }
+    }
   }
   S.dayOwner = S.me;
   S.day = today();
