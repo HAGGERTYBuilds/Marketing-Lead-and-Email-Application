@@ -1017,6 +1017,24 @@
     .home-cols{grid-template-columns:1fr}
   }
 
+  /* ---------- API usage ---------- */
+  .api-alerts{background:var(--card);border:1px solid var(--rule)}
+  .api-alert{display:flex;gap:12px;align-items:flex-start;padding:11px 13px;border-bottom:1px solid var(--rule-soft)}
+  .api-alert:last-child{border-bottom:0}
+  .api-alert .t{font-weight:600;font-size:14px}
+  .api-alert .dt{font-size:13px;color:var(--grey);margin-top:2px;overflow-wrap:anywhere}
+  .api-range{display:flex;gap:6px;flex-wrap:wrap}
+  .api-chart{display:flex;align-items:flex-end;gap:2px;height:150px;padding:16px 12px 0;
+             background:var(--card);border:1px solid var(--rule);border-bottom:0}
+  .api-chart .d{flex:1;min-width:2px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
+  .api-chart .d i{display:block;background:var(--orange)}
+  .api-chart .d.zero i{height:1px !important;background:var(--rule)}
+  .api-chart .d.err::after{content:'';position:absolute;top:-10px;left:50%;width:6px;height:6px;
+             margin-left:-3px;border-radius:50%;background:var(--red)}
+  .api-axis{display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;
+            color:var(--slate);padding:7px 12px;background:var(--card);border:1px solid var(--rule)}
+  .api-table td{vertical-align:top}
+  @media (max-width:640px){ .api-axis span:nth-child(2){display:none} }
   /* ---------- budget ---------- */
   .bud-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .bud-year{display:flex;align-items:center;gap:2px}
@@ -1231,7 +1249,8 @@ const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
-  ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs']
+  ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
+  ['api','API Usage']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -1252,7 +1271,8 @@ const visiblePages = () => S.me === 'reviewer'
   : PAGES.filter(([k]) => k !== 'rjobs')
   .filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
-  .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me));
+  .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me))
+  .filter(([k]) => k !== 'api' || API_USERS.includes(S.me));
 
 /* A day list is its owner's. Liam runs both lists, so he can see and
    work Iyanna's; Iyanna sees only her own, and Pat neither. The handlers
@@ -3187,6 +3207,7 @@ async function ensureOnce(page){
   if(page==='mileage' && !S.loaded.mileage) await loadMileage();
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
+  if(page==='api' && !S.loaded.api) await loadApi();
   if(page==='kpis'){
     /* Independent reads, so they go together rather than one by one. */
     await Promise.all([
@@ -3229,11 +3250,12 @@ const NAV_GROUPS = [
   ['People',  ['myday','calendar','iyanna']],
   ['Content', ['social','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','leads','bulk','permits']],
-  ['Money',   ['budget','mileage']]
+  ['Money',   ['budget','mileage']],
+  ['System',  ['api']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'reviewer' ? (SOC_BRAND === 'rhino' ? ['rjobs','social','campaigns'] : ['social','campaigns'])
@@ -3260,6 +3282,7 @@ const NAV_ICON = {
   bulk:'<path d="M3 11 21 3l-6 18-4-7z"/><path d="M11 14 21 3"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   rjobs:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/>',
+  api:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
 const navIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICON[k] || ''}</svg>`;
@@ -3272,6 +3295,7 @@ function navCount(k){
   if(k === 'approvals' && S.loaded.approvals) return { n:apvPendingCount() };
   if(k === 'rjobs' && S.loaded.rjobs) return { n:(S.rjobs || []).filter(j => !j.state).length };
   if(k === 'voices' && S.loaded.voices) return { n:S.exv.answers.filter(a => a.status === 'ready' && a.use_status === 'new').length };
+  if(k === 'api' && S.loaded.api) return { n:apiHighCount() };
   if(k === 'today' && S.me === 'pat' && S.loaded.board) return { n:homeBoardCounts().open.length, quiet:true };
   return { n:0 };
 }
@@ -3636,6 +3660,7 @@ function pageHtml(){
   if(S.page==='permits')   return pagePermits();
   if(S.page==='rjobs')     return pageRhinoJobs();
   if(S.page==='bulk')      return pageBulk();
+  if(S.page==='api')       return pageApi();
   return '';
 }
 
@@ -3781,6 +3806,7 @@ function wirePage(){
   wireSocial();
   wireCampaigns();
   wireBulk();
+  wireApi();
   wireBoard();
   wireLeads();
 }
@@ -11967,6 +11993,248 @@ function wirePhotos(){
   }
 }
 
+/* ================= API usage =================
+   What every paid API call costs and whether it worked, from api_usage
+   (sql/api_usage.sql). Each n8n step that calls Claude, Apollo, Evaboot
+   or n8n's transcription has a Log API Usage step beside it, and Haggerty
+   Workflow Alerts logs the calls that stop a workflow outright.
+   Dollar figures are estimates from api_prices; the Anthropic Console is
+   the real bill. Apollo and Evaboot are counted in credits.
+   The alerts here are v_api_alerts, which also feed Home's "Needs a look"
+   and the daily Freshness Check email. */
+const API_USERS = ['liam'];
+S.api = { alerts:[], month:[], daily:[], fails:[], last:{}, loadErr:'', range:30,
+          budgetEdit:null, budgetVal:'', busy:false, err:'', note:'' };
+const API_PROVIDER = { anthropic:'Claude', apollo:'Apollo', evaboot:'Evaboot', n8n:'n8n credits' };
+const API_KEY_LABEL = { outreach:'Outreach key', inbox:'Inbox key', content:'Content key',
+                        apollo:'Apollo', evaboot:'Evaboot' };
+
+async function loadApi(){
+  const A = S.api;
+  const since = apiDay(-89);
+  const [al, mo, da, fa, la] = await Promise.all([
+    sb.from('v_api_alerts').select('*').order('severity').order('since', { ascending:false }),
+    sb.from('v_api_month').select('*'),
+    sb.from('v_api_usage_daily').select('*').gte('day', since),
+    sb.from('api_usage').select('at,workflow,node,provider,error').eq('ok', false)
+      .order('at', { ascending:false }).limit(15),
+    sb.from('api_usage').select('workflow,at').order('at', { ascending:false }).limit(1500)
+  ]);
+  const bad = [al, mo, da, fa, la].find(r => r.error);
+  if(bad){
+    const m = bad.error.message || String(bad.error);
+    A.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (bad.error.code || ''))
+      ? 'The API usage tables are not set up yet. Run sql/api_usage.sql in the Supabase SQL editor, then reload.'
+      : 'Could not load API usage. ' + m;
+    S.loaded.api = true;
+    return;
+  }
+  A.loadErr = '';
+  A.alerts = al.data || [];
+  A.month = mo.data || [];
+  A.daily = da.data || [];
+  A.fails = fa.data || [];
+  A.last = {};
+  for(const r of (la.data || [])) if(!A.last[r.workflow]) A.last[r.workflow] = r.at;
+  S.loaded.api = true;
+}
+
+/* A Pacific calendar day, offset from today, as YYYY-MM-DD. */
+function apiDay(off){
+  const d = new Date(today() + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + off);
+  return d.toISOString().slice(0, 10);
+}
+const apiMoney = n => {
+  const v = Number(n || 0);
+  if(v > 0 && v < 0.01) return '<$0.01';
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+};
+const apiNum = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits:0 });
+const apiTok = n => { const v = Number(n || 0); return v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(v); };
+const apiWhen = iso => iso ? shortDate(iso) + ' ' + fmtTime(iso) : '';
+const apiLimitText = m => m.unit === 'usd' ? apiMoney(m.monthly_limit) : apiNum(m.monthly_limit) + ' credits';
+const apiUsedText = m => m.unit === 'usd' ? apiMoney(m.used) : apiNum(m.used) + ' credits';
+const apiHighCount = () => (S.api.alerts || []).filter(a => a.severity === 'high').length;
+
+function apiAlertsHtml(){
+  const A = S.api;
+  if(!A.alerts.length) return `<div class="panelbox"><p style="margin:0"><span class="chip good">All clear</span>
+    &nbsp;No limits hit, no failing calls, no spikes and nothing gone quiet.</p></div>`;
+  return `<div class="api-alerts">${A.alerts.map(a => `<div class="api-alert">
+      <span class="chip ${a.severity === 'high' ? 'bad' : 'hot'}">${a.severity === 'high' ? 'Act now' : 'Look'}</span>
+      <div><div class="t">${esc(a.title)}</div>
+        <div class="dt">${a.workflow ? esc(a.workflow) + ' · ' : ''}${esc(a.detail || '')}</div></div>
+      <span class="spacer"></span><span class="hint" style="white-space:nowrap">${esc(apiWhen(a.since))}</span>
+    </div>`).join('')}</div>`;
+}
+
+function apiMonthHtml(rows, inRange){
+  const tile = m => {
+    const pct = Math.min(100, Number(m.pct_used || 0));
+    const tone = pct >= 80 || Number(m.forecast) >= Number(m.monthly_limit) ? 'over' : pct >= 50 ? 'near' : '';
+    return `<div class="stat ${m.provider === 'anthropic' ? 'accent' : ''}">
+      <div class="k">${esc(API_PROVIDER[m.provider] || m.provider)} this month</div>
+      <div class="v">${esc(apiUsedText(m))} <small>of ${esc(apiLimitText(m))}</small></div>
+      <span class="bud-bar ${tone}" style="margin:8px 0 6px"><i style="width:${pct}%"></i></span>
+      <div class="hint">On pace for ${esc(m.unit === 'usd' ? apiMoney(m.forecast) : apiNum(m.forecast) + ' credits')} · ${apiNum(m.calls)} calls</div>
+    </div>`;
+  };
+  const order = ['anthropic', 'apollo', 'evaboot'];
+  const ms = order.map(p => rows.find(m => m.provider === p)).filter(Boolean);
+  const calls = inRange.reduce((s, r) => s + Number(r.calls || 0), 0);
+  const errs = inRange.reduce((s, r) => s + Number(r.errors || 0), 0);
+  return `<div class="stat-grid">${ms.map(tile).join('')}
+    <div class="stat"><div class="k">Calls, last ${S.api.range} days</div><div class="v">${apiNum(calls)}</div>
+      <div class="hint">${errs ? `<span style="color:var(--red)">${apiNum(errs)} failed</span>` : 'None failed'}</div></div>
+  </div>`;
+}
+
+/* One bar per day of estimated Claude spend. A red dot marks a day with
+   failed calls of any kind. */
+function apiChartHtml(inRange){
+  const days = [];
+  for(let i = S.api.range - 1; i >= 0; i--) days.push(apiDay(-i));
+  const by = {};
+  for(const r of inRange){
+    const d = String(r.day).slice(0, 10);
+    const o = by[d] || (by[d] = { cost:0, calls:0, errors:0 });
+    if(r.provider === 'anthropic') o.cost += Number(r.cost_usd || 0);
+    o.calls += Number(r.calls || 0);
+    o.errors += Number(r.errors || 0);
+  }
+  const max = Math.max(0.01, ...days.map(d => (by[d] || {}).cost || 0));
+  const total = days.reduce((s, d) => s + ((by[d] || {}).cost || 0), 0);
+  const bars = days.map(d => {
+    const o = by[d] || { cost:0, calls:0, errors:0 };
+    const h = o.cost > 0 ? Math.max(2, Math.round(100 * o.cost / max)) : 0;
+    const tip = `${dateOnly(d)}: ${apiMoney(o.cost)} Claude, ${o.calls} calls${o.errors ? ', ' + o.errors + ' failed' : ''}`;
+    return `<div class="d${o.errors ? ' err' : ''}${o.cost ? '' : ' zero'}" title="${esc(tip)}"><i style="height:${h}%"></i></div>`;
+  }).join('');
+  return `<div class="api-chart" role="img" aria-label="Claude spend per day, ${esc(apiMoney(total))} over ${S.api.range} days">${bars}</div>
+    <div class="api-axis"><span>${esc(dateOnly(days[0]))}</span><span>Peak day ${esc(apiMoney(max === 0.01 ? 0 : max))} · ${esc(apiMoney(total))} total</span><span>${esc(dateOnly(days[days.length - 1]))}</span></div>`;
+}
+
+function apiWorkflowsHtml(inRange){
+  const by = {};
+  for(const r of inRange){
+    const k = r.workflow + '|' + r.provider;
+    const o = by[k] || (by[k] = { workflow:r.workflow, provider:r.provider, key:r.key_label,
+      calls:0, errors:0, inTok:0, outTok:0, units:0, cost:0 });
+    o.calls += Number(r.calls || 0); o.errors += Number(r.errors || 0);
+    o.inTok += Number(r.input_tokens || 0); o.outTok += Number(r.output_tokens || 0);
+    o.units += Number(r.units || 0); o.cost += Number(r.cost_usd || 0);
+  }
+  const list = Object.values(by).sort((a, b) => b.cost - a.cost || b.calls - a.calls);
+  if(!list.length) return `<p class="hint">No paid calls logged in the last ${S.api.range} days. Logging started Oct 26, 2026.</p>`;
+  return `<div class="bud-scroll"><table class="api-table"><thead><tr>
+      <th>Workflow</th><th>API</th><th class="num">Calls</th><th class="num">Failed</th>
+      <th class="num">Tokens in / out</th><th class="num">Credits</th><th class="num">Est. cost</th><th class="num">Last call</th>
+    </tr></thead><tbody>${list.map(o => `<tr>
+      <td>${esc(o.workflow.replace(/^Haggerty /, ''))}</td>
+      <td><span class="chip">${esc(API_PROVIDER[o.provider] || o.provider)}</span>${o.key && API_KEY_LABEL[o.key] && o.provider === 'anthropic' ? ` <span class="hint">${esc(API_KEY_LABEL[o.key])}</span>` : ''}</td>
+      <td class="num">${apiNum(o.calls)}</td>
+      <td class="num"${o.errors ? ' style="color:var(--red);font-weight:600"' : ''}>${o.errors ? apiNum(o.errors) : '–'}</td>
+      <td class="num">${o.inTok || o.outTok ? esc(apiTok(o.inTok) + ' / ' + apiTok(o.outTok)) : '–'}</td>
+      <td class="num">${o.units && o.provider !== 'anthropic' ? apiNum(o.units) : '–'}</td>
+      <td class="num">${o.provider === 'anthropic' ? esc(apiMoney(o.cost)) : '–'}</td>
+      <td class="num">${esc(apiWhen(S.api.last[o.workflow]))}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function apiFailsHtml(){
+  const f = S.api.fails;
+  if(!f.length) return `<p class="hint">No failed calls on record.</p>`;
+  return `<div class="bud-scroll"><table class="api-table"><thead><tr>
+      <th style="width:120px">When</th><th>Workflow</th><th>Step</th><th>What came back</th>
+    </tr></thead><tbody>${f.map(r => `<tr>
+      <td class="mono">${esc(apiWhen(r.at))}</td>
+      <td>${esc(String(r.workflow).replace(/^Haggerty /, ''))}</td>
+      <td>${esc(r.node || '')}</td>
+      <td style="overflow-wrap:anywhere">${esc(String(r.error || '').slice(0, 220))}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function apiBudgetsHtml(){
+  const A = S.api;
+  const rows = ['anthropic', 'apollo', 'evaboot'].map(p => A.month.find(m => m.provider === p)).filter(Boolean);
+  return `<table class="api-table" style="max-width:560px"><thead><tr><th>API</th><th class="num">Monthly limit</th><th style="width:150px"></th></tr></thead><tbody>
+    ${rows.map(m => A.budgetEdit === m.provider ? `<tr>
+      <td>${esc(API_PROVIDER[m.provider])}</td>
+      <td class="num"><input type="text" id="apiBudgetVal" inputmode="decimal" value="${esc(A.budgetVal)}" style="width:110px;text-align:right"
+        aria-label="Monthly limit in ${m.unit === 'usd' ? 'dollars' : 'credits'}"> <span class="hint">${m.unit === 'usd' ? 'USD' : 'credits'}</span></td>
+      <td style="text-align:right"><button class="btn small" id="apiBudgetSave"${A.busy ? ' disabled' : ''}>Save</button>
+        <button class="linkbtn" id="apiBudgetCancel">Cancel</button></td></tr>`
+    : `<tr><td>${esc(API_PROVIDER[m.provider])}</td><td class="num">${esc(apiLimitText(m))}</td>
+       <td style="text-align:right"><button class="linkbtn" data-api-budget="${esc(m.provider)}">Change</button></td></tr>`).join('')}
+  </tbody></table>
+  <p class="hint" style="margin-top:8px">These drive the bars above and the 50% and 80% alerts. Keep Claude's matched to the spend limit in the Anthropic Console.</p>`;
+}
+
+function pageApi(){
+  const A = S.api;
+  if(!S.loaded.api) return loading();
+  if(A.loadErr) return `<main class="page"><div class="empty"><h2>API usage is not set up yet</h2><p>${esc(A.loadErr)}</p></div></main>`;
+  const cut = apiDay(-(A.range - 1));
+  const inRange = A.daily.filter(r => String(r.day).slice(0, 10) >= cut);
+  return `<main class="page">
+    <div class="bud-head">
+      <div class="api-range" role="group" aria-label="Date range">
+        ${[7, 30, 90].map(n => `<button class="btn small ${A.range === n ? '' : 'ghost'}" data-api-range="${n}"${A.range === n ? ' aria-pressed="true"' : ''}>${n} days</button>`).join('')}
+      </div>
+      <span class="spacer"></span>
+      <a class="btn small ghost" href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropic Console</a>
+      <button class="btn small ghost" id="apiRefresh"${A.busy ? ' disabled' : ''}>Refresh</button>
+    </div>
+    ${A.err ? `<p class="hint err" style="margin-bottom:14px">${esc(A.err)}</p>` : ''}
+    ${A.note ? `<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(A.note)}</p></div>` : ''}
+    <div class="block"><h2 class="sec">Needs a look</h2>${apiAlertsHtml()}</div>
+    ${apiMonthHtml(A.month, inRange)}
+    <div class="block"><h2 class="sec">Claude spend per day</h2>${apiChartHtml(inRange)}</div>
+    <div class="block"><h2 class="sec">By workflow, last ${A.range} days</h2>${apiWorkflowsHtml(inRange)}</div>
+    <div class="block"><h2 class="sec">Recent failed calls</h2>${apiFailsHtml()}</div>
+    <div class="block"><h2 class="sec">Monthly limits</h2>${apiBudgetsHtml()}</div>
+    <p class="hint">Claude costs are estimates worked out from the tokens each call reports; the Anthropic Console is the real bill.
+      Apollo and Evaboot count credits. Months reset on the 1st, UTC, the same as Anthropic.</p>
+  </main>`;
+}
+
+function wireApi(){
+  if(S.page !== 'api') return;
+  const A = S.api;
+  document.querySelectorAll('[data-api-range]').forEach(el =>
+    el.addEventListener('click', () => { A.range = Number(el.dataset.apiRange) || 30; render(); }));
+  const rf = document.getElementById('apiRefresh');
+  if(rf) rf.addEventListener('click', async () => {
+    A.busy = true; A.err = ''; A.note = ''; render();
+    try{ await loadApi(); }catch(e){ A.err = 'Could not refresh. ' + (e.message || e); }
+    A.busy = false; render();
+  });
+  document.querySelectorAll('[data-api-budget]').forEach(el =>
+    el.addEventListener('click', () => {
+      const m = A.month.find(x => x.provider === el.dataset.apiBudget);
+      if(!m) return;
+      A.budgetEdit = m.provider; A.budgetVal = String(m.monthly_limit); A.err = ''; A.note = ''; render();
+      const i = document.getElementById('apiBudgetVal'); if(i){ i.focus(); i.select(); }
+    }));
+  const bv = document.getElementById('apiBudgetVal');
+  if(bv) bv.addEventListener('input', () => { A.budgetVal = bv.value; });
+  const bc = document.getElementById('apiBudgetCancel');
+  if(bc) bc.addEventListener('click', () => { A.budgetEdit = null; render(); });
+  const bs = document.getElementById('apiBudgetSave');
+  if(bs) bs.addEventListener('click', async () => {
+    const v = Number(String(A.budgetVal).replace(/[$,\s]/g, ''));
+    if(!isFinite(v) || v <= 0){ A.err = 'Enter a limit above zero.'; render(); return; }
+    A.busy = true; A.err = ''; render();
+    const { error } = await sb.from('api_budgets').update({ monthly_limit:v }).eq('provider', A.budgetEdit);
+    if(error){ A.err = 'Could not save the limit. ' + (error.message || error); A.busy = false; render(); return; }
+    const name = API_PROVIDER[A.budgetEdit] || A.budgetEdit;
+    A.budgetEdit = null;
+    try{ await loadApi(); }catch(e){}
+    A.busy = false; A.note = name + ' limit saved.'; render();
+  });
+}
+
 /* ================= executive voices ================= */
 /* Liam asks Ryan, Hugo, the supers and the rest a question for a blog
    post. Each person gets their own link (voices.html), which Liam texts
@@ -13303,7 +13571,7 @@ function homePat(){
    v_system_health. Hidden when the view has no rows, so a good day shows
    nothing. A failed workflow links to its n8n execution; the rest go to
    the tab that shows the stale data. */
-const SYS_GO = { permits:'permits', outreach:'today', pipeline:'kpis', social:'social' };
+const SYS_GO = { permits:'permits', outreach:'today', pipeline:'kpis', social:'social', api:'api' };
 function homeSysPanel(){
   const rows = S.home.sys;
   if(!rows || !rows.length) return '';
