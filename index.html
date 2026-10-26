@@ -816,6 +816,18 @@
   .permit .psend{margin-top:8px;display:flex;flex-direction:column;gap:6px}
   .permit .psend textarea{width:100%;font:inherit;font-size:13px}
   .permit .psend div{display:flex;gap:10px;align-items:center}
+  .permit .pcon{font-size:13px;margin-top:6px;padding:7px 10px;border:1px dashed var(--rule)}
+  .permit .pcon .lbl{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+                     font-size:10.5px;color:var(--slate);margin-right:6px}
+  .permit .pcon .sub{font-size:12px;color:var(--grey);margin-top:2px}
+  .permit .pcon .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .permit .pcon .who{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;padding:4px 0;border-top:1px solid var(--rule-soft)}
+  .permit .pcon .who:first-of-type{border-top:0}
+  .permit .pcon .who .t{color:var(--grey);font-size:12px}
+  .permit .pcon .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  .permit .pcon .grid input,.permit .pcon .grid textarea{width:100%;font:inherit;font-size:13px}
+  .permit .pcon .grid .full{grid-column:1/-1}
+  @media (max-width:640px){ .permit .pcon .grid{grid-template-columns:1fr} }
   @media (max-width:640px){
     .permit{grid-template-columns:1fr}
     .permit .acts{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap;min-width:0;margin-top:8px}
@@ -1333,6 +1345,7 @@ const S = {
   /* permits */
   permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
   permitBusy:'', permitErr:'', permitSend:'', permitTo:'pat', permitNote:'', permitMsg:'',
+  permitLeads:{}, permitPeople:{}, permitSearches:{}, permitLeadEdit:'', permitLeadDraft:null,
   /* RHINO jobs (Freddie) */
   rjobs:null, rjobView:'open', rjobBusy:'', rjobErr:'',
   /* leads */
@@ -7724,7 +7737,23 @@ async function loadPermits(){
   if(rows.error) throw rows.error;
   S.permits = (rows.data || []).concat(older.data || []);
   S.permitsAt = last.data && last.data[0] ? last.data[0].last_seen : null;
+  await loadPermitContacts();
   S.loaded.permits = true;
+}
+
+/* Owner and broker typed in from Crexi, and the people Apollo found
+   (sql/permit_contacts.sql). Small tables, read whole. A missing table
+   leaves the cards as they were. */
+async function loadPermitContacts(){
+  const [leads, people, searches] = await Promise.all([
+    sb.from('permit_leads').select('*').limit(5000),
+    sb.from('permit_people').select('*').order('found_at').limit(5000),
+    sb.from('permit_searches').select('*').limit(5000)
+  ]);
+  S.permitLeads = {}; S.permitPeople = {}; S.permitSearches = {};
+  (leads.data || []).forEach(r => { S.permitLeads[r.guid] = r; });
+  (people.data || []).forEach(r => { (S.permitPeople[r.guid] = S.permitPeople[r.guid] || []).push(r); });
+  (searches.data || []).forEach(r => { (S.permitSearches[r.guid] = S.permitSearches[r.guid] || []).push(r); });
 }
 
 const permitSent = p => p.mark === 'pat' || p.mark === 'contacted';
@@ -7745,7 +7774,9 @@ function permitVisible(){
     if(q){
       const hay = [p.name, p.description, p.address, p.agency_reference, p.record_type, p.status,
                    p.pro_company, p.pro_name, p.note, p.emailed_note]
-        .filter(Boolean).join(' ').toLowerCase();
+        .concat(Object.values(S.permitLeads[p.guid] || {}))
+        .concat((S.permitPeople[p.guid] || []).map(x => [x.first_name, x.last_name, x.org_name].join(' ')))
+        .filter(v => typeof v === 'string' && v).join(' ').toLowerCase();
       if(hay.indexOf(q) === -1) return false;
     }
     return true;
@@ -7781,6 +7812,7 @@ function permitCard(p){
     ${p.description ? `<p class="desc ${S.permitOpen && S.permitOpen[p.guid] ? 'open' : ''}" data-permit-more="${esc(p.guid)}">${esc(p.description)}</p>` : ''}
     ${nums ? `<div class="nums">${nums}</div>` : ''}
     ${permitPro(p)}
+    ${permitContacts(p)}
     ${permitSent(p) && p.note ? `<div class="pnote"><b>Note for Pat:</b> ${esc(p.note)}</div>` : ''}
     ${p.emailed_note ? `<div class="pnote"><b>Note to Freddie:</b> ${esc(p.emailed_note)}</div>` : ''}
     ${S.permitMsg && S.permitMsg.guid === p.guid ? `<div class="pnote">${esc(S.permitMsg.text)}</div>` : ''}
@@ -7830,6 +7862,123 @@ function permitPro(p){
   if(p.module === 'building' && p.aca_checked_at)
     return `<div class="ppro none">No contractor on file with the city yet.</div>`;
   return '';
+}
+
+/* Owner and contacts. Crexi has no API and its terms rule out scraping,
+   so Search Crexi copies the address and opens Crexi in a new tab; what
+   Liam or Pat find there (owner, broker, listing) is typed in here and
+   kept in permit_leads. Find contacts has the n8n workflow "Haggerty
+   Permit Contacts" run Apollo's people search (free) for the contractor,
+   owner and broker companies. Reveal email costs one Apollo credit for
+   one person, so it is a click per person, never automatic. */
+const PERMIT_CONTACTS_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-permit-contacts';
+const PERMIT_ROLE = { contractor:'Contractor', owner:'Owner', broker:'Broker' };
+const PERMIT_LEAD_FIELDS = [
+  ['owner_company', 'Owner company'], ['owner_name', 'Owner name'],
+  ['broker_company', 'Broker company'], ['broker_name', 'Broker name'],
+  ['listing_url', 'Crexi listing link'], ['notes', 'Notes (sale price, sq ft, tenant, anything useful)']
+];
+
+function permitCrexiUrl(p){
+  const a = String(p.address || '').replace(/^Parcel:.*$/i, '').trim();
+  return 'https://www.crexi.com/properties?term=' + encodeURIComponent(a || p.name || '');
+}
+
+function permitContacts(p){
+  const canMark = BUDGET_USERS.includes(S.me);
+  const lead = S.permitLeads[p.guid];
+  const people = S.permitPeople[p.guid] || [];
+  const searches = S.permitSearches[p.guid] || [];
+  const busy = S.permitBusy === p.guid;
+  const editing = S.permitLeadEdit === p.guid;
+  if(!canMark && !lead && !people.length) return '';
+
+  const line = (label, co, name) => (co || name)
+    ? `<div><span class="lbl">${label}</span><b>${esc(co || name)}</b>${co && name ? ` · ${esc(name)}` : ''}</div>` : '';
+  const known = lead ? line('Owner', lead.owner_company, lead.owner_name) + line('Broker', lead.broker_company, lead.broker_name)
+    + (lead.listing_url ? `<div class="sub"><a href="${esc(lead.listing_url)}" target="_blank" rel="noopener">Crexi listing</a></div>` : '')
+    + (lead.notes ? `<div class="sub">${esc(lead.notes)}</div>` : '') : '';
+
+  const form = editing ? `<div class="grid">
+      ${PERMIT_LEAD_FIELDS.map(([k, label]) => k === 'notes'
+        ? `<textarea class="full" rows="2" data-permit-lead-field="${k}" placeholder="${esc(label)}">${esc((S.permitLeadDraft||{})[k] || '')}</textarea>`
+        : `<input type="text" data-permit-lead-field="${k}" placeholder="${esc(label)}" value="${esc((S.permitLeadDraft||{})[k] || '')}" />`).join('')}
+      <div class="full" style="display:flex;gap:10px;align-items:center">
+        <button class="btn small" data-permit-lead-save="${esc(p.guid)}" ${busy?'disabled':''}>Save</button>
+        <button class="linkbtn" data-permit-lead-cancel>Cancel</button>
+      </div>
+    </div>` : '';
+
+  const who = people.map(x => {
+    const name = [x.first_name, x.last_name].filter(Boolean).join(' ');
+    const right = x.revealed_at
+      ? (x.email ? `<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : '<span class="t">Apollo had no email</span>')
+        + (x.linkedin_url ? ` · <a href="${esc(x.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : '')
+      : (canMark && x.has_email
+          ? `<button class="linkbtn" style="padding:0" data-permit-reveal="${esc(x.id)}" data-guid="${esc(p.guid)}" ${busy?'disabled':''}>Reveal email (1 credit)</button>`
+          : `<span class="t">${x.has_email ? 'Email on file in Apollo' : 'No email in Apollo'}</span>`);
+    return `<div class="who"><span class="lbl">${esc(PERMIT_ROLE[x.role] || x.role)}</span>
+      <b>${esc(name)}</b><span class="t">${esc([x.title, x.org_name].filter(Boolean).join(', '))}</span>
+      <span style="margin-left:auto">${right}</span></div>`;
+  }).join('');
+  const empty = searches.filter(s => !s.found)
+    .map(s => `${PERMIT_ROLE[s.role] || s.role}: no one at ${s.searched} in Apollo`).join(' · ');
+  const last = searches.length ? searches.map(s => s.searched_at).sort().pop() : null;
+
+  return `<div class="pcon">
+    <span class="lbl">Owner and contacts</span>${known ? '' : `<span class="t" style="font-size:12px;color:var(--slate)">${canMark ? 'Look the address up on Crexi and add what you find.' : 'Nothing added yet.'}</span>`}
+    ${known}
+    ${form}
+    ${who ? `<div style="margin-top:6px">${who}</div>` : ''}
+    ${empty ? `<div class="sub">${esc(empty)}</div>` : ''}
+    ${canMark && !editing ? `<div class="row">
+      <a class="linkbtn" style="padding:0" href="${esc(permitCrexiUrl(p))}" target="_blank" rel="noopener" data-permit-crexi="${esc(p.address || '')}">Search Crexi</a>
+      <button class="linkbtn" style="padding:0" data-permit-lead-edit="${esc(p.guid)}">${lead ? 'Edit owner / broker' : 'Add owner / broker'}</button>
+      <button class="btn small ghost" data-permit-find="${esc(p.guid)}" ${busy?'disabled':''}>${busy && S.permitMsg && S.permitMsg.find === p.guid ? 'Searching&hellip;' : (searches.length ? 'Find contacts again' : 'Find contacts')}</button>
+      ${last ? `<span class="t" style="font-size:12px;color:var(--slate)">Apollo searched ${esc(permitDate(String(last).slice(0,10)))}, free</span>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
+async function saveLead(guid){
+  if(S.permitBusy) return;
+  const d = S.permitLeadDraft || {};
+  const row = { guid, updated_by:S.me, updated_at:new Date().toISOString() };
+  PERMIT_LEAD_FIELDS.forEach(([k]) => { row[k] = String(d[k] || '').trim() || null; });
+  if(row.listing_url && !/^https?:\/\//i.test(row.listing_url)) row.listing_url = 'https://' + row.listing_url;
+  S.permitBusy = guid; S.permitErr = ''; render();
+  try{
+    const { error } = await sb.from('permit_leads').upsert(row);
+    if(error) throw error;
+    S.permitLeads[guid] = row;
+    S.permitLeadEdit = ''; S.permitLeadDraft = null;
+  }catch(e){
+    S.permitErr = 'Could not save the owner and broker: ' + (e.message || e);
+  }
+  S.permitBusy = ''; render();
+}
+
+/* Both calls answer with the permit's people and searches as they now
+   stand, so the card is redrawn from that. */
+async function permitContactsCall(guid, body){
+  if(S.permitBusy) return;
+  S.permitBusy = guid; S.permitErr = ''; S.permitMsg = body.action === 'search' ? { guid, find:guid, text:'' } : ''; render();
+  try{
+    const res = await fetch(PERMIT_CONTACTS_URL, { method:'POST', headers:await authHeaders(), body:JSON.stringify(body) });
+    let j = null;
+    try{ j = await res.json(); }catch(e){}
+    if(!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('The contacts service answered ' + res.status + '.'));
+    S.permitPeople[guid] = j.people || [];
+    S.permitSearches[guid] = j.searches || [];
+    if(body.action === 'search'){
+      const n = (j.people || []).filter(x => !x.revealed_at).length;
+      S.permitMsg = { guid, text: n ? `Apollo found ${n} ${n===1?'person':'people'}. Reveal the ones worth a credit.` : 'Apollo found no one at those companies.' };
+    } else S.permitMsg = '';
+  }catch(e){
+    S.permitErr = (body.action === 'search' ? 'Find contacts did not work. ' : 'Reveal did not work. ') + (e.message || e);
+    S.permitMsg = '';
+  }
+  S.permitBusy = ''; render();
 }
 
 function pagePermits(){
@@ -7885,7 +8034,8 @@ function pagePermits(){
       smaller commercial repairs, and any repair that mentions fire, water, dry rot, mold or impact damage (RHINO).
       Residential work, HVAC and water heater swaps, signs, reroofs and fire alarm work are left out.
       The contractor on file and job value come from the city's permit portal, checked every morning at 6:40.
-      The city does not publish the owner or applicant, so for those Open record is the next step.</p>
+      The city does not publish the owner or applicant: look the address up with Search Crexi, add the owner or broker,
+      then Find contacts searches Apollo for free. Reveal email spends one Apollo credit per person.</p>
   </main>`;
 }
 
@@ -8017,6 +8167,24 @@ function wirePermits(){
     el.addEventListener('click',()=>contactPermit(el.dataset.permitContacted, el.dataset.val === '1')));
   const pn = document.getElementById('permitNote');
   if(pn) pn.addEventListener('input',()=>{ S.permitNote = pn.value; });
+  document.querySelectorAll('[data-permit-crexi]').forEach(el=>
+    el.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(el.dataset.permitCrexi); }catch(e){} }));
+  document.querySelectorAll('[data-permit-lead-edit]').forEach(el=>
+    el.addEventListener('click',()=>{
+      S.permitLeadEdit = el.dataset.permitLeadEdit;
+      S.permitLeadDraft = Object.assign({}, S.permitLeads[S.permitLeadEdit] || {}); render();
+      const f = document.querySelector('[data-permit-lead-field]'); if(f) f.focus();
+    }));
+  document.querySelectorAll('[data-permit-lead-field]').forEach(el=>
+    el.addEventListener('input',()=>{ (S.permitLeadDraft = S.permitLeadDraft || {})[el.dataset.permitLeadField] = el.value; }));
+  document.querySelectorAll('[data-permit-lead-save]').forEach(el=>
+    el.addEventListener('click',()=>saveLead(el.dataset.permitLeadSave)));
+  document.querySelectorAll('[data-permit-lead-cancel]').forEach(el=>
+    el.addEventListener('click',()=>{ S.permitLeadEdit = ''; S.permitLeadDraft = null; render(); }));
+  document.querySelectorAll('[data-permit-find]').forEach(el=>
+    el.addEventListener('click',()=>permitContactsCall(el.dataset.permitFind, { action:'search', guid:el.dataset.permitFind })));
+  document.querySelectorAll('[data-permit-reveal]').forEach(el=>
+    el.addEventListener('click',()=>permitContactsCall(el.dataset.guid, { action:'reveal', id:el.dataset.permitReveal })));
   document.querySelectorAll('[data-permit-more]').forEach(el=>
     el.addEventListener('click',()=>{
       S.permitOpen = S.permitOpen || {};
