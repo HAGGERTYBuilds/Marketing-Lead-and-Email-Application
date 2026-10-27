@@ -1274,6 +1274,8 @@
   .sl-hits{display:flex;flex-direction:column;border:1px solid var(--rule);border-top:0;max-height:260px;overflow:auto}
   .sl-hit{display:block;text-align:left;background:var(--card);border:0;border-top:1px solid var(--rule-soft);
     padding:8px 11px;cursor:pointer;font:inherit;color:inherit;font-size:13.5px}
+  .sl-board-name{font-family:var(--display);font-size:17px;letter-spacing:.02em}
+  .sl-views{margin:0}
   .sl-hit:hover{background:var(--hover)}
   .sl-page input[type=search],.sl-page input[type=date],.sheet input[type=search],.sheet input[type=date]{
     width:100%;font-family:var(--body);font-size:14px;line-height:1.6;color:var(--ink);background:var(--paper);
@@ -1403,7 +1405,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-27b';
+const BUILD = '2026-10-27c';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3511,6 +3513,7 @@ function topbar(){
 const SUBVIEW = {
   kpis:     { get:() => S.kpiView,    set:v => { if(['scorecard','board','return'].includes(v)) S.kpiView = v; }, def:'scorecard' },
   calendar: { get:() => S.calView,    set:v => { if(['schedule','invites'].includes(v)) S.calView = v; }, def:'schedule' },
+  sales:    { get:() => S.sl.view,     set:v => { if(['log','board'].includes(v)) S.sl.view = v; }, def:'log' },
   permits:  { get:() => S.permitView, set:v => { if(['open','saved','pat','dismissed'].includes(v)) S.permitView = v; }, def:'open' }
 };
 function parseHash(h){
@@ -8448,7 +8451,8 @@ const SL_NEEDS_NEXT = ['adjuster_call','visit','sales_freedom'];
 
 Object.assign(S, { sl: {
   rows:[], targets:[], pipe:null, pipeErr:'', month:null, form:null, busy:'', err:'', note:'',
-  filter:'all', hits:null, hitQ:'', searching:false, qFocus:false, apvNote:{}, showAll:false
+  filter:'all', hits:null, hitQ:'', searching:false, qFocus:false, apvNote:{}, showAll:false,
+  view:'log', stages:[], dealId:null, dealBusy:false, dealErr:'', dealNote:'', addDeal:null
 }});
 
 const slIsRep = () => S.me === 'george';
@@ -8486,10 +8490,11 @@ async function loadSales(){
     .or('happened_on.gte.' + since + ',and(next_done_at.is.null,next_date.not.is.null)')
     .order('happened_on', { ascending:false }).order('logged_at', { ascending:false }).limit(3000);
   q = q.eq('rep_email', slIsRep() && !PREVIEW_ON ? S.email : SALES_REP);
-  const [log, tg, pipe] = await Promise.all([
+  const [log, tg, pipe, stages] = await Promise.all([
     q,
     sb.from('sales_targets').select('*').order('sort'),
-    sb.rpc('sales_pipeline', {}, { get:true })
+    sb.rpc('sales_pipeline', {}, { get:true }),
+    sb.rpc('sales_pipeline_stages', {}, { get:true })
   ]);
   if(log.error) throw log.error;
   if(tg.error) throw tg.error;
@@ -8497,6 +8502,7 @@ async function loadSales(){
   S.sl.targets = tg.data || [];
   S.sl.pipe = pipe.error ? null : (pipe.data || []);
   S.sl.pipeErr = pipe.error ? (pipe.error.message || 'Could not read the pipeline') : '';
+  S.sl.stages = stages.error ? [] : (stages.data || []);
   S.loaded.sales = true;
 }
 
@@ -8759,7 +8765,7 @@ function slPipeline(){
         <div class="sl-deals">${s.deals.map(d => `<a class="sl-deal" href="${slDealUrl(d.pipedrive_deal_id)}" target="_blank" rel="noopener">
           <span>${esc(d.title)}</span><span class="mono">${money(d.value)}</span></a>`).join('')}</div>
       </details>`).join('')}</div>` : `<p class="hint">No open deals in the pipeline.</p>`}
-      <p class="hint" style="margin:12px 0 0">From Pipedrive, refreshed every 2 hours${synced ? ', last at ' + esc(fmtTime(synced)) : ''}. Tap a stage to see its deals.</p>
+      <p class="hint" style="margin:12px 0 0">From Pipedrive, refreshed every 2 hours${synced ? ', last at ' + esc(fmtTime(synced)) : ''}. Tap a stage to see its deals, or <button class="linkbtn" data-sl-view="board">open the board</button>.</p>
     </div>
   </section>`;
 }
@@ -8802,10 +8808,13 @@ function pageSales(){
     ${rep ? `<p class="hint" style="margin:8px 0 0">A lunch counts once Pat approves it and you log that it happened.</p>` : ''}
   </section>` : '';
 
+  if(S.sl.view === 'board'){
+    return `<main class="page wide">${slViewSwitch()}${rep ? '' : `<div class="sl-review-head" style="margin-top:14px"><div><span class="eyebrow">RHINO Restores sales</span><h1>George Khanishian</h1></div></div>`}<div style="margin-top:14px">${slBoard()}</div></main>`;
+  }
   const main = rep
     ? `${top}${followHtml}${lunchHtml}${slScorecard()}${slLog()}${slPipeline()}`
     : `${top}${lunchHtml}${slScorecard()}${followHtml}${slLog()}${slPipeline()}`;
-  return `<main class="page sl-page">${banner}${err}${main}</main>${slFormHtml()}`;
+  return `<main class="page sl-page">${slViewSwitch()}<div style="height:16px"></div>${banner}${err}${main}</main>${slFormHtml()}`;
 }
 
 /* ---------- the entry form ---------- */
@@ -9122,6 +9131,7 @@ function slFormSet(field, value){
 
 function wireSales(){
   if(S.page !== 'sales') return;
+  wireSalesBoard();
   const on = (sel, fn, ev) => document.querySelectorAll(sel).forEach(el => el.addEventListener(ev || 'click', e => fn(el, e)));
   on('[data-sl-month]', el => {
     S.sl.month = socShift(slMonth(), Number(el.dataset.slMonth));
@@ -9205,6 +9215,200 @@ function wireSales(){
     if(S.sl.qFocus) refocus(q);
   }
 }
+
+
+/* ---------- pipeline board (George's deals only) ---------- */
+/* The same board Pat has on Pipeline & KPIs, cut down to one pipeline.
+   George cannot read the deals table, so the board comes from
+   sales_pipeline() and sales_pipeline_stages(), which return his
+   pipeline and nothing else. Moves, won/lost and new deals go through
+   the same Deal Board API webhooks as Pat's board: Pipedrive first, then
+   the local copy. Freddie sees the board read only. Its own data-sl-*
+   attributes keep Pat's board wiring (wireDrag) from touching it. */
+const SALES_REP_PD_USER = 26856455;
+const slCanMove = () => slIsRep() || SALES_STAFF.includes(S.me);
+
+function slViewSwitch(){
+  return `<div class="kswitch sl-views">
+    <button data-sl-view="log" class="${S.sl.view !== 'board' ? 'on' : ''}">Activity</button>
+    <button data-sl-view="board" class="${S.sl.view === 'board' ? 'on' : ''}">Pipeline</button>
+  </div>`;
+}
+
+function slDealCard(d){
+  const who = [d.company_name, d.contact_name].filter(Boolean).join(', ');
+  return `<button class="dcard" ${slCanMove() ? 'draggable="true"' : ''}
+    data-sl-deal="${esc(d.pipedrive_deal_id)}" data-sl-stage="${esc(d.stage_id)}">
+    <h5>${esc(d.title || 'Untitled')}</h5>
+    ${who ? `<span class="who">${esc(who)}</span>` : ''}
+    <span class="val">${money(d.value)}</span>
+  </button>`;
+}
+
+function slBoard(){
+  if(S.sl.pipeErr) return `<p class="hint err">${esc(S.sl.pipeErr)}</p>`;
+  const deals = S.sl.pipe || [];
+  const stages = (S.sl.stages || []).slice().sort((a,b) => a.stage_order - b.stage_order);
+  const total = deals.reduce((t, d) => t + Number(d.value || 0), 0);
+  const cols = stages.map(c => {
+    const cards = deals.filter(d => d.stage_id === c.stage_id);
+    const val = cards.reduce((t, d) => t + Number(d.value || 0), 0);
+    return `<div class="bcol" data-sl-drop="${c.stage_id}">
+      <div class="bcol-head"><h4>${esc(c.stage)}</h4>
+        <span class="m">${money(val)} &middot; ${num(cards.length)} deal${cards.length === 1 ? '' : 's'}</span></div>
+      <div class="bcol-body">${cards.length ? cards.map(slDealCard).join('') : '<span class="none">Empty</span>'}</div>
+    </div>`;
+  }).join('');
+  const synced = deals.reduce((t, d) => d.synced_at && d.synced_at > t ? d.synced_at : t, '');
+  return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <b class="sl-board-name">George Restore Pipeline 2026</b>
+      <span class="tally">${num(deals.length)} open &middot; ${money(total)}</span>
+      ${slCanMove() ? `<button class="btn small" data-sl-adddeal style="margin-left:auto">Add deal</button>` : ''}
+    </div>
+    ${S.sl.dealNote ? `<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.sl.dealNote)}</p></div>` : ''}
+    ${S.sl.dealErr && !S.sl.dealId && !S.sl.addDeal ? `<p class="hint err" style="margin-bottom:14px">${esc(S.sl.dealErr)}</p>` : ''}
+    ${stages.length ? `<div class="bwrap">${cols}</div>` : `<p class="hint">No stages found for this pipeline.</p>`}
+    <p class="hint">Open deals only, from Pipedrive${synced ? ', last refreshed ' + esc(fmtTime(synced)) : ''}.
+    ${slCanMove() ? 'Drag a card to another column to move it, or tap it for won, lost and the Pipedrive link. On a phone, tap the card. Changes write to Pipedrive first.' : 'Tap a card for its details and the Pipedrive link.'}</p>
+    ${slDealSheet()}${slAddDealSheet()}`;
+}
+
+function slDealSheet(){
+  if(!S.sl.dealId) return '';
+  const d = (S.sl.pipe || []).find(x => String(x.pipedrive_deal_id) === String(S.sl.dealId));
+  if(!d) return '';
+  const opts = (S.sl.stages || []).map(c =>
+    `<option value="${c.stage_id}" ${c.stage_id === d.stage_id ? 'selected' : ''}>${esc(c.stage)}</option>`).join('');
+  const busy = S.sl.dealBusy;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Deal">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>${esc(d.title || 'Untitled')}</h2><button class="linkbtn" data-sl-dclose>Close</button></div>
+      <div class="chips" style="margin-top:8px">
+        ${d.company_name ? `<span class="chip">${esc(d.company_name)}</span>` : ''}
+        ${d.contact_name ? `<span class="chip">${esc(d.contact_name)}</span>` : ''}
+        <span class="chip good">${money(d.value)}</span>
+        <span class="chip">${esc(d.stage)}</span>
+      </div>
+      ${slCanMove() ? `<div class="field"><label for="slDStage">Stage</label><select id="slDStage">${opts}</select></div>
+      <div class="actions">
+        <button class="btn" data-sl-dmove ${busy ? 'disabled' : ''}>${busy ? 'Saving&hellip;' : 'Move'}</button>
+        <button class="btn ghost small" data-sl-dstatus="won" ${busy ? 'disabled' : ''}>Mark won</button>
+        <button class="btn ghost small" data-sl-dstatus="lost" ${busy ? 'disabled' : ''}>Mark lost</button>
+      </div>` : ''}
+      ${S.sl.dealErr ? `<p class="hint err">${esc(S.sl.dealErr)}</p>` : ''}
+      <p class="hint" style="margin-top:16px"><a href="${slDealUrl(d.pipedrive_deal_id)}" target="_blank" rel="noopener">Open in Pipedrive</a>
+        for notes, files and everything else.</p>
+    </div>
+  </div>`;
+}
+
+function slAddDealSheet(){
+  const f = S.sl.addDeal;
+  if(!f) return '';
+  const opts = (S.sl.stages || []).map(c =>
+    `<option value="${c.stage_id}" ${String(c.stage_id) === String(f.stage_id) ? 'selected' : ''}>${esc(c.stage)}</option>`).join('');
+  const busy = S.sl.dealBusy;
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="New deal">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>New deal</h2><button class="linkbtn" data-sl-aclose>Close</button></div>
+      <div class="field"><label for="slATitle">Title</label>
+        <input type="text" id="slATitle" value="${esc(f.title)}" placeholder="1234 Main St, Stockton" autocomplete="off" /></div>
+      <div class="field"><label for="slAStage">Stage</label><select id="slAStage">${opts}</select></div>
+      <div class="field"><label for="slAValue">Value</label>
+        <input type="text" id="slAValue" inputmode="decimal" value="${esc(f.value)}" placeholder="25000" autocomplete="off" /></div>
+      <p class="hint">Added to George Restore Pipeline 2026, owned by George.</p>
+      ${S.sl.dealErr ? `<p class="hint err">${esc(S.sl.dealErr)}</p>` : ''}
+      <div class="sheet-foot"><button class="btn accent" data-sl-acreate ${busy ? 'disabled' : ''}>${busy ? 'Creating&hellip;' : 'Create deal'}</button></div>
+    </div>
+  </div>`;
+}
+
+async function slDealCall(url, body){
+  const res = await fetch(url, { method:'POST', headers: await authHeaders(), body: JSON.stringify(body) });
+  const out = await res.json().catch(() => ({}));
+  if(!res.ok || out.ok === false) throw new Error(out.message || out.error || 'Pipedrive returned ' + res.status);
+  return out;
+}
+
+async function slMoveDeal(id, stageId, status){
+  if(S.sl.dealBusy || !slCanMove()) return;
+  if(PREVIEW_ON){ S.sl.dealErr = 'Preview only. Nothing was moved.'; render(); return; }
+  const d = (S.sl.pipe || []).find(x => String(x.pipedrive_deal_id) === String(id));
+  if(!d) return;
+  if(stageId && !(S.sl.stages || []).some(c => String(c.stage_id) === String(stageId))) return;
+  S.sl.dealBusy = true; S.sl.dealErr = ''; S.sl.dealId = id;
+  S.sl.dealNote = status ? 'Marking ' + status + ' in Pipedrive…' : 'Moving in Pipedrive…';
+  render();
+  try{
+    const body = { pipedrive_deal_id: Number(id) };
+    if(stageId) body.stage_id = Number(stageId);
+    if(status) body.status = status;
+    const out = await slDealCall(MOVE_URL, body);
+    S.sl.dealNote = status ? (out.title || d.title) + ' marked ' + status + '.'
+                           : (out.title || d.title) + ' moved to ' + ((S.sl.stages.find(c => String(c.stage_id) === String(stageId)) || {}).stage || 'the new stage') + '.';
+    S.sl.dealId = null;
+    if(status) S.sl.pipe = S.sl.pipe.filter(x => x !== d);
+    else { const st = S.sl.stages.find(c => String(c.stage_id) === String(stageId)); d.stage_id = st.stage_id; d.stage = st.stage; d.stage_order = st.stage_order; }
+    markStale(['sales'], 1500);
+  }catch(e){
+    S.sl.dealNote = ''; S.sl.dealErr = e.message || String(e);
+  }
+  S.sl.dealBusy = false; render();
+}
+
+async function slCreateDeal(){
+  const f = S.sl.addDeal;
+  if(!f || S.sl.dealBusy) return;
+  if(!String(f.title).trim()){ S.sl.dealErr = 'A deal needs a title.'; return render(); }
+  if(PREVIEW_ON){ S.sl.dealErr = 'Preview only. Nothing was created.'; return render(); }
+  S.sl.dealBusy = true; S.sl.dealErr = ''; render();
+  try{
+    const out = await slDealCall(ADDDEAL_URL, { title: String(f.title).trim(), stage_id: Number(f.stage_id),
+      value: f.value || null, user_id: SALES_REP_PD_USER });
+    S.sl.dealNote = (out.title || 'Deal') + ' created in ' + ((S.sl.stages.find(c => String(c.stage_id) === String(f.stage_id)) || {}).stage || 'the pipeline') + '.';
+    S.sl.addDeal = null;
+    S.loaded.sales = false; await loadSales();
+  }catch(e){
+    S.sl.dealErr = e.message || String(e);
+  }
+  S.sl.dealBusy = false; render();
+}
+
+let slDragId = null;
+function wireSalesBoard(){
+  on2('[data-sl-view]', el => { S.sl.view = el.dataset.slView; S.sl.dealNote = ''; S.sl.dealErr = ''; render(); });
+  if(S.sl.view !== 'board') return;
+  on2('[data-sl-deal]', el => { S.sl.dealId = el.dataset.slDeal; S.sl.dealErr = ''; S.sl.dealNote = ''; render(); });
+  on2('[data-sl-dclose]', () => { S.sl.dealId = null; S.sl.dealErr = ''; render(); });
+  on2('[data-sl-dmove]', () => { const v = document.getElementById('slDStage'); if(v) slMoveDeal(S.sl.dealId, v.value, null); });
+  on2('[data-sl-dstatus]', el => slMoveDeal(S.sl.dealId, null, el.dataset.slDstatus));
+  on2('[data-sl-adddeal]', () => { S.sl.addDeal = { title:'', value:'', stage_id: (S.sl.stages[0] || {}).stage_id }; S.sl.dealErr = ''; S.sl.dealNote = ''; render(); });
+  on2('[data-sl-aclose]', () => { S.sl.addDeal = null; S.sl.dealErr = ''; render(); });
+  on2('[data-sl-acreate]', () => slCreateDeal());
+  const t = document.getElementById('slATitle'); if(t) t.addEventListener('input', () => { S.sl.addDeal.title = t.value; });
+  const v = document.getElementById('slAValue'); if(v) v.addEventListener('input', () => { S.sl.addDeal.value = v.value; });
+  const st = document.getElementById('slAStage'); if(st) st.addEventListener('change', () => { S.sl.addDeal.stage_id = st.value; });
+  if(!slCanMove()) return;
+  document.querySelectorAll('[data-sl-deal]').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      slDragId = el.dataset.slDeal; el.classList.add('dragging');
+      if(e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', slDragId); }
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); slDragId = null; });
+  });
+  document.querySelectorAll('[data-sl-drop]').forEach(col => {
+    col.addEventListener('dragover', e => { e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect = 'move'; col.classList.add('over'); });
+    col.addEventListener('dragleave', e => { if(!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    col.addEventListener('drop', e => {
+      e.preventDefault(); col.classList.remove('over');
+      const id = slDragId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
+      const card = id && document.querySelector('[data-sl-deal="' + id + '"]');
+      if(!id || !card || String(card.dataset.slStage) === String(col.dataset.slDrop)) return;
+      slMoveDeal(id, col.dataset.slDrop, null);
+    });
+  });
+}
+function on2(sel, fn){ document.querySelectorAll(sel).forEach(el => el.addEventListener('click', e => fn(el, e))); }
 
 /* ================= social calendar ================= */
 /* A month of posts is built outside the dashboard (media picked from the

@@ -402,3 +402,63 @@ grant execute on function public.sales_pipeline(text) to authenticated;
 
 -- sales_log_realtime: George's screen and the review screen refresh live.
 alter publication supabase_realtime add table public.sales_log;
+
+-- sales_pipeline_board (2026-10-27): sales_pipeline() now also returns
+-- stage_id, company_name and contact_name for the board, and
+-- sales_pipeline_stages() returns the rep's pipeline columns, empty ones
+-- included. Same access rule for both: a rep gets their own pipeline,
+-- reviewers get George's.
+drop function if exists public.sales_pipeline(text);
+create or replace function public.sales_pipeline(p_rep text default null)
+returns table (pipedrive_deal_id bigint, title text, value numeric, status text,
+               stage_id integer, stage text, stage_order integer,
+               company_name text, contact_name text,
+               pipedrive_updated_at timestamptz, synced_at timestamptz)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+#variable_conflict use_column
+declare
+  me  text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  who text;
+  pid integer;
+begin
+  if public.is_sales_rep() then who := me;
+  elsif public.can_review_sales() then who := lower(coalesce(p_rep, 'george@rhinorestores.com'));
+  else raise exception 'Not allowed';
+  end if;
+  select sp.pipeline_id into pid from public.sales_people sp where sp.email = who;
+  if pid is null then return; end if;
+  return query
+  select d.pipedrive_deal_id, d.title, d.value, d.status,
+         s.stage_id, s.stage_name, s.order_nr,
+         co.name, ct.full_name,
+         d.pipedrive_updated_at, d.synced_at
+    from public.deals d
+    join public.pipedrive_stages s on s.label = d.stage_name and s.pipeline_id = pid
+    left join public.companies co on co.id = d.company_id
+    left join public.contacts ct on ct.id = d.contact_id
+   where coalesce(d.status, 'open') = 'open'
+   order by s.order_nr, d.value desc nulls last;
+end $$;
+revoke execute on function public.sales_pipeline(text) from anon, public;
+grant execute on function public.sales_pipeline(text) to authenticated;
+
+create or replace function public.sales_pipeline_stages(p_rep text default null)
+returns table (stage_id integer, stage text, stage_order integer, pipeline_id integer)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+#variable_conflict use_column
+declare
+  me  text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  who text;
+  pid integer;
+begin
+  if public.is_sales_rep() then who := me;
+  elsif public.can_review_sales() then who := lower(coalesce(p_rep, 'george@rhinorestores.com'));
+  else raise exception 'Not allowed';
+  end if;
+  select sp.pipeline_id into pid from public.sales_people sp where sp.email = who;
+  return query
+  select s.stage_id, s.stage_name, s.order_nr, s.pipeline_id
+    from public.pipedrive_stages s where s.pipeline_id = pid order by s.order_nr;
+end $$;
+revoke execute on function public.sales_pipeline_stages(text) from anon, public;
+grant execute on function public.sales_pipeline_stages(text) to authenticated;
