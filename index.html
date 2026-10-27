@@ -1403,7 +1403,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-27a';
+const BUILD = '2026-10-27b';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3474,13 +3474,17 @@ function shell(inner){
 /* The strip across the top while Liam views as the reviewer. */
 function previewBar(){
   if(!S.preview) return '';
+  if(S.preview.kind === 'george') return `<div class="previewbar"><span>Viewing as <b>George</b>, RHINO sales.
+    This is his screen. Forms open, but nothing you save reaches his log or Pipedrive.</span>
+    <button class="btn small" data-preview-exit>Back to my view</button></div>`;
   return `<div class="previewbar"><span>Viewing as <b>${esc(S.revName)}</b>, the ${esc(SOC_BRANDS[SOC_BRAND])} reviewer.
     This is what they see. Nothing you click is saved.</span>
     <button class="btn small" data-preview-exit>Back to my view</button></div>`;
 }
 function previewSwitch(email){
+  const sales = email === SALES_REP || (!email && S.preview && S.preview.kind === 'george');
   try{ email ? sessionStorage.setItem(PREVIEW_KEY, email) : sessionStorage.removeItem(PREVIEW_KEY); }catch(e){}
-  location.hash = '#social';
+  location.hash = sales ? '#sales' : '#social';
   location.reload();
 }
 
@@ -8481,7 +8485,7 @@ async function loadSales(){
   let q = sb.from('sales_log').select('*').is('deleted_at', null)
     .or('happened_on.gte.' + since + ',and(next_done_at.is.null,next_date.not.is.null)')
     .order('happened_on', { ascending:false }).order('logged_at', { ascending:false }).limit(3000);
-  if(!slIsRep()) q = q.eq('rep_email', SALES_REP);
+  q = q.eq('rep_email', slIsRep() && !PREVIEW_ON ? S.email : SALES_REP);
   const [log, tg, pipe] = await Promise.all([
     q,
     sb.from('sales_targets').select('*').order('sort'),
@@ -8781,6 +8785,7 @@ function pageSales(){
     <p class="hint" style="margin:8px 0 0">Log it the same day, with how it went and what is next. That is what counts on the scorecard, and it lands in Pipedrive for you.</p>
   </section>` : `<div class="sl-review-head">
     <div><span class="eyebrow">RHINO Restores sales</span><h1>George Khanishian</h1></div>
+    ${S.me === 'liam' ? `<button class="btn small ghost" data-preview-as="${esc(SALES_REP)}">View as George</button>` : ''}
     <p class="hint">${slCanApprove() ? 'Approve his lunches here. Everything he logs also lands in Pipedrive under his name.' : 'Read only. Everything he logs also lands in Pipedrive under his name.'}</p>
   </div>`;
 
@@ -9048,6 +9053,7 @@ async function slSave(){
   if(!f || S.sl.busy) return;
   const problem = slCheck(f);
   if(problem){ S.sl.err = problem; render(); return; }
+  if(PREVIEW_ON){ S.sl.err = 'Preview only. This would save for George; nothing was saved.'; render(); return; }
   S.sl.busy = 'save'; S.sl.err = ''; render();
   try{
     const row = slRowOf(f);
@@ -9074,6 +9080,7 @@ async function slSave(){
 
 async function slUpdate(id, patch, busyKey, okNote){
   if(S.sl.busy) return;
+  if(PREVIEW_ON){ S.sl.note = ''; S.sl.err = 'Preview only. Nothing was changed.'; render(); return; }
   S.sl.busy = busyKey; S.sl.err = ''; S.sl.note = ''; render();
   try{
     const { data, error } = await sb.from('sales_log').update(patch).eq('id', id).select().single();
@@ -9097,7 +9104,7 @@ function slSearch(q){
   slSearchTimer = setTimeout(async () => {
     const seq = ++slSearchSeq;
     S.sl.searching = true;
-    const { data, error } = await sb.rpc('sales_contact_search', { q: q.trim() });
+    const { data, error } = await sb.rpc('sales_contact_search', { q: q.trim() }, { get:true });
     if(seq !== slSearchSeq || !S.sl.form) return;
     S.sl.searching = false;
     S.sl.hits = error ? [] : (data || []);
@@ -14998,7 +15005,13 @@ async function boot(){
        browser tab (sessionStorage), so other tabs stay Liam's own. */
     let as = null;
     try{ as = sessionStorage.getItem(PREVIEW_KEY); }catch(e){}
-    if(as){
+    if(as === SALES_REP){
+      /* View as George, switched on from his tab. Same guard as the
+         reviewer preview: every write is stopped before it leaves. */
+      PREVIEW_ON = true;
+      S.preview = { email: as, kind: 'george' };
+      S.me = 'george'; S.revName = 'George';
+    }else if(as){
       const rv = await sb.from('social_reviewers').select('email,brand,name').eq('email', as).maybeSingle();
       if(!rv.error && rv.data && SOC_BRANDS[rv.data.brand]){
         PREVIEW_ON = true;
