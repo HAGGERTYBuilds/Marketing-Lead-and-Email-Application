@@ -1,0 +1,288 @@
+-- RHINO sales log (George's tab). Applied 2026-10-27.
+--
+-- One row per thing George does that the sales plan counts: adjuster
+-- calls, lunches, business visits, the blog, marketing meetings,
+-- networking events, fires and Sales Freedom. The dashboard writes the
+-- row; the n8n workflow "RHINO Sales Log To Pipedrive" mirrors it into
+-- Pipedrive as George (a done activity, plus the next step as a to-do).
+-- The scorecard counts these rows, so it is right the moment he saves,
+-- even if Pipedrive or n8n is having a bad day.
+--
+-- Who sees what:
+--   sales reps (sales_people)  their own rows only; nothing else in the
+--                              database (is_dashboard_user() is false for them)
+--   Liam, Pat, Iyanna          every row; Pat/Liam approve lunches
+--   RHINO social reviewer      read only (Freddie, for the scorecard review)
+--
+-- Adding a rep later: insert into sales_people, make their login in
+-- Supabase > Authentication > Users, and add them to WHOAMI in index.html.
+
+begin;
+
+create table if not exists public.sales_people (
+  email             text primary key check (email = lower(email)),
+  name              text not null,
+  pipedrive_user_id bigint not null,
+  brand             text not null default 'rhino',
+  active            boolean not null default true,
+  created_at        timestamptz not null default now()
+);
+alter table public.sales_people enable row level security;
+
+insert into public.sales_people (email, name, pipedrive_user_id)
+values ('george@rhinorestores.com', 'George Khanishian', 26856455)
+on conflict (email) do update set name = excluded.name, pipedrive_user_id = excluded.pipedrive_user_id;
+
+create or replace function public.is_sales_rep()
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from public.sales_people p
+                  where p.active and p.email = lower(coalesce(auth.jwt() ->> 'email', '')));
+$$;
+revoke execute on function public.is_sales_rep() from anon, public;
+grant execute on function public.is_sales_rep() to authenticated;
+
+/* Reads the scorecard: staff, plus RHINO's social reviewer (Freddie). */
+create or replace function public.can_review_sales()
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select public.is_dashboard_user()
+      or coalesce(public.social_reviewer_brand() = 'rhino', false);
+$$;
+revoke execute on function public.can_review_sales() from anon, public;
+grant execute on function public.can_review_sales() to authenticated;
+
+create policy sales_people_read on public.sales_people for select to authenticated
+  using ((select public.can_review_sales()) or email = lower(coalesce((select auth.jwt()) ->> 'email', '')));
+
+/* Monthly targets. A null target is a baseline metric: shown, not graded. */
+create table if not exists public.sales_targets (
+  metric  text primary key,
+  label   text not null,
+  target  numeric,
+  grp     text not null check (grp in ('activity','relationships','tracked')),
+  sort    smallint not null default 0,
+  note    text
+);
+alter table public.sales_targets enable row level security;
+create policy sales_targets_read on public.sales_targets for select to authenticated
+  using ((select public.can_review_sales()) or (select public.is_sales_rep()));
+create policy sales_targets_write on public.sales_targets for all to authenticated
+  using ((select public.is_dashboard_user())) with check ((select public.is_dashboard_user()));
+
+insert into public.sales_targets (metric, label, target, grp, sort, note) values
+  ('adjuster_calls',     'Adjuster calls',                  80,   'activity',      1, 'Dials to a named adjuster with the outcome logged'),
+  ('lunches',            'Lunches',                         4,    'activity',      2, 'With a referral source, approved by Pat'),
+  ('blog',               'Blog delivered by the 20th',      1,    'activity',      3, '500+ words to Pat and Freddie'),
+  ('visits',             'Business visits',                 10,   'activity',      4, 'In person, decision-maker captured, follow-up set'),
+  ('marketing_meetings', 'Marketing meetings attended',     2,    'activity',      5, 'Action items logged'),
+  ('network_events',     'Networking events',               1,    'activity',      6, 'Plan calls for 1 to 2'),
+  ('same_day',           'Logged same day',                 100,  'activity',      7, 'Percent of this month''s entries logged the day they happened'),
+  ('conversations',      'Adjuster conversations',          null, 'relationships', 1, 'Live, 2+ minutes. Baseline month'),
+  ('lunches_from_calls', 'Lunches sourced from adjuster calls', 2, 'relationships', 2, null),
+  ('new_contacts',       'New contacts added',              15,   'relationships', 3, null),
+  ('warm_contacts',      'Warm contacts (2+ real touches)', null, 'relationships', 4, 'Baseline month'),
+  ('fires',              'Fires chased',                    null, 'tracked',       1, 'Responses, jobs opened and est. value'),
+  ('sales_freedom',      'Sales Freedom',                   null, 'tracked',       2, 'Self-directed prospecting')
+on conflict (metric) do nothing;
+
+create table if not exists public.sales_log (
+  id              uuid primary key default gen_random_uuid(),
+  rep_email       text not null default lower(coalesce(auth.jwt() ->> 'email', '')),
+  kind            text not null check (kind in ('adjuster_call','lunch','visit','blog',
+                    'marketing_meeting','network_event','fire','sales_freedom')),
+  status          text not null default 'done' check (status in ('done','planned')),
+  happened_on     date not null default (now() at time zone 'America/Los_Angeles')::date,
+  logged_at       timestamptz not null default now(),
+  same_day        boolean not null default true,
+
+  -- who
+  pd_person_id    bigint,
+  pd_org_id       bigint,
+  contact_name    text,
+  org_name        text,
+  contact_title   text,
+  contact_type    text check (contact_type in ('adjuster','agent','property_manager','plumber','owner','other')),
+  contact_phone   text,
+  contact_email   text,
+  new_contact     boolean not null default false,
+
+  -- what happened
+  title           text,           -- event, meeting, business or blog title
+  outcome         text check (outcome in ('connected','voicemail','no_answer','completed','no_show','cancelled')),
+  talked_2min     boolean not null default false,
+  notes           text,
+  action_items    text,
+
+  -- what's next
+  next_step       text,
+  next_date       date,
+  next_done_at    timestamptz,
+  followup_of     uuid references public.sales_log(id),
+
+  -- lunch
+  lunch_source    text check (lunch_source in ('adjuster_call','other')),
+  approval        text check (approval in ('pending','approved','declined')),
+  approved_by     text,
+  approved_at     timestamptz,
+  approval_note   text,
+
+  -- blog
+  blog_topic      text check (blog_topic in ('laws','permits','insurance','batteries','other')),
+  blog_link       text,
+  blog_words      integer,
+
+  -- fire
+  fire_source     text check (fire_source in ('adjuster','plumber','property_manager','agent','web','other')),
+  fire_address    text,
+  response_hours  numeric,
+  job_opened      boolean,
+  est_value       numeric,
+
+  -- Pipedrive mirror (n8n writes these)
+  pd_activity_id      bigint,
+  pd_next_activity_id bigint,
+  pd_deal_id          bigint,
+  push_state      text not null default 'pending' check (push_state in ('pending','working','ok','error')),
+  push_error      text,
+  push_claimed_at timestamptz,
+  pushed_at       timestamptz,
+
+  deleted_at      timestamptz,
+  updated_at      timestamptz not null default now()
+);
+create index if not exists sales_log_rep_month on public.sales_log (rep_email, happened_on desc);
+create index if not exists sales_log_push on public.sales_log (push_state) where push_state <> 'ok';
+create index if not exists sales_log_next on public.sales_log (rep_email, next_date) where next_done_at is null and next_date is not null;
+alter table public.sales_log enable row level security;
+
+/* A direct database connection (n8n's Postgres node) has no JWT; neither
+   does the service key. Those are the only callers trusted with the
+   Pipedrive columns. */
+create or replace function public.sales_is_system()
+returns boolean language sql stable set search_path = public, pg_temp as $$
+  select auth.jwt() is null or coalesce(auth.jwt() ->> 'role', '') = 'service_role';
+$$;
+
+create or replace function public.sales_log_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  sys   boolean := public.sales_is_system();
+  staff boolean := coalesce(public.is_dashboard_user(), false);
+  me    text := lower(coalesce(auth.jwt() ->> 'email', ''));
+begin
+  if tg_op = 'INSERT' then
+    if not sys then
+      new.rep_email := me;
+      new.logged_at := now();
+      new.pd_activity_id := null; new.pd_next_activity_id := null; new.pd_deal_id := null;
+      new.push_state := 'pending'; new.push_error := null; new.pushed_at := null;
+      if not staff then
+        new.approved_by := null; new.approved_at := null; new.approval_note := null;
+      end if;
+    end if;
+    new.same_day := new.happened_on >= (new.logged_at at time zone 'America/Los_Angeles')::date;
+    if new.kind = 'lunch' and new.approval is null then new.approval := 'pending'; end if;
+    if new.kind = 'lunch' and new.approval = 'approved' and not (sys or staff) then new.approval := 'pending'; end if;
+    new.updated_at := now();
+    return new;
+  end if;
+
+  -- UPDATE
+  if not sys then
+    new.id := old.id; new.rep_email := old.rep_email; new.logged_at := old.logged_at;
+    new.pd_activity_id := old.pd_activity_id; new.pd_next_activity_id := old.pd_next_activity_id;
+    new.pd_deal_id := old.pd_deal_id; new.push_claimed_at := old.push_claimed_at; new.pushed_at := old.pushed_at;
+    if not staff then
+      new.approval := old.approval; new.approved_by := old.approved_by;
+      new.approved_at := old.approved_at; new.approval_note := old.approval_note;
+    else
+      if new.approval is distinct from old.approval then
+        new.approved_by := me; new.approved_at := now();
+      end if;
+    end if;
+    -- A planned lunch logged as done later still counts as same day if it
+    -- is logged on the day it happened.
+    if new.status = 'done' and old.status = 'planned' then
+      new.same_day := new.happened_on >= (now() at time zone 'America/Los_Angeles')::date;
+    elsif new.happened_on is distinct from old.happened_on then
+      new.same_day := new.happened_on >= (old.logged_at at time zone 'America/Los_Angeles')::date;
+    else
+      new.same_day := old.same_day;
+    end if;
+    -- Anything a person changes goes back to Pipedrive.
+    new.push_state := 'pending'; new.push_error := null;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists sales_log_guard on public.sales_log;
+create trigger sales_log_guard before insert or update on public.sales_log
+  for each row execute function public.sales_log_guard();
+
+create policy sales_log_read on public.sales_log for select to authenticated
+  using ((select public.can_review_sales())
+      or ((select public.is_sales_rep()) and rep_email = lower(coalesce((select auth.jwt()) ->> 'email', ''))));
+create policy sales_log_insert on public.sales_log for insert to authenticated
+  with check ((select public.is_sales_rep()) and rep_email = lower(coalesce((select auth.jwt()) ->> 'email', '')));
+create policy sales_log_update on public.sales_log for update to authenticated
+  using ((select public.is_dashboard_user())
+      or ((select public.is_sales_rep()) and rep_email = lower(coalesce((select auth.jwt()) ->> 'email', ''))))
+  with check ((select public.is_dashboard_user())
+      or ((select public.is_sales_rep()) and rep_email = lower(coalesce((select auth.jwt()) ->> 'email', ''))));
+-- No delete policy: "Remove" sets deleted_at, and n8n removes it from Pipedrive.
+
+/* Contact picker. Reps cannot read the contacts table (it is Haggerty's
+   whole CRM), so this returns just enough to pick a person: name, title,
+   company, phone. Adjusters (Pipedrive label 453) and George's own
+   recent people come first. */
+create or replace function public.sales_contact_search(q text)
+returns table (pd_person_id bigint, pd_org_id bigint, name text, title text, org_name text,
+               phone text, email text, contact_type text, mine boolean)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+#variable_conflict use_column
+declare
+  me text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  term text := trim(coalesce(q, ''));
+begin
+  if not (public.is_sales_rep() or public.is_dashboard_user()) then
+    raise exception 'Not allowed';
+  end if;
+  if length(term) < 2 then return; end if;
+  return query
+  with mine as (
+    select distinct on (l.pd_person_id)
+           l.pd_person_id, l.pd_org_id, l.contact_name, l.contact_title, l.org_name,
+           l.contact_phone, l.contact_email, l.contact_type
+      from public.sales_log l
+     where l.rep_email = me and l.pd_person_id is not null and l.deleted_at is null
+       and (l.contact_name ilike '%' || term || '%' or l.org_name ilike '%' || term || '%')
+     order by l.pd_person_id, l.logged_at desc
+  ), crm as (
+    select c.pipedrive_person_id, co.pipedrive_org_id, c.full_name, c.title, co.name,
+           coalesce(nullif(c.mobile_phone,''), c.office_phone) as phone, c.email,
+           case when 453 = any(c.label_ids) then 'adjuster'
+                when 435 = any(c.label_ids) then 'property_manager' end as ctype
+      from public.contacts c
+      left join public.companies co on co.id = c.company_id
+     where c.pipedrive_person_id is not null
+       and (c.full_name ilike '%' || term || '%' or co.name ilike '%' || term || '%')
+     order by (453 = any(c.label_ids)) desc, public.similarity(c.full_name, term) desc
+     limit 15
+  )
+  select m.pd_person_id, m.pd_org_id, m.contact_name, m.contact_title, m.org_name,
+         m.contact_phone, m.contact_email, m.contact_type, true from mine m
+  union all
+  select k.pipedrive_person_id, k.pipedrive_org_id, k.full_name, k.title, k.name,
+         k.phone, k.email, k.ctype, false
+    from crm k
+   where k.pipedrive_person_id not in (select m2.pd_person_id from mine m2)
+  limit 20;
+end $$;
+revoke execute on function public.sales_contact_search(text) from anon, public;
+grant execute on function public.sales_contact_search(text) to authenticated;
+
+/* Workflow alerts are internal; keep them from sales reps. */
+create policy not_sales_rep on public.workflow_alerts as restrictive for select to authenticated
+  using (not (select public.is_sales_rep()));
+
+commit;
