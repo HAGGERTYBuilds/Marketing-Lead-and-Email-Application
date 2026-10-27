@@ -1,4 +1,5 @@
--- RHINO sales log (George's tab). Applied 2026-10-27.
+-- RHINO sales log (George's tab). Applied 2026-10-27 (migrations
+-- rhino_sales_log and rhino_sales_log_revoke_internal).
 --
 -- One row per thing George does that the sales plan counts: adjuster
 -- calls, lunches, business visits, the blog, marketing meetings,
@@ -284,5 +285,9 @@ grant execute on function public.sales_contact_search(text) to authenticated;
 /* Workflow alerts are internal; keep them from sales reps. */
 create policy not_sales_rep on public.workflow_alerts as restrictive for select to authenticated
   using (not (select public.is_sales_rep()));
+
+/* The trigger function is internal; nothing should call it over the API. */
+revoke execute on function public.sales_log_guard() from anon, authenticated, public;
+revoke execute on function public.sales_is_system() from anon, authenticated, public;
 
 commit;
