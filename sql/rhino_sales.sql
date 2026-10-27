@@ -291,3 +291,114 @@ revoke execute on function public.sales_log_guard() from anon, authenticated, pu
 revoke execute on function public.sales_is_system() from anon, authenticated, public;
 
 commit;
+
+-- ---------------------------------------------------------------------
+-- Applied later on 2026-10-27, after the first migration above.
+-- ---------------------------------------------------------------------
+
+-- rhino_sales_log_push_attempts: retry cap for the n8n sync.
+alter table public.sales_log add column if not exists push_attempts smallint not null default 0;
+
+-- rhino_sales_log_system_updates_keep_updated_at: final version of the
+-- guard. updated_at now means "a person changed this"; the sync's own
+-- writes leave it alone, so the sync can tell when George edited a row
+-- while it was being sent (that row goes back to pending, not ok).
+create or replace function public.sales_log_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  sys   boolean := public.sales_is_system();
+  staff boolean := coalesce(public.is_dashboard_user(), false);
+  me    text := lower(coalesce(auth.jwt() ->> 'email', ''));
+begin
+  if tg_op = 'INSERT' then
+    if not sys then
+      new.rep_email := me;
+      new.logged_at := now();
+      new.pd_activity_id := null; new.pd_next_activity_id := null; new.pd_deal_id := null;
+      new.push_state := 'pending'; new.push_error := null; new.pushed_at := null; new.push_attempts := 0;
+      if not staff then
+        new.approved_by := null; new.approved_at := null; new.approval_note := null;
+      end if;
+    end if;
+    new.same_day := new.happened_on >= (new.logged_at at time zone 'America/Los_Angeles')::date;
+    if new.kind = 'lunch' and new.approval is null then new.approval := 'pending'; end if;
+    if new.kind = 'lunch' and new.approval = 'approved' and not (sys or staff) then new.approval := 'pending'; end if;
+    new.updated_at := now();
+    return new;
+  end if;
+  if sys then
+    new.updated_at := old.updated_at;
+    return new;
+  end if;
+  new.id := old.id; new.rep_email := old.rep_email; new.logged_at := old.logged_at;
+  new.pd_activity_id := old.pd_activity_id; new.pd_next_activity_id := old.pd_next_activity_id;
+  new.pd_deal_id := old.pd_deal_id; new.push_claimed_at := old.push_claimed_at; new.pushed_at := old.pushed_at;
+  if not staff then
+    new.approval := old.approval; new.approved_by := old.approved_by;
+    new.approved_at := old.approved_at; new.approval_note := old.approval_note;
+  elsif new.approval is distinct from old.approval then
+    new.approved_by := me; new.approved_at := now();
+  end if;
+  if new.status = 'done' and old.status = 'planned' then
+    new.same_day := new.happened_on >= (now() at time zone 'America/Los_Angeles')::date;
+  elsif new.happened_on is distinct from old.happened_on then
+    new.same_day := new.happened_on >= (old.logged_at at time zone 'America/Los_Angeles')::date;
+  else
+    new.same_day := old.same_day;
+  end if;
+  new.push_state := 'pending'; new.push_error := null; new.push_attempts := 0;
+  new.updated_at := now();
+  return new;
+end $$;
+revoke execute on function public.sales_log_guard() from anon, authenticated, public;
+
+-- george_pipeline_lookups: George in pipedrive_users, his pipeline's
+-- stages (TPA was missing), and his pipeline for the tab. The one-time
+-- refresh of his 27 deals in the mirror is not repeated here.
+insert into pipedrive_users (user_id, name, email, active, synced_at)
+values (26856455, 'George Khanishian', 'george@rhinorestores.com', true, now())
+on conflict (user_id) do update set name = excluded.name, email = excluded.email, active = true;
+insert into pipedrive_stages (stage_id, stage_name, pipeline_id, pipeline_name, order_nr, label, synced_at) values
+ (54,'LEADS',8,'George Restore Pipeline 2026',1,'George Restore Pipeline 2026 / LEADS',now()),
+ (39,'Organic Lead',8,'George Restore Pipeline 2026',2,'George Restore Pipeline 2026 / Organic Lead',now()),
+ (53,'Program',8,'George Restore Pipeline 2026',3,'George Restore Pipeline 2026 / Program',now()),
+ (40,'Work Auth Signed',8,'George Restore Pipeline 2026',4,'George Restore Pipeline 2026 / Work Auth Signed',now()),
+ (41,'Contract Signed',8,'George Restore Pipeline 2026',5,'George Restore Pipeline 2026 / Contract Signed',now()),
+ (58,'TPA',8,'George Restore Pipeline 2026',6,'George Restore Pipeline 2026 / TPA',now()),
+ (55,'10% Complete',8,'George Restore Pipeline 2026',7,'George Restore Pipeline 2026 / 10% Complete',now()),
+ (56,'50% Complete',8,'George Restore Pipeline 2026',8,'George Restore Pipeline 2026 / 50% Complete',now()),
+ (57,'40% Last Final',8,'George Restore Pipeline 2026',9,'George Restore Pipeline 2026 / 40% Last Final',now())
+on conflict (stage_id) do update set stage_name = excluded.stage_name, pipeline_id = excluded.pipeline_id,
+  pipeline_name = excluded.pipeline_name, order_nr = excluded.order_nr, label = excluded.label, synced_at = now();
+alter table public.sales_people add column if not exists pipeline_id integer;
+update public.sales_people set pipeline_id = 8 where email = 'george@rhinorestores.com';
+
+create or replace function public.sales_pipeline(p_rep text default null)
+returns table (pipedrive_deal_id bigint, title text, value numeric, status text,
+               stage text, stage_order integer, pipedrive_updated_at timestamptz, synced_at timestamptz)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+#variable_conflict use_column
+declare
+  me  text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  who text;
+  pid integer;
+begin
+  if public.is_sales_rep() then who := me;
+  elsif public.can_review_sales() then who := lower(coalesce(p_rep, 'george@rhinorestores.com'));
+  else raise exception 'Not allowed';
+  end if;
+  select sp.pipeline_id into pid from public.sales_people sp where sp.email = who;
+  if pid is null then return; end if;
+  return query
+  select d.pipedrive_deal_id, d.title, d.value, d.status,
+         s.stage_name, s.order_nr, d.pipedrive_updated_at, d.synced_at
+    from public.deals d
+    join public.pipedrive_stages s on s.label = d.stage_name and s.pipeline_id = pid
+   where coalesce(d.status, 'open') = 'open'
+   order by s.order_nr, d.value desc nulls last;
+end $$;
+revoke execute on function public.sales_pipeline(text) from anon, public;
+grant execute on function public.sales_pipeline(text) to authenticated;
+
+-- sales_log_realtime: George's screen and the review screen refresh live.
+alter publication supabase_realtime add table public.sales_log;

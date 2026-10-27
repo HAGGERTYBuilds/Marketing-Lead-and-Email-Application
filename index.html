@@ -1197,6 +1197,88 @@
   .stage-v em{font-style:normal;color:var(--slate);margin-left:4px}
   .home-hi{flex-direction:column;align-items:flex-start;gap:4px}
   @media (max-width:420px){ .stage{grid-template-columns:minmax(0,1fr) 6em} .stage-bar{grid-column:1 / -1;grid-row:2} }
+
+  /* ---------- RHINO sales (George's tab) ---------- */
+  .sl-page{max-width:1000px}
+  .sl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:7px;border-bottom:2px solid var(--ink)}
+  .sl-month{display:flex;align-items:center;gap:8px;font-family:var(--display);font-size:15px}
+  .sl-month .btn{padding:3px 11px;font-size:16px;line-height:1}
+  .sl-review-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .sl-review-head h1{font-family:var(--display);font-size:30px;font-weight:700;margin:2px 0 0;line-height:1.1}
+  .sl-review-head p{margin:0;max-width:420px}
+  .sl-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .sl-kind{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;cursor:pointer;
+    background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--orange);padding:13px 14px;
+    font:inherit;color:inherit;min-height:74px}
+  .sl-kind:hover{background:var(--hover);border-color:var(--orange)}
+  .sl-kind b{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:15px}
+  .sl-kind span{font-size:12px;color:var(--slate);line-height:1.35}
+  @media (max-width:760px){ .sl-kinds{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .sl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .sl-tile{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--rule);padding:12px 14px;
+    display:flex;flex-direction:column;gap:3px;min-width:0}
+  .sl-tile.good{border-left-color:var(--green)}
+  .sl-tile.warn{border-left-color:var(--orange)}
+  .sl-tile.bad{border-left-color:var(--red)}
+  .sl-tile-k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--slate);font-weight:600}
+  .sl-tile-v{font-family:var(--display);font-size:28px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+  .sl-tile-v small{font-size:15px;color:var(--slate);font-weight:600}
+  .sl-tile .prog{margin:4px 0 2px}
+  .sl-tile.good .prog i{background:var(--green)}
+  .sl-tile.bad .prog i{background:var(--red)}
+  .sl-tile-st{font-size:12.5px;color:var(--grey);display:flex;align-items:center;gap:6px}
+  .sl-dot{width:8px;height:8px;border-radius:50%;background:var(--rule);flex:none}
+  .sl-tile.good .sl-dot{background:var(--green)}
+  .sl-tile.warn .sl-dot{background:var(--orange)}
+  .sl-tile.bad .sl-dot{background:var(--red)}
+  .sl-tile-n{font-size:12px;color:var(--slate);line-height:1.4}
+  .sl-list{display:flex;flex-direction:column;gap:8px}
+  .sl-item{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--rule);padding:11px 13px}
+  .sl-item-main{flex:1;min-width:0}
+  .sl-item-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .sl-item-top b{font-size:14px}
+  .sl-item-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .sl-note{font-size:13px;color:var(--grey);margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .sl-apv{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .sl-apv input{flex:1;min-width:180px;padding:6px 9px;font-size:13px}
+  .sl-log{display:grid;grid-template-columns:7.5em minmax(0,1fr) auto;gap:12px;align-items:start;
+    background:var(--card);border:1px solid var(--rule);padding:10px 13px}
+  .sl-log-d{font-family:var(--mono);font-size:11.5px;color:var(--slate);padding-top:3px}
+  .sl-late{display:block;color:var(--red);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
+  .sl-log-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right}
+  .sl-log-acts{display:flex;gap:10px}
+  .sl-log-acts .linkbtn{font-size:12.5px;padding:0}
+  @media (max-width:640px){
+    .sl-log{grid-template-columns:minmax(0,1fr)}
+    .sl-log-side{align-items:flex-start;text-align:left;flex-direction:row;flex-wrap:wrap;gap:10px}
+    .sl-item{flex-direction:column}
+    .sl-item-acts{justify-content:flex-start}
+  }
+  .sl-sync{font-family:var(--mono);font-size:10.5px;color:var(--slate);white-space:nowrap}
+  .sl-sync.ok{color:var(--green)}
+  .sl-sync.err{color:var(--red)}
+  .sl-soon{margin-top:10px}
+  .sl-soon summary{cursor:pointer}
+  .sl-stage summary{list-style:none;cursor:pointer}
+  .sl-stage summary::-webkit-details-marker{display:none}
+  .sl-deals{display:flex;flex-direction:column;margin:6px 0 8px;border-left:2px solid var(--rule-soft);padding-left:10px}
+  .sl-deal{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:13px;color:var(--ink);text-decoration:none}
+  .sl-deal:hover{color:var(--orange-ink)}
+  .sl-picks{display:flex;flex-wrap:wrap;gap:6px}
+  .sl-picks .fchip{cursor:pointer}
+  .sl-check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px}
+  .sl-picked{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+    background:var(--wash);border:1px solid var(--rule);padding:9px 11px}
+  .sl-new{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .sl-new input:first-child{grid-column:1 / -1}
+  .sl-hits{display:flex;flex-direction:column;border:1px solid var(--rule);border-top:0;max-height:260px;overflow:auto}
+  .sl-hit{display:block;text-align:left;background:var(--card);border:0;border-top:1px solid var(--rule-soft);
+    padding:8px 11px;cursor:pointer;font:inherit;color:inherit;font-size:13.5px}
+  .sl-hit:hover{background:var(--hover)}
+  .sl-page input[type=search],.sl-page input[type=date],.sheet input[type=search],.sheet input[type=date]{
+    width:100%;font-family:var(--body);font-size:14px;line-height:1.6;color:var(--ink);background:var(--paper);
+    border:1px solid var(--rule);border-radius:0;padding:9px 11px;-webkit-appearance:none;appearance:none}
+  .sheet input[type=date]{max-width:220px;min-height:44px}
 </style>
 </head>
 <body>
@@ -1262,7 +1344,7 @@ const PAGES = [
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
-  ['api','API Usage']
+  ['sales','RHINO Sales'], ['api','API Usage']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -1270,7 +1352,9 @@ const PAGES = [
 const OWNERS = { myday:'liam', iyanna:'iyanna' };
 const WHOAMI = { 'liam@haggertybuilds.com':'liam',
                  'iyanna@haggertybuilds.com':'iyanna',
-                 'p.dobson@haggertybuilds.com':'pat' };
+                 'p.dobson@haggertybuilds.com':'pat',
+                 /* RHINO sales (sql/rhino_sales.sql). His login sees his own tab only. */
+                 'george@rhinorestores.com':'george' };
 
 /* Pat works the board, the calendar and the pipeline. The two task lists
    belong to Liam and Iyanna, so they stay off his bar. */
@@ -1278,9 +1362,12 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
    emails sent to them for review, locked to their brand. RHINO's reviewer
    (Freddie) also gets RHINO jobs, the permits emailed to him; the team
    sees those on the Permits tab. */
-const visiblePages = () => S.me === 'reviewer'
-  ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns' || (k === 'rjobs' && SOC_BRAND === 'rhino'))
+const visiblePages = () => S.me === 'george'
+  ? PAGES.filter(([k]) => k === 'sales')
+  : S.me === 'reviewer'
+  ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns' || ((k === 'rjobs' || k === 'sales') && SOC_BRAND === 'rhino'))
   : PAGES.filter(([k]) => k !== 'rjobs')
+  .filter(([k]) => k !== 'sales' || SALES_STAFF.includes(S.me))
   .filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me))
@@ -1316,7 +1403,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-23c';
+const BUILD = '2026-10-27a';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3235,6 +3322,7 @@ async function ensureOnce(page){
   if(page==='social' && !S.loaded.social) await loadSocial();
   if(page==='permits' && !S.loaded.permits) await loadPermits();
   if(page==='rjobs' && !S.loaded.rjobs) await loadRhinoJobs();
+  if(page==='sales' && !S.loaded.sales) await loadSales();
   if(page==='campaigns' && !S.loaded.ec) await loadCampaigns();
   if(page==='bulk') await Promise.all([!S.loaded.bulk && loadBulk(), !S.loaded.labels && loadLabels()].filter(Boolean));
   if(page==='leads'){
@@ -3260,7 +3348,7 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
    see (visiblePages) drops out, and an empty group goes with it. */
 const NAV_GROUPS = [
   ['Today',   ['home','rjobs','today','approvals']],
-  ['People',  ['myday','calendar','iyanna']],
+  ['People',  ['myday','calendar','iyanna','sales']],
   ['Content', ['social','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','leads','bulk','permits']],
   ['Money',   ['budget','mileage']],
@@ -3268,10 +3356,11 @@ const NAV_GROUPS = [
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
-const NAV_PHONE = me => me === 'reviewer' ? (SOC_BRAND === 'rhino' ? ['rjobs','social','campaigns'] : ['social','campaigns'])
+const NAV_PHONE = me => me === 'george' ? ['sales']
+                      : me === 'reviewer' ? (SOC_BRAND === 'rhino' ? ['rjobs','sales','social','campaigns'] : ['social','campaigns'])
                       : me === 'iyanna' ? ['iyanna','reels','social','leads']
                       /* Liam's own Home and Day lead; Outreach is Pat's. */
                       : me === 'liam'   ? ['home','myday','approvals','kpis']
@@ -3295,6 +3384,7 @@ const NAV_ICON = {
   bulk:'<path d="M3 11 21 3l-6 18-4-7z"/><path d="M11 14 21 3"/>',
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   rjobs:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/>',
+  sales:'<path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/>',
   api:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
@@ -3339,7 +3429,7 @@ function cycleTheme(){
 }
 
 function railFoot(){
-  const name = { liam:'Liam', pat:'Pat', iyanna:'Iyanna' }[S.me] || S.revName || '';
+  const name = { liam:'Liam', pat:'Pat', iyanna:'Iyanna', george:'George' }[S.me] || S.revName || '';
   return `<div class="rail-foot">
     <div class="rail-me"><span class="av">${esc(name.slice(0,1))}</span><b>${esc(name)}</b></div>
     <div class="rail-acts">
@@ -3398,7 +3488,7 @@ function topbar(){
   const live = S.board.filter(r=>r.status !== 'skipped');
   const done = live.filter(r=>r.handled).length;
   return `<header class="topbar">
-    ${S.me === 'reviewer' ? '' : `<div class="crmbox">
+    ${S.me === 'reviewer' || S.me === 'george' ? '' : `<div class="crmbox">
       <input type="search" id="crmQ" value="${esc(S.crmQ)}" autocomplete="off"
              placeholder="Search contacts and companies" aria-label="Search the CRM" />
       ${S.crmQ?`<button class="crmx" id="crmClear" aria-label="Clear">&times;</button>`:''}
@@ -3672,6 +3762,7 @@ function pageHtml(){
   if(S.page==='leads')     return pageLeads();
   if(S.page==='permits')   return pagePermits();
   if(S.page==='rjobs')     return pageRhinoJobs();
+  if(S.page==='sales')     return pageSales();
   if(S.page==='bulk')      return pageBulk();
   if(S.page==='api')       return pageApi();
   return '';
@@ -3816,6 +3907,7 @@ function wirePage(){
   wireReels();
   wirePermits();
   wireRhinoJobs();
+  wireSales();
   wireSocial();
   wireCampaigns();
   wireBulk();
@@ -8295,6 +8387,816 @@ function wireRhinoJobs(){
   document.querySelectorAll('[data-rjob]').forEach(el=>
     el.addEventListener('click',()=>markRhinoJob(el.dataset.rjob, el.dataset.val)));
   /* Tapping a description to open it is wired by wirePermits. */
+}
+
+/* ================= RHINO sales (George) ================= */
+/* George's tab, and the same tab as Pat, Liam and Freddie see it.
+
+   George logs what the RHINO sales plan counts: adjuster calls, lunches,
+   business visits, fires, Sales Freedom, networking events, marketing
+   meetings and the monthly blog. Each entry is a row in sales_log
+   (sql/rhino_sales.sql). The database stamps who logged it and when, so
+   "logged the same day" cannot be faked, and only Pat or Liam can approve
+   a lunch. The n8n workflow "RHINO Sales Log To Pipedrive" mirrors every
+   row into Pipedrive as George: a done activity plus the next step as a
+   to-do. The page pings it on save; a 10-minute sweep catches the rest.
+
+   George's login sees this tab only, and the database gives him his own
+   rows, the targets and his own pipeline (sales_pipeline()), nothing
+   else. Pat and Liam see the same scorecard, his log and his pipeline,
+   and approve lunches here. Freddie (RHINO's reviewer) sees it read only. */
+const SALES_REP = 'george@rhinorestores.com';
+const SALES_REP_NAME = 'George';
+const SALES_STAFF = ['liam','pat'];          // see the tab and approve lunches
+const SALES_PUSH_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/rhino-sales-push';
+const slDealUrl = id => 'https://haggerty.pipedrive.com/deal/' + encodeURIComponent(id);
+
+const SL_KINDS = {
+  adjuster_call:    { label:'Adjuster call',     hint:'A dial to an adjuster, with how it went' },
+  lunch:            { label:'Lunch',             hint:'Ask Pat first, log it after' },
+  visit:            { label:'Business visit',    hint:'In person, with a decision-maker' },
+  fire:             { label:'Fire',              hint:'Response, source, job opened' },
+  sales_freedom:    { label:'Sales Freedom',     hint:'Your own prospecting' },
+  network_event:    { label:'Networking event',  hint:'Where, and who you met' },
+  marketing_meeting:{ label:'Marketing meeting', hint:'Action items you took' },
+  blog:             { label:'Blog',              hint:'500+ words, due the 20th' }
+};
+const SL_ORDER = ['adjuster_call','lunch','visit','fire','sales_freedom','network_event','marketing_meeting','blog'];
+const SL_OUT = { connected:'Connected', voicemail:'Voicemail', no_answer:'No answer',
+                 completed:'Happened', no_show:'No show', cancelled:'Cancelled' };
+const SL_CTYPE = { adjuster:'Adjuster', agent:'Insurance agent', property_manager:'Property manager',
+                   plumber:'Plumber', owner:'Owner', other:'Other' };
+const SL_FIRE_SRC = { adjuster:'Adjuster', plumber:'Plumber', property_manager:'Property manager',
+                      agent:'Agent', web:'Web', other:'Other' };
+const SL_TOPIC = { laws:'Laws', permits:'Permits', insurance:'Insurance', batteries:'Batteries', other:'Other' };
+const SL_NEXT_IDEAS = {
+  adjuster_call: ['Call back','Book lunch','Send info'],
+  sales_freedom: ['Call back','Visit','Send info'],
+  visit:         ['Follow-up call','Drop off info','Book lunch'],
+  lunch:         ['Follow-up call','Send info','Intro to Freddie'],
+  network_event: ['Follow-up call','Book lunch'],
+  fire:          ['Call the owner','Follow up with adjuster']
+};
+/* What each kind asks for before it can be saved. Mirrors "What counts"
+   in the sales plan: an outcome and a next step, a decision-maker for a
+   visit, 500 words for the blog, action items for a meeting. */
+const SL_NEEDS_NEXT = ['adjuster_call','visit','sales_freedom'];
+
+Object.assign(S, { sl: {
+  rows:[], targets:[], pipe:null, pipeErr:'', month:null, form:null, busy:'', err:'', note:'',
+  filter:'all', hits:null, hitQ:'', searching:false, qFocus:false, apvNote:{}, showAll:false
+}});
+
+const slIsRep = () => S.me === 'george';
+const slCanApprove = () => SALES_STAFF.includes(S.me) && !PREVIEW_ON;
+
+function slIso(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function slDate(v){ return v ? String(v).slice(0,10) : ''; }
+function slDay(v){ return v ? socDay(slDate(v)) : ''; }
+function slBizDays(iso, n){
+  const d = new Date(slDate(iso) + 'T12:00:00');
+  let k = 0;
+  while(k < n){ d.setDate(d.getDate() + 1); const w = d.getDay(); if(w !== 0 && w !== 6) k++; }
+  return slIso(d);
+}
+function slMonth(){ return S.sl.month || socThisMonth(); }
+function slWho(r){
+  const name = r.contact_name || '', org = r.org_name || '';
+  return name && org ? name + ', ' + org : (name || org);
+}
+function slHeadline(r){
+  if(r.kind === 'blog') return r.title || 'Blog';
+  if(r.kind === 'marketing_meeting') return r.title || 'Marketing meeting';
+  if(r.kind === 'network_event') return r.title || 'Networking event';
+  if(r.kind === 'visit') return [r.title, r.contact_name].filter(Boolean).join(' · ') || 'Business visit';
+  if(r.kind === 'fire') return r.fire_address || slWho(r) || 'Fire';
+  return slWho(r) || SL_KINDS[r.kind].label;
+}
+
+async function loadSales(){
+  if(!S.sl.month) S.sl.month = socThisMonth();
+  const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 6); return slIso(d); })();
+  let q = sb.from('sales_log').select('*').is('deleted_at', null)
+    .or('happened_on.gte.' + since + ',and(next_done_at.is.null,next_date.not.is.null)')
+    .order('happened_on', { ascending:false }).order('logged_at', { ascending:false }).limit(3000);
+  if(!slIsRep()) q = q.eq('rep_email', SALES_REP);
+  const [log, tg, pipe] = await Promise.all([
+    q,
+    sb.from('sales_targets').select('*').order('sort'),
+    sb.rpc('sales_pipeline', {}, { get:true })
+  ]);
+  if(log.error) throw log.error;
+  if(tg.error) throw tg.error;
+  S.sl.rows = log.data || [];
+  S.sl.targets = tg.data || [];
+  S.sl.pipe = pipe.error ? null : (pipe.data || []);
+  S.sl.pipeErr = pipe.error ? (pipe.error.message || 'Could not read the pipeline') : '';
+  S.loaded.sales = true;
+}
+
+/* ---------- scorecard ---------- */
+function slScore(m){
+  const live = S.sl.rows.filter(r => !r.deleted_at);
+  const rows = live.filter(r => slDate(r.happened_on).slice(0,7) === m);
+  const done = rows.filter(r => r.status === 'done');
+  const of = k => done.filter(r => r.kind === k);
+  const lunches = of('lunch').filter(r => r.approval === 'approved' && !['no_show','cancelled'].includes(r.outcome));
+  const blogs = of('blog');
+  const blogOnTime = blogs.filter(r => Number(slDate(r.happened_on).slice(8,10)) <= 20 && Number(r.blog_words || 0) >= 500);
+  /* A real touch: a live call, a lunch that happened, a visit, or Sales
+     Freedom that reached someone. Two of them makes a contact warm. */
+  const real = r => r.status === 'done' && (
+    (r.kind === 'adjuster_call' && r.outcome === 'connected') ||
+    (r.kind === 'lunch' && !['no_show','cancelled'].includes(r.outcome)) ||
+    r.kind === 'visit' ||
+    (r.kind === 'sales_freedom' && ['connected','completed'].includes(r.outcome)));
+  const keyOf = r => r.pd_person_id ? 'p' + r.pd_person_id
+    : (r.contact_name ? 'n' + r.contact_name.trim().toLowerCase() : null);
+  const touches = {};
+  for(const r of live){
+    if(!real(r) || slDate(r.happened_on).slice(0,7) > m) continue;
+    const k = keyOf(r); if(k) touches[k] = (touches[k] || 0) + 1;
+  }
+  const fires = of('fire');
+  const resp = fires.map(r => Number(r.response_hours)).filter(n => !isNaN(n) && n > 0);
+  return {
+    adjuster_calls: of('adjuster_call').length,
+    lunches: lunches.length,
+    blog: blogOnTime.length ? 1 : 0, blogRow: blogs[0] || null,
+    visits: of('visit').length,
+    marketing_meetings: of('marketing_meeting').length,
+    network_events: of('network_event').length,
+    same_day: done.length ? Math.round(100 * done.filter(r => r.same_day).length / done.length) : null,
+    conversations: of('adjuster_call').filter(r => r.outcome === 'connected' && r.talked_2min).length,
+    lunches_from_calls: lunches.filter(r => r.lunch_source === 'adjuster_call').length,
+    new_contacts: new Set(rows.filter(r => r.new_contact && r.contact_name)
+                    .map(r => r.contact_name.trim().toLowerCase())).size,
+    warm_contacts: Object.values(touches).filter(n => n >= 2).length,
+    fires: fires.length, fireJobs: fires.filter(r => r.job_opened).length,
+    fireValue: fires.reduce((s, r) => s + Number(r.est_value || 0), 0),
+    fireResp: resp.length ? Math.round(10 * resp.reduce((a,b) => a+b, 0) / resp.length) / 10 : null,
+    sales_freedom: of('sales_freedom').length,
+    total: done.length
+  };
+}
+
+function slStatus(metric, actual, target, m){
+  if(target === null || target === undefined) return { cls:'', label:'Baseline month' };
+  const cur = m === socThisMonth();
+  const now = new Date();
+  if(metric === 'same_day'){
+    if(actual === null) return { cls:'', label:'Nothing logged yet' };
+    return actual >= 100 ? { cls:'good', label:'All same day' }
+         : actual >= 90 ? { cls:'warn', label:'Some logged late' } : { cls:'bad', label:'Too many late' };
+  }
+  if(metric === 'blog'){
+    if(actual >= 1) return { cls:'good', label:'Delivered on time' };
+    if(cur && now.getDate() <= 20) return { cls:'warn', label:'Due by the 20th' };
+    return { cls:'bad', label:'Missed the 20th' };
+  }
+  if(actual >= Number(target)) return { cls:'good', label:'Target hit' };
+  if(!cur) return { cls:'bad', label:'Missed' };
+  const [y, mo] = m.split('-').map(Number);
+  const pace = Number(target) * now.getDate() / new Date(y, mo, 0).getDate();
+  if(actual >= pace) return { cls:'good', label:'On pace' };
+  if(actual >= pace * 0.75) return { cls:'warn', label:'A little behind' };
+  return { cls:'bad', label:'Behind pace' };
+}
+
+function slTile(t, sc, m){
+  const actual = sc[t.metric];
+  const st = slStatus(t.metric, actual, t.target, m);
+  const pct = t.target ? Math.max(0, Math.min(100, Math.round(100 * Number(actual || 0) / Number(t.target)))) : 0;
+  let v;
+  if(t.metric === 'same_day') v = actual === null ? '&ndash;' : `${actual}<small>%</small>`;
+  else if(t.metric === 'blog') v = actual ? 'Done' : (sc.blogRow ? 'Late' : 'Not yet');
+  else v = `${num(actual)}${t.target ? `<small> / ${num(t.target)}</small>` : ''}`;
+  const sub = t.metric === 'blog' && sc.blogRow
+    ? `${esc(sc.blogRow.title || 'Blog')} · ${esc(slDay(sc.blogRow.happened_on))}${Number(sc.blogRow.blog_words||0) < 500 ? ' · under 500 words' : ''}`
+    : esc(t.note || '');
+  return `<div class="sl-tile ${st.cls}">
+    <div class="sl-tile-k">${esc(t.label)}</div>
+    <div class="sl-tile-v">${v}</div>
+    ${t.target && t.metric !== 'blog' ? `<span class="prog"><i style="width:${pct}%"></i></span>` : ''}
+    <div class="sl-tile-st"><span class="sl-dot"></span>${esc(st.label)}</div>
+    ${sub ? `<div class="sl-tile-n">${sub}</div>` : ''}
+  </div>`;
+}
+
+function slScorecard(){
+  const m = slMonth(), sc = slScore(m);
+  const grp = g => S.sl.targets.filter(t => t.grp === g).sort((a,b) => a.sort - b.sort);
+  const isCur = m === socThisMonth();
+  return `<section class="block">
+    <div class="sl-head">
+      <h2 class="sec" style="flex:1;margin:0;border:0;padding:0">Scorecard</h2>
+      <div class="sl-month">
+        <button class="btn small ghost" data-sl-month="-1" aria-label="Previous month">&lsaquo;</button>
+        <b>${esc(socMonthLabel(m))}</b>
+        <button class="btn small ghost" data-sl-month="1" aria-label="Next month" ${isCur?'disabled':''}>&rsaquo;</button>
+      </div>
+    </div>
+    <div class="eyebrow" style="margin:12px 0 8px">Activity</div>
+    <div class="sl-grid">${grp('activity').map(t => slTile(t, sc, m)).join('')}</div>
+    <div class="eyebrow" style="margin:16px 0 8px">Relationships</div>
+    <div class="sl-grid">${grp('relationships').map(t => slTile(t, sc, m)).join('')}</div>
+    <div class="eyebrow" style="margin:16px 0 8px">Tracked</div>
+    <div class="sl-grid">
+      <div class="sl-tile"><div class="sl-tile-k">Fires chased</div>
+        <div class="sl-tile-v">${num(sc.fires)}</div>
+        <div class="sl-tile-n">${num(sc.fireJobs)} job${sc.fireJobs===1?'':'s'} opened${sc.fireValue ? ' · ' + money(sc.fireValue) + ' est.' : ''}${sc.fireResp !== null ? ' · ' + sc.fireResp + ' hr avg response' : ''}</div></div>
+      <div class="sl-tile"><div class="sl-tile-k">Sales Freedom</div>
+        <div class="sl-tile-v">${num(sc.sales_freedom)}</div>
+        <div class="sl-tile-n">Self-directed prospecting</div></div>
+      <div class="sl-tile"><div class="sl-tile-k">Entries this month</div>
+        <div class="sl-tile-v">${num(sc.total)}</div>
+        <div class="sl-tile-n">Everything logged for ${esc(socMonthLabel(m))}</div></div>
+    </div>
+  </section>`;
+}
+
+/* ---------- lists ---------- */
+function slOpenFollowUps(){
+  return S.sl.rows.filter(r => !r.deleted_at && r.next_date && r.next_step && !r.next_done_at)
+    .sort((a,b) => slDate(a.next_date) < slDate(b.next_date) ? -1 : 1);
+}
+function slFollowCard(r){
+  const t = today(), d = slDate(r.next_date);
+  const late = d < t, due = d === t;
+  const busy = S.sl.busy === 'fu' + r.id;
+  return `<div class="sl-item">
+    <div class="sl-item-main">
+      <div class="sl-item-top">
+        <span class="chip ${late ? 'bad' : due ? 'hot' : ''}">${late ? 'Overdue · ' : due ? 'Today · ' : ''}${esc(slDay(d))}</span>
+        <b>${esc(r.next_step)}</b>
+      </div>
+      <div class="hint">${esc(slWho(r) || slHeadline(r))} · from ${esc(SL_KINDS[r.kind].label.toLowerCase())} on ${esc(slDay(r.happened_on))}</div>
+    </div>
+    ${slIsRep() ? `<div class="sl-item-acts">
+      <button class="btn small" data-sl-follow="${esc(r.id)}" ${busy?'disabled':''}>Log it</button>
+      <button class="btn small ghost" data-sl-fudone="${esc(r.id)}" ${busy?'disabled':''}>${busy?'Saving&hellip;':'Done'}</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function slApprovalChip(r){
+  if(r.kind !== 'lunch') return '';
+  if(r.approval === 'approved') return `<span class="chip good">Pat approved</span>`;
+  if(r.approval === 'declined') return `<span class="chip bad">Declined</span>`;
+  return `<span class="chip hot">Waiting on Pat</span>`;
+}
+function slSyncChip(r){
+  if(r.push_state === 'ok') return `<span class="sl-sync ok" title="In Pipedrive">In Pipedrive</span>`;
+  if(r.push_state === 'error') return `<span class="sl-sync err" title="${esc(r.push_error || '')}">Not in Pipedrive yet</span>`;
+  return `<span class="sl-sync" title="Being sent to Pipedrive">Sending</span>`;
+}
+
+function slLunchCard(r){
+  const busy = S.sl.busy === 'apv' + r.id;
+  const canDecide = slCanApprove() && r.approval !== 'approved';
+  return `<div class="sl-item">
+    <div class="sl-item-main">
+      <div class="sl-item-top">${slApprovalChip(r)}<b>${esc(slWho(r) || 'Lunch')}</b></div>
+      <div class="hint">${esc(slDay(r.happened_on))}${r.lunch_source ? ' · from ' + (r.lunch_source === 'adjuster_call' ? 'an adjuster call' : 'elsewhere') : ''}${r.contact_type ? ' · ' + esc(SL_CTYPE[r.contact_type] || '') : ''}</div>
+      ${r.notes ? `<div class="sl-note">${esc(r.notes)}</div>` : ''}
+      ${r.approval_note ? `<div class="sl-note"><b>Pat:</b> ${esc(r.approval_note)}</div>` : ''}
+      ${canDecide ? `<div class="sl-apv">
+        <input type="text" data-sl-apvnote="${esc(r.id)}" value="${esc(S.sl.apvNote[r.id] || '')}" placeholder="Note for ${esc(SALES_REP_NAME)} (optional)" autocomplete="off" />
+        <button class="btn small accent" data-sl-apv="${esc(r.id)}" data-val="approved" ${busy?'disabled':''}>${busy?'Saving&hellip;':'Approve'}</button>
+        <button class="btn small ghost" data-sl-apv="${esc(r.id)}" data-val="declined" ${busy?'disabled':''}>Decline</button>
+      </div>` : ''}
+    </div>
+    ${slIsRep() ? `<div class="sl-item-acts">
+      <button class="btn small" data-sl-lunchdone="${esc(r.id)}">Log lunch</button>
+      <button class="btn small ghost" data-sl-edit="${esc(r.id)}">Edit</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function slLogRow(r){
+  const k = SL_KINDS[r.kind];
+  const bits = [];
+  if(r.outcome) bits.push(SL_OUT[r.outcome] + (r.kind === 'adjuster_call' && r.outcome === 'connected' && r.talked_2min ? ', 2+ min' : ''));
+  if(r.kind === 'fire'){
+    if(r.fire_source) bits.push('via ' + SL_FIRE_SRC[r.fire_source].toLowerCase());
+    if(r.response_hours) bits.push(r.response_hours + ' hr response');
+    if(r.job_opened) bits.push('job opened' + (r.est_value ? ', ' + money(r.est_value) : ''));
+  }
+  if(r.kind === 'blog' && r.blog_words) bits.push(num(r.blog_words) + ' words');
+  if(r.kind === 'lunch' && r.lunch_source === 'adjuster_call') bits.push('from a call');
+  if(r.new_contact) bits.push('new contact');
+  const removing = S.sl.busy === 'del' + r.id;
+  return `<div class="sl-log">
+    <div class="sl-log-d">${esc(slDay(r.happened_on))}${r.same_day ? '' : '<span class="sl-late" title="Logged after the day it happened">late</span>'}</div>
+    <div class="sl-log-main">
+      <div class="sl-item-top"><span class="chip">${esc(k.label)}</span>${slApprovalChip(r)}<b>${esc(slHeadline(r))}</b></div>
+      ${bits.length ? `<div class="hint">${esc(bits.join(' · '))}</div>` : ''}
+      ${r.notes ? `<div class="sl-note">${esc(r.notes)}</div>` : ''}
+      ${r.action_items ? `<div class="sl-note"><b>Action items:</b> ${esc(r.action_items)}</div>` : ''}
+      ${r.blog_link ? `<div class="sl-note"><a href="${esc(r.blog_link)}" target="_blank" rel="noopener">Open the blog</a></div>` : ''}
+      ${r.next_step ? `<div class="sl-note"><b>Next:</b> ${esc(r.next_step)}${r.next_date ? ' · ' + esc(slDay(r.next_date)) : ''}${r.next_done_at ? ' · done' : ''}</div>` : ''}
+    </div>
+    <div class="sl-log-side">
+      ${slSyncChip(r)}
+      ${r.pd_deal_id ? `<a class="hint" href="${slDealUrl(r.pd_deal_id)}" target="_blank" rel="noopener">Deal</a>` : ''}
+      ${slIsRep() ? `<div class="sl-log-acts">
+        ${r.push_state === 'error' ? `<button class="linkbtn" data-sl-retry="${esc(r.id)}">Retry</button>` : ''}
+        <button class="linkbtn" data-sl-edit="${esc(r.id)}">Edit</button>
+        <button class="linkbtn" data-sl-del="${esc(r.id)}" ${removing?'disabled':''}>${removing?'Removing&hellip;':'Remove'}</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function slLog(){
+  const m = slMonth();
+  const all = S.sl.rows.filter(r => !r.deleted_at && r.status === 'done' && slDate(r.happened_on).slice(0,7) === m);
+  const counts = {};
+  for(const r of all) counts[r.kind] = (counts[r.kind] || 0) + 1;
+  all.sort((a,b) => slDate(b.happened_on).localeCompare(slDate(a.happened_on)) || String(b.logged_at).localeCompare(String(a.logged_at)));
+  const rows = S.sl.filter === 'all' ? all : all.filter(r => r.kind === S.sl.filter);
+  const cap = S.sl.showAll ? rows.length : 40;
+  const chips = [['all', 'Everything', all.length]].concat(SL_ORDER.filter(k => counts[k]).map(k => [k, SL_KINDS[k].label, counts[k]]))
+    .map(([k,l,n]) => `<button class="fchip ${S.sl.filter===k?'on':''}" data-sl-filter="${k}">${esc(l)} <b>${n}</b></button>`).join('');
+  return `<section class="block">
+    <h2 class="sec">${slIsRep() ? 'What you logged' : 'What ' + SALES_REP_NAME + ' logged'} · ${esc(socMonthLabel(m))}</h2>
+    ${all.length ? `<div class="fchips" style="margin:0 0 10px">${chips}</div>` : ''}
+    ${rows.length
+      ? `<div class="sl-list">${rows.slice(0, cap).map(slLogRow).join('')}</div>
+         ${rows.length > cap ? `<p style="text-align:center;margin:10px 0 0"><button class="linkbtn" data-sl-more>Show all ${num(rows.length)}</button></p>` : ''}`
+      : `<p class="hint">Nothing logged for ${esc(socMonthLabel(m))} yet.</p>`}
+  </section>`;
+}
+
+function slPipeline(){
+  const deals = S.sl.pipe;
+  if(S.sl.pipeErr) return `<section class="block"><h2 class="sec">Pipeline</h2><p class="hint err">${esc(S.sl.pipeErr)}</p></section>`;
+  if(!deals) return '';
+  const stages = [];
+  for(const d of deals){
+    let s = stages.find(x => x.name === d.stage);
+    if(!s){ s = { name:d.stage, order:d.stage_order, deals:[], value:0 }; stages.push(s); }
+    s.deals.push(d); s.value += Number(d.value || 0);
+  }
+  stages.sort((a,b) => a.order - b.order);
+  const max = Math.max(1, ...stages.map(s => s.value));
+  const total = deals.reduce((t, d) => t + Number(d.value || 0), 0);
+  const synced = deals.reduce((t, d) => d.synced_at && d.synced_at > t ? d.synced_at : t, '');
+  return `<section class="block">
+    <div class="sl-head"><h2 class="sec" style="flex:1;margin:0;border:0;padding:0">${slIsRep() ? 'Your pipeline' : SALES_REP_NAME + "'s pipeline"}</h2>
+      <span class="hint">${num(deals.length)} open · ${money(total)}</span></div>
+    <div class="panel" style="margin-top:10px">
+      ${stages.length ? `<div class="stages">${stages.map(s => `<details class="sl-stage">
+        <summary class="stage"><span class="stage-n">${esc(s.name)}</span>
+          <span class="stage-bar"><i style="width:${Math.max(2, Math.round(100 * s.value / max))}%"></i></span>
+          <span class="stage-v">${moneyShort(s.value)}<em>${s.deals.length}</em></span></summary>
+        <div class="sl-deals">${s.deals.map(d => `<a class="sl-deal" href="${slDealUrl(d.pipedrive_deal_id)}" target="_blank" rel="noopener">
+          <span>${esc(d.title)}</span><span class="mono">${money(d.value)}</span></a>`).join('')}</div>
+      </details>`).join('')}</div>` : `<p class="hint">No open deals in the pipeline.</p>`}
+      <p class="hint" style="margin:12px 0 0">From Pipedrive, refreshed every 2 hours${synced ? ', last at ' + esc(fmtTime(synced)) : ''}. Tap a stage to see its deals.</p>
+    </div>
+  </section>`;
+}
+
+/* ---------- the page ---------- */
+function pageSales(){
+  if(!S.loaded.sales) return loading();
+  const rep = slIsRep();
+  const fu = slOpenFollowUps();
+  const t = today();
+  const due = fu.filter(r => slDate(r.next_date) <= t);
+  const soon = fu.filter(r => slDate(r.next_date) > t && slDate(r.next_date) <= slBizDays(t, 5));
+  const lunches = S.sl.rows.filter(r => !r.deleted_at && r.kind === 'lunch' && (r.status === 'planned' || r.approval === 'pending'))
+    .sort((a,b) => slDate(a.happened_on) < slDate(b.happened_on) ? -1 : 1);
+  const waiting = lunches.filter(r => r.approval === 'pending');
+  const banner = S.sl.note ? `<div class="done-banner" style="margin-bottom:16px"><p style="margin:0">${esc(S.sl.note)}</p></div>` : '';
+  const err = S.sl.err && !S.sl.form ? `<p class="hint err" style="margin-bottom:14px">${esc(S.sl.err)}</p>` : '';
+
+  const top = rep ? `<section class="block">
+    <h2 class="sec">Log it</h2>
+    <div class="sl-kinds">${SL_ORDER.map(k => `<button class="sl-kind" data-sl-new="${k}">
+      <b>${esc(SL_KINDS[k].label)}</b><span>${esc(SL_KINDS[k].hint)}</span></button>`).join('')}</div>
+    <p class="hint" style="margin:8px 0 0">Log it the same day, with how it went and what is next. That is what counts on the scorecard, and it lands in Pipedrive for you.</p>
+  </section>` : `<div class="sl-review-head">
+    <div><span class="eyebrow">RHINO Restores sales</span><h1>George Khanishian</h1></div>
+    <p class="hint">${slCanApprove() ? 'Approve his lunches here. Everything he logs also lands in Pipedrive under his name.' : 'Read only. Everything he logs also lands in Pipedrive under his name.'}</p>
+  </div>`;
+
+  const followHtml = `<section class="block">
+    <h2 class="sec">Follow-ups${due.length ? ` <span class="chip ${due.some(r => slDate(r.next_date) < t) ? 'bad' : 'hot'}" style="margin-left:6px">${due.length} due</span>` : ''}</h2>
+    ${due.length ? `<div class="sl-list">${due.map(slFollowCard).join('')}</div>` : `<p class="hint">Nothing due today.</p>`}
+    ${soon.length ? `<details class="sl-soon"><summary class="hint">Coming up this week (${soon.length})</summary>
+      <div class="sl-list" style="margin-top:8px">${soon.map(slFollowCard).join('')}</div></details>` : ''}
+  </section>`;
+
+  const lunchHtml = lunches.length ? `<section class="block">
+    <h2 class="sec">Lunches${waiting.length ? ` <span class="chip hot" style="margin-left:6px">${waiting.length} waiting on Pat</span>` : ''}</h2>
+    <div class="sl-list">${lunches.map(slLunchCard).join('')}</div>
+    ${rep ? `<p class="hint" style="margin:8px 0 0">A lunch counts once Pat approves it and you log that it happened.</p>` : ''}
+  </section>` : '';
+
+  const main = rep
+    ? `${top}${followHtml}${lunchHtml}${slScorecard()}${slLog()}${slPipeline()}`
+    : `${top}${lunchHtml}${slScorecard()}${followHtml}${slLog()}${slPipeline()}`;
+  return `<main class="page sl-page">${banner}${err}${main}</main>${slFormHtml()}`;
+}
+
+/* ---------- the entry form ---------- */
+function slBlankForm(kind, extra){
+  const t = today();
+  const f = Object.assign({
+    kind, id:null, mode:'new', happened_on: kind === 'lunch' ? slBizDays(t, 1) : t,
+    pd_person_id:null, pd_org_id:null, contact_name:'', org_name:'', contact_title:'', contact_type:'',
+    contact_phone:'', contact_email:'', new_contact:false, picking:true, approval:null,
+    title: kind === 'marketing_meeting' ? 'Marketing meeting' : '', outcome:'', talked_2min:false,
+    notes:'', action_items:'', next_step:'', next_date: slBizDays(t, 2),
+    lunch_source:'', blog_topic:'', blog_link:'', blog_words:'',
+    fire_source:'', fire_address:'', response_hours:'', job_opened:null, est_value:'', followup_of:null
+  }, extra || {});
+  if(kind === 'adjuster_call' && !f.contact_type) f.contact_type = 'adjuster';
+  return f;
+}
+function slFormFromRow(r, mode){
+  const f = slBlankForm(r.kind);
+  for(const k of Object.keys(f)) if(r[k] !== undefined && r[k] !== null) f[k] = r[k];
+  f.id = r.id; f.mode = mode || 'edit';
+  f.happened_on = slDate(r.happened_on);
+  f.next_date = slDate(r.next_date) || (mode === 'lunchdone' ? slBizDays(today(), 2) : '');
+  f.picking = !(r.contact_name || r.pd_person_id);
+  f.blog_words = r.blog_words ? String(r.blog_words) : '';
+  f.est_value = r.est_value ? String(r.est_value) : '';
+  f.response_hours = r.response_hours ? String(r.response_hours) : '';
+  if(mode === 'lunchdone'){
+    f.happened_on = slDate(r.happened_on) > today() ? today() : slDate(r.happened_on);
+    f.outcome = r.outcome || 'completed';
+  }
+  return f;
+}
+
+function slPick(field, opts, cur){
+  return `<div class="sl-picks">${Object.entries(opts).map(([k,l]) =>
+    `<button type="button" class="fchip ${cur === k ? 'on' : ''}" data-sl-pick="${field}" data-val="${esc(k)}">${esc(l)}</button>`).join('')}</div>`;
+}
+function slField(label, inner, hint){
+  return `<div class="field"><label>${label}</label>${inner}${hint ? `<p class="hint" style="margin:4px 0 0">${hint}</p>` : ''}</div>`;
+}
+function slInput(field, value, attrs){
+  const a = attrs || {};
+  return `<input type="${a.type || 'text'}" data-sl-f="${field}" value="${esc(value ?? '')}" ${a.ph ? `placeholder="${esc(a.ph)}"` : ''} ${a.mode ? `inputmode="${a.mode}"` : ''} autocomplete="off" />`;
+}
+function slText(field, value, ph, h){
+  return `<textarea data-sl-f="${field}" style="min-height:${h || 70}px" placeholder="${esc(ph || '')}">${esc(value || '')}</textarea>`;
+}
+
+function slContactHtml(f, label){
+  if(!f.picking){
+    return slField(label, `<div class="sl-picked">
+      <div><b>${esc(f.contact_name || '(no name)')}</b>${f.org_name ? ` · ${esc(f.org_name)}` : ''}
+        ${f.contact_title ? `<div class="hint">${esc(f.contact_title)}</div>` : ''}
+        ${f.new_contact ? `<div class="hint">New contact. It will be added to Pipedrive.</div>` : ''}</div>
+      <button type="button" class="linkbtn" data-sl-repick>Change</button>
+    </div>
+    <div style="margin-top:8px">${slPick('contact_type', SL_CTYPE, f.contact_type)}</div>`);
+  }
+  if(f.new_contact){
+    return slField(label, `<div class="sl-new">
+      ${slInput('contact_name', f.contact_name, { ph:'Name' })}
+      ${slInput('org_name', f.org_name, { ph:'Company' })}
+      ${slInput('contact_title', f.contact_title, { ph:'Title' })}
+      ${slInput('contact_phone', f.contact_phone, { ph:'Phone', mode:'tel' })}
+      ${slInput('contact_email', f.contact_email, { ph:'Email', type:'email' })}
+    </div>
+    <div style="margin-top:8px">${slPick('contact_type', SL_CTYPE, f.contact_type)}</div>
+    <p class="hint" style="margin:6px 0 0"><button type="button" class="linkbtn" data-sl-search>Search Pipedrive instead</button></p>`);
+  }
+  const hits = S.sl.hits;
+  return slField(label, `<input type="search" id="slContactQ" value="${esc(S.sl.hitQ)}" placeholder="Search by name or company" autocomplete="off" />
+    ${S.sl.searching && !hits ? `<p class="hint" style="margin:6px 0 0">Searching&hellip;</p>` : ''}
+    ${hits ? `<div class="sl-hits">${hits.length ? hits.map((h, i) => `<button type="button" class="sl-hit" data-sl-hit="${i}">
+        <b>${esc(h.name || '')}</b>${h.org_name ? ` · ${esc(h.org_name)}` : ''}
+        ${h.contact_type ? `<span class="chip" style="margin-left:6px">${esc(SL_CTYPE[h.contact_type] || h.contact_type)}</span>` : ''}
+        ${h.title ? `<div class="hint">${esc(h.title)}</div>` : ''}</button>`).join('')
+      : `<p class="hint" style="margin:6px 11px">No one matches that in Pipedrive.</p>`}</div>` : ''}
+    <p class="hint" style="margin:6px 0 0"><button type="button" class="linkbtn" data-sl-newcontact>Not in Pipedrive? Add someone new</button></p>`);
+}
+
+function slNextHtml(f, required){
+  const ideas = SL_NEXT_IDEAS[f.kind] || [];
+  return slField('Next step' + (required ? '' : ' <span class="muted">(optional)</span>'),
+    `${slInput('next_step', f.next_step, { ph:'What happens next' })}
+     ${ideas.length ? `<div class="sl-picks" style="margin-top:6px">${ideas.map(i => `<button type="button" class="fchip ${f.next_step === i ? 'on' : ''}" data-sl-next="${esc(i)}">${esc(i)}</button>`).join('')}</div>` : ''}
+     <div style="margin-top:8px">${slInput('next_date', f.next_date, { type:'date' })}</div>`,
+    'It goes on your follow-up list and into Pipedrive as a to-do.');
+}
+
+function slFormHtml(){
+  const f = S.sl.form;
+  if(!f) return '';
+  const k = f.kind, K = SL_KINDS[k];
+  const lunchReq = k === 'lunch' && f.mode !== 'lunchdone';
+  const title = f.mode === 'lunchdone' ? 'Log lunch' : f.mode === 'edit' ? 'Edit ' + K.label.toLowerCase()
+              : lunchReq ? 'Request a lunch' : 'Log ' + K.label.toLowerCase();
+  const late = f.happened_on && f.happened_on < today() && !(lunchReq);
+  const when = slField(lunchReq ? 'Lunch date' : k === 'blog' ? 'Delivered on' : 'When',
+    slInput('happened_on', f.happened_on, { type:'date' }),
+    lunchReq ? 'Pat approves it before it counts.' : (late ? 'Logged after the day, so it shows as late on the scorecard.' : ''));
+  let body = '';
+  if(k === 'adjuster_call'){
+    body = slContactHtml(f, 'Adjuster')
+      + slField('How it went', slPick('outcome', { connected:'Connected', voicemail:'Voicemail', no_answer:'No answer' }, f.outcome))
+      + (f.outcome === 'connected' ? `<label class="sl-check"><input type="checkbox" data-sl-check="talked_2min" ${f.talked_2min?'checked':''} /> Talked 2 minutes or more</label>` : '')
+      + slField('Notes <span class="muted">(optional)</span>', slText('notes', f.notes, 'What they said'))
+      + slNextHtml(f, true) + when;
+  }else if(lunchReq){
+    body = slContactHtml(f, 'Who with')
+      + slField('Where it came from', slPick('lunch_source', { adjuster_call:'An adjuster call', other:'Somewhere else' }, f.lunch_source))
+      + slField('Why this lunch <span class="muted">(optional)</span>', slText('notes', f.notes, 'A line for Pat'))
+      + when;
+  }else if(k === 'lunch'){
+    body = `<p class="hint" style="margin:12px 0 0"><b>${esc(f.contact_name || '')}</b>${f.org_name ? ' · ' + esc(f.org_name) : ''}${f.approval === 'approved' ? '' : ` · <span style="color:var(--red)">not approved by Pat yet, so it will not count until he does</span>`}</p>`
+      + slField('Did it happen', slPick('outcome', { completed:'It happened', no_show:'No show', cancelled:'Cancelled' }, f.outcome))
+      + slField('Notes <span class="muted">(optional)</span>', slText('notes', f.notes, 'What came out of it'))
+      + slNextHtml(f, f.outcome === 'completed') + when;
+  }else if(k === 'visit'){
+    body = slField('Business', slInput('title', f.title, { ph:'Business name' }))
+      + slContactHtml(f, 'Decision-maker or manager')
+      + slField('Notes <span class="muted">(optional)</span>', slText('notes', f.notes, 'What you learned'))
+      + slNextHtml(f, true) + when;
+  }else if(k === 'sales_freedom'){
+    body = slContactHtml(f, 'Who')
+      + slField('How it went', slPick('outcome', { connected:'Connected', voicemail:'Voicemail', no_answer:'No answer', completed:'Met in person' }, f.outcome))
+      + slField('Notes <span class="muted">(optional)</span>', slText('notes', f.notes, ''))
+      + slNextHtml(f, true) + when;
+  }else if(k === 'fire'){
+    body = slField('Address or property', slInput('fire_address', f.fire_address, { ph:'Where the fire was' }))
+      + slField('How you heard', slPick('fire_source', SL_FIRE_SRC, f.fire_source))
+      + slField('Response time <span class="muted">(hours)</span>', slInput('response_hours', f.response_hours, { ph:'1.5', mode:'decimal' }))
+      + slField('Job opened', slPick('job_opened', { yes:'Yes', no:'No' }, f.job_opened === true ? 'yes' : f.job_opened === false ? 'no' : ''))
+      + (f.job_opened ? slField('Estimated value', slInput('est_value', f.est_value, { ph:'25000', mode:'decimal' }), 'A deal is added to the LEADS stage of your pipeline.') : '')
+      + slContactHtml(f, 'Contact <span class="muted">(optional)</span>')
+      + slField('Notes <span class="muted">(optional)</span>', slText('notes', f.notes, ''))
+      + slNextHtml(f, false) + when;
+  }else if(k === 'network_event'){
+    body = slField('Event', slInput('title', f.title, { ph:'Event name' }))
+      + slField('Who you met <span class="muted">(optional)</span>', slText('notes', f.notes, 'Names, companies, anything worth a follow-up'))
+      + slContactHtml(f, 'Best new contact <span class="muted">(optional)</span>')
+      + slNextHtml(f, false) + when;
+  }else if(k === 'marketing_meeting'){
+    body = slField('Meeting', slInput('title', f.title, { ph:'Marketing meeting' }))
+      + slField('Action items', slText('action_items', f.action_items, 'What you took on, one per line', 110))
+      + when;
+  }else if(k === 'blog'){
+    body = slField('Title', slInput('title', f.title, { ph:'Blog title' }))
+      + slField('Topic', slPick('blog_topic', SL_TOPIC, f.blog_topic))
+      + slField('Word count', slInput('blog_words', f.blog_words, { ph:'500', mode:'numeric' }), 'At least 500 words to count.')
+      + slField('Link <span class="muted">(optional)</span>', slInput('blog_link', f.blog_link, { ph:'SharePoint or Google Doc link' }), 'Send it to Pat and Freddie by the 20th.')
+      + when;
+  }
+  const busy = S.sl.busy === 'save';
+  const label = f.mode === 'edit' ? 'Save changes' : lunchReq ? 'Ask Pat' : 'Save';
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="sheet-in">
+      <div class="sheet-head"><h2>${esc(title)}</h2><button class="linkbtn" data-sl-close>Close</button></div>
+      ${body}
+      ${S.sl.err ? `<p class="hint err" style="margin-top:12px">${esc(S.sl.err)}</p>` : ''}
+      <div class="sheet-foot"><button class="btn accent" data-sl-save ${busy?'disabled':''}>${busy ? 'Saving&hellip;' : esc(label)}</button></div>
+    </div>
+  </div>`;
+}
+
+function slCheck(f){
+  const k = f.kind;
+  const who = String(f.contact_name || '').trim();
+  const lunchReq = k === 'lunch' && f.mode !== 'lunchdone';
+  if(!f.happened_on) return 'Pick a date.';
+  if(f.happened_on > today() && !lunchReq) return 'That date is in the future. Log it once it has happened.';
+  if(['adjuster_call','lunch','sales_freedom','visit'].includes(k) && !who) return k === 'visit' ? 'Add the decision-maker or manager you met.' : 'Pick who this was with.';
+  if(['adjuster_call','sales_freedom'].includes(k) && !f.outcome) return 'Pick how it went.';
+  if(k === 'lunch' && f.mode === 'lunchdone' && !f.outcome) return 'Say whether the lunch happened.';
+  if(lunchReq && !f.lunch_source) return 'Say where this lunch came from.';
+  if(k === 'visit' && !String(f.title).trim()) return 'Add the business name.';
+  if(k === 'network_event' && !String(f.title).trim()) return 'Add the event name.';
+  if(k === 'marketing_meeting' && !String(f.action_items).trim()) return 'Add your action items. The meeting counts once they are logged.';
+  if(k === 'blog'){
+    if(!String(f.title).trim()) return 'Add the blog title.';
+    if(!f.blog_topic) return 'Pick a topic.';
+    if(!(Number(f.blog_words) >= 500)) return 'A blog needs 500 words or more to count.';
+  }
+  if(k === 'fire'){
+    if(!String(f.fire_address).trim() && !who) return 'Add the address or a contact.';
+    if(!f.fire_source) return 'Say how you heard about it.';
+    if(f.job_opened === null) return 'Say whether a job was opened.';
+    if(String(f.response_hours).trim() !== '' && isNaN(Number(f.response_hours))) return 'Response time should be a number of hours.';
+  }
+  const needNext = SL_NEEDS_NEXT.includes(k) || (k === 'lunch' && f.mode === 'lunchdone' && f.outcome === 'completed');
+  if(needNext && (!String(f.next_step).trim() || !f.next_date)) return 'Add the next step and its date. Every entry needs one to count.';
+  if(String(f.next_step).trim() && !f.next_date) return 'Add a date for the next step.';
+  if(f.contact_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(f.contact_email).trim())) return 'That email does not look right.';
+  return '';
+}
+
+function slRowOf(f){
+  const n = v => { const t = String(v ?? '').trim(); const x = Number(t.replace(/[^0-9.]/g, '')); return t === '' || isNaN(x) ? null : x; };
+  const s = v => { const t = String(v ?? '').trim(); return t || null; };
+  const lunchReq = f.kind === 'lunch' && f.mode !== 'lunchdone';
+  const row = {
+    kind: f.kind,
+    status: lunchReq ? 'planned' : 'done',
+    happened_on: f.happened_on,
+    pd_person_id: f.pd_person_id || null, pd_org_id: f.pd_org_id || null,
+    contact_name: s(f.contact_name), org_name: s(f.org_name), contact_title: s(f.contact_title),
+    contact_type: f.contact_type || null, contact_phone: s(f.contact_phone), contact_email: s(f.contact_email),
+    new_contact: !!f.new_contact && !f.pd_person_id,
+    title: s(f.title), notes: s(f.notes), action_items: s(f.action_items),
+    outcome: lunchReq ? null : (f.outcome || null),
+    talked_2min: f.kind === 'adjuster_call' && f.outcome === 'connected' && !!f.talked_2min,
+    next_step: s(f.next_step), next_date: s(f.next_step) ? (f.next_date || null) : null,
+    lunch_source: f.kind === 'lunch' ? (f.lunch_source || null) : null,
+    blog_topic: f.kind === 'blog' ? (f.blog_topic || null) : null,
+    blog_link: f.kind === 'blog' ? s(f.blog_link) : null,
+    blog_words: f.kind === 'blog' ? n(f.blog_words) : null,
+    fire_source: f.kind === 'fire' ? (f.fire_source || null) : null,
+    fire_address: f.kind === 'fire' ? s(f.fire_address) : null,
+    response_hours: f.kind === 'fire' ? n(f.response_hours) : null,
+    job_opened: f.kind === 'fire' ? f.job_opened : null,
+    est_value: f.kind === 'fire' && f.job_opened ? n(f.est_value) : null
+  };
+  if(f.followup_of && !f.id) row.followup_of = f.followup_of;
+  return row;
+}
+
+/* The workflow answers at once and works in the background, so the page
+   just pings it and re-reads a few seconds later for the sync status. */
+function slPing(id){
+  if(PREVIEW_ON || !id) return;
+  try{
+    fetch(SALES_PUSH_URL, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ id }) })
+      .catch(() => {});
+  }catch(e){}
+  setTimeout(() => markStale(['sales'], 0), 7000);
+}
+function slPut(row){
+  const i = S.sl.rows.findIndex(r => r.id === row.id);
+  if(row.deleted_at){ if(i >= 0) S.sl.rows.splice(i, 1); return; }
+  if(i >= 0) S.sl.rows[i] = row; else S.sl.rows.unshift(row);
+}
+
+async function slSave(){
+  const f = S.sl.form;
+  if(!f || S.sl.busy) return;
+  const problem = slCheck(f);
+  if(problem){ S.sl.err = problem; render(); return; }
+  S.sl.busy = 'save'; S.sl.err = ''; render();
+  try{
+    const row = slRowOf(f);
+    const q = f.id ? sb.from('sales_log').update(row).eq('id', f.id) : sb.from('sales_log').insert(row);
+    const { data, error } = await q.select().single();
+    if(error) throw error;
+    slPut(data);
+    slPing(data.id);
+    if(f.followup_of && !f.id){
+      const r2 = await sb.from('sales_log').update({ next_done_at: new Date().toISOString() }).eq('id', f.followup_of).select().single();
+      if(!r2.error && r2.data){ slPut(r2.data); slPing(r2.data.id); }
+    }
+    const what = SL_KINDS[f.kind].label;
+    S.sl.note = f.mode === 'edit' ? what + ' updated.'
+              : f.kind === 'lunch' && f.mode !== 'lunchdone' ? 'Lunch sent to Pat for approval.'
+              : what + ' logged' + (data.same_day ? '' : ' (late)') + '. It is on its way to Pipedrive.';
+    S.sl.form = null; S.sl.hits = null; S.sl.hitQ = '';
+    if(data.status === 'done' && slDate(data.happened_on).slice(0,7) !== slMonth()) S.sl.month = slDate(data.happened_on).slice(0,7);
+  }catch(e){
+    S.sl.err = 'Could not save that: ' + (e.message || e);
+  }
+  S.sl.busy = ''; render();
+}
+
+async function slUpdate(id, patch, busyKey, okNote){
+  if(S.sl.busy) return;
+  S.sl.busy = busyKey; S.sl.err = ''; S.sl.note = ''; render();
+  try{
+    const { data, error } = await sb.from('sales_log').update(patch).eq('id', id).select().single();
+    if(error) throw error;
+    slPut(data); slPing(data.id);
+    if(okNote) S.sl.note = okNote;
+  }catch(e){
+    S.sl.err = 'Could not save that: ' + (e.message || e);
+  }
+  S.sl.busy = ''; render();
+}
+
+let slSearchTimer = null, slSearchSeq = 0;
+function slSearch(q){
+  S.sl.hitQ = q;
+  clearTimeout(slSearchTimer);
+  if(q.trim().length < 2){
+    if(S.sl.hits !== null){ S.sl.hits = null; S.sl.qFocus = true; render(); S.sl.qFocus = false; }
+    return;
+  }
+  slSearchTimer = setTimeout(async () => {
+    const seq = ++slSearchSeq;
+    S.sl.searching = true;
+    const { data, error } = await sb.rpc('sales_contact_search', { q: q.trim() });
+    if(seq !== slSearchSeq || !S.sl.form) return;
+    S.sl.searching = false;
+    S.sl.hits = error ? [] : (data || []);
+    S.sl.qFocus = true; render(); S.sl.qFocus = false;
+  }, 250);
+}
+
+function slFormSet(field, value){
+  const f = S.sl.form; if(!f) return;
+  if(field === 'job_opened') f.job_opened = value === 'yes';
+  else if(field === 'outcome') f.outcome = value;
+  else f[field] = f[field] === value ? '' : value;
+  if(field === 'outcome' && value !== 'connected') f.talked_2min = false;
+}
+
+function wireSales(){
+  if(S.page !== 'sales') return;
+  const on = (sel, fn, ev) => document.querySelectorAll(sel).forEach(el => el.addEventListener(ev || 'click', e => fn(el, e)));
+  on('[data-sl-month]', el => {
+    S.sl.month = socShift(slMonth(), Number(el.dataset.slMonth));
+    if(S.sl.month > socThisMonth()) S.sl.month = socThisMonth();
+    S.sl.filter = 'all'; S.sl.showAll = false; render();
+  });
+  on('[data-sl-filter]', el => { S.sl.filter = el.dataset.slFilter; S.sl.showAll = false; render(); });
+  on('[data-sl-more]', () => { S.sl.showAll = true; render(); });
+  if(slIsRep()){
+    on('[data-sl-new]', el => { S.sl.form = slBlankForm(el.dataset.slNew); S.sl.err = ''; S.sl.note = ''; S.sl.hits = null; S.sl.hitQ = ''; render(); });
+    on('[data-sl-edit]', el => {
+      const r = S.sl.rows.find(x => x.id === el.dataset.slEdit); if(!r) return;
+      S.sl.form = slFormFromRow(r, 'edit'); S.sl.err = ''; S.sl.note = ''; S.sl.hits = null; S.sl.hitQ = ''; render();
+    });
+    on('[data-sl-lunchdone]', el => {
+      const r = S.sl.rows.find(x => x.id === el.dataset.slLunchdone); if(!r) return;
+      S.sl.form = slFormFromRow(r, 'lunchdone'); S.sl.err = ''; S.sl.note = ''; render();
+    });
+    on('[data-sl-follow]', el => {
+      const r = S.sl.rows.find(x => x.id === el.dataset.slFollow); if(!r) return;
+      const kind = ['adjuster_call','visit','sales_freedom'].includes(r.kind) ? r.kind
+                 : /lunch/i.test(r.next_step || '') ? 'lunch' : 'sales_freedom';
+      const carry = { followup_of: r.id, pd_person_id: r.pd_person_id, pd_org_id: r.pd_org_id,
+        contact_name: r.contact_name || '', org_name: r.org_name || '', contact_title: r.contact_title || '',
+        contact_type: r.contact_type || '', contact_phone: r.contact_phone || '', contact_email: r.contact_email || '',
+        picking: !(r.contact_name || r.pd_person_id), title: kind === 'visit' ? (r.title || '') : '' };
+      if(kind === 'lunch') carry.lunch_source = r.kind === 'adjuster_call' ? 'adjuster_call' : 'other';
+      S.sl.form = slBlankForm(kind, carry); S.sl.err = ''; S.sl.note = ''; S.sl.hits = null; S.sl.hitQ = ''; render();
+    });
+    on('[data-sl-fudone]', el => slUpdate(el.dataset.slFudone, { next_done_at: new Date().toISOString() }, 'fu' + el.dataset.slFudone, 'Follow-up marked done.'));
+    on('[data-sl-retry]', el => {
+      const r = S.sl.rows.find(x => x.id === el.dataset.slRetry); if(!r) return;
+      slUpdate(r.id, { notes: r.notes }, 'retry' + r.id, 'Sending it to Pipedrive again.');
+    });
+    on('[data-sl-del]', el => {
+      const r = S.sl.rows.find(x => x.id === el.dataset.slDel); if(!r) return;
+      if(!confirm('Remove this ' + SL_KINDS[r.kind].label.toLowerCase() + '? It comes off the scorecard and out of Pipedrive.')) return;
+      slUpdate(r.id, { deleted_at: new Date().toISOString() }, 'del' + r.id, SL_KINDS[r.kind].label + ' removed.');
+    });
+  }
+  if(slCanApprove()){
+    on('[data-sl-apvnote]', el => { S.sl.apvNote[el.dataset.slApvnote] = el.value; }, 'input');
+    on('[data-sl-apv]', el => {
+      const id = el.dataset.slApv, val = el.dataset.val;
+      const note = String(S.sl.apvNote[id] || '').trim() || null;
+      slUpdate(id, { approval: val, approval_note: note }, 'apv' + id, val === 'approved' ? 'Lunch approved.' : 'Lunch declined.');
+    });
+  }
+
+  if(!S.sl.form) return;
+  const f = S.sl.form;
+  on('[data-sl-close]', () => { S.sl.form = null; S.sl.err = ''; render(); });
+  on('[data-sl-save]', () => slSave());
+  on('[data-sl-f]', el => { f[el.dataset.slF] = el.value; }, 'input');
+  on('input[type=date][data-sl-f]', el => { f[el.dataset.slF] = el.value; render(); }, 'change');
+  on('[data-sl-check]', el => { f[el.dataset.slCheck] = el.checked; }, 'change');
+  on('[data-sl-pick]', el => { slFormSet(el.dataset.slPick, el.dataset.val); S.sl.err = ''; render(); });
+  on('[data-sl-next]', el => { f.next_step = el.dataset.slNext; render(); });
+  on('[data-sl-repick]', () => {
+    Object.assign(f, { pd_person_id:null, pd_org_id:null, contact_name:'', org_name:'', contact_title:'',
+      contact_phone:'', contact_email:'', new_contact:false, picking:true });
+    S.sl.hits = null; S.sl.hitQ = ''; S.sl.qFocus = true; render(); S.sl.qFocus = false;
+  });
+  on('[data-sl-newcontact]', () => {
+    Object.assign(f, { new_contact:true, picking:true, pd_person_id:null, pd_org_id:null,
+      contact_name: String(S.sl.hitQ || '').trim() });
+    render();
+  });
+  on('[data-sl-search]', () => { f.new_contact = false; render(); });
+  on('[data-sl-hit]', el => {
+    const h = (S.sl.hits || [])[Number(el.dataset.slHit)]; if(!h) return;
+    Object.assign(f, { pd_person_id: h.pd_person_id, pd_org_id: h.pd_org_id || null, contact_name: h.name || '',
+      org_name: h.org_name || '', contact_title: h.title || '', contact_phone: h.phone || '',
+      contact_email: h.email || '', contact_type: h.contact_type || f.contact_type || '',
+      new_contact:false, picking:false });
+    S.sl.hits = null; S.sl.hitQ = ''; S.sl.err = ''; render();
+  });
+  const q = document.getElementById('slContactQ');
+  if(q){
+    q.addEventListener('input', () => slSearch(q.value));
+    if(S.sl.qFocus) refocus(q);
+  }
 }
 
 /* ================= social calendar ================= */
@@ -13929,7 +14831,7 @@ const LOADERS = {
   board:loadBoard, tiles:loadTiles, week:loadWeek, seq:loadSequences, assets:loadAssets,
   voice:loadVoice, health:loadHealth, mc:loadMailchimp, invites:loadInvites,
   approvals:loadApprovals, budget:loadBudget, mileage:loadMileage, requests:loadRequests,
-  reels:loadReels, social:loadSocial, permits:loadPermits, rjobs:loadRhinoJobs, ec:loadCampaigns, bulk:loadBulk,
+  reels:loadReels, social:loadSocial, permits:loadPermits, rjobs:loadRhinoJobs, sales:loadSales, ec:loadCampaigns, bulk:loadBulk,
   photos:loadPhotos, voices:loadVoices, kpis:loadKpis, metrics:loadMetrics, ret:loadReturn,
   'tasks.liam':() => loadTasks('liam'), 'tasks.iyanna':() => loadTasks('iyanna'),
   clicks:() => { const ids = Object.keys(S.clicks); S.clicks = {}; return loadClicks(ids); }
@@ -13958,7 +14860,7 @@ function pageKeys(page){
     mileage: () => ['mileage'], photos: () => ['photos'], voices: () => ['voices'],
     kpis: () => ['kpis','metrics'].concat(S.kpiView === 'scorecard' ? [] : ['ret']),
     myday: () => ['tasks.liam','requests'], iyanna: () => ['tasks.iyanna'],
-    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'], rjobs: () => ['rjobs'],
+    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'], rjobs: () => ['rjobs'], sales: () => ['sales'],
     campaigns: () => ['ec'], bulk: () => ['bulk'], leads: () => ['clicks']
   };
   return P[page] ? P[page]() : [];
@@ -13987,7 +14889,7 @@ const LIVE_TABLES = {
   expenses:['budget'], budget_plan:['budget'],
   mileage_trips:['mileage'], reel_ideas:['reels'], permit_marks:['permits'], permit_emails:['permits','rjobs'],
   email_campaigns:['ec'], bulk_campaigns:['bulk'],
-  photo_batches:['photos'], exv_answers:['voices']
+  photo_batches:['photos'], exv_answers:['voices'], sales_log:['sales']
 };
 const liveKeys = (t, row) => { const m = LIVE_TABLES[t]; return typeof m === 'function' ? m(row) : m; };
 
@@ -14037,8 +14939,10 @@ function onLive(table, payload){
 function liveStart(){
   if(liveCh) return;
   try{
-    const tables = S.me === 'reviewer' ? ['social_posts','social_post_media','social_jobs','email_campaigns']
-                                       : Object.keys(LIVE_TABLES);
+    const tables = S.me === 'george' ? ['sales_log']
+                 : S.me === 'reviewer' ? ['social_posts','social_post_media','social_jobs','email_campaigns']
+                                         .concat(SOC_BRAND === 'rhino' ? ['sales_log'] : [])
+                 : Object.keys(LIVE_TABLES);
     liveCh = sb.channel('dash-' + S.me + '-' + Math.random().toString(36).slice(2, 8));
     for(const t of tables)
       liveCh.on('postgres_changes', { event:'*', schema:'public', table:t }, p => onLive(t, p));
@@ -14110,7 +15014,7 @@ async function boot(){
      Home, and Iyanna on her own list. */
   const { page:want, view } = parseHash(location.hash);
   S.page = visiblePages().some(([k]) => k === want) ? want
-         : (S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? (SOC_BRAND === 'rhino' ? 'rjobs' : 'social') : 'home');
+         : (S.me === 'george' ? 'sales' : S.me === 'iyanna' ? 'iyanna' : S.me === 'reviewer' ? (SOC_BRAND === 'rhino' ? 'rjobs' : 'social') : 'home');
   if(S.page === want && view && SUBVIEW[want]) SUBVIEW[want].set(view);
   S._hashReady = false;
   try{
