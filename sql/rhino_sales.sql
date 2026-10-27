@@ -462,3 +462,39 @@ begin
 end $$;
 revoke execute on function public.sales_pipeline_stages(text) from anon, public;
 grant execute on function public.sales_pipeline_stages(text) to authenticated;
+
+-- deal_write_guard (2026-10-27): the Deal Board API (n8n, haggerty-deal-move
+-- and haggerty-deal-add) now checks the caller's Supabase session against
+-- /auth/v1/user and then asks this. Staff may change any deal. A sales rep
+-- only deals and stages in their own pipeline; a deal a rep adds is always
+-- owned by them. Anyone else (including no session) is refused. Only n8n's
+-- Postgres connection calls it, so execute is revoked from API roles.
+create or replace function public.deal_write_ok(p_email text, p_deal bigint, p_stage integer)
+returns table (ok boolean, rep_user_id bigint, reason text)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  e   text := lower(coalesce(p_email, ''));
+  rep record;
+begin
+  if e = '' then
+    return query select false, null::bigint, 'Sign in to the dashboard first.'; return;
+  end if;
+  if e in ('liam@haggertybuilds.com', 'iyanna@haggertybuilds.com', 'p.dobson@haggertybuilds.com') then
+    return query select true, null::bigint, null::text; return;
+  end if;
+  select * into rep from public.sales_people where email = e and active;
+  if not found then
+    return query select false, null::bigint, 'This account cannot change deals.'; return;
+  end if;
+  if p_stage is not null and not exists (
+       select 1 from public.pipedrive_stages s where s.stage_id = p_stage and s.pipeline_id = rep.pipeline_id) then
+    return query select false, null::bigint, 'That stage is not in your pipeline.'; return;
+  end if;
+  if p_deal is not null and not exists (
+       select 1 from public.deals d join public.pipedrive_stages s on s.label = d.stage_name
+        where d.pipedrive_deal_id = p_deal and s.pipeline_id = rep.pipeline_id) then
+    return query select false, null::bigint, 'That deal is not in your pipeline.'; return;
+  end if;
+  return query select true, rep.pipedrive_user_id, null::text;
+end $$;
+revoke execute on function public.deal_write_ok(text, bigint, integer) from anon, authenticated, public;
