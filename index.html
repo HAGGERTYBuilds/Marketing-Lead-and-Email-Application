@@ -12239,13 +12239,20 @@ function apiAlertsHtml(){
 
 function apiMonthHtml(rows, inRange){
   const tile = m => {
-    const pct = Math.min(100, Number(m.pct_used || 0));
-    const tone = pct >= 80 || Number(m.forecast) >= Number(m.monthly_limit) ? 'over' : pct >= 50 ? 'near' : '';
+    /* The provider is refusing calls outright, so its own meter is full even
+       when the calls logged here add up to less (spend from before logging
+       started, or from outside n8n). Say so rather than show a calm bar. */
+    const blocked = (S.api.alerts || []).find(a => a.provider === m.provider && String(a.check_key).startsWith('api_limit:'));
+    const until = blocked && (String(blocked.detail).match(/regain access on (\d{4}-\d{2}-\d{2})/) || [])[1];
+    const pct = blocked ? 100 : Math.min(100, Number(m.pct_used || 0));
+    const tone = blocked || pct >= 80 || Number(m.forecast) >= Number(m.monthly_limit) ? 'over' : pct >= 50 ? 'near' : '';
     return `<div class="stat ${m.provider === 'anthropic' ? 'accent' : ''}">
       <div class="k">${esc(API_PROVIDER[m.provider] || m.provider)} this month</div>
-      <div class="v">${esc(apiUsedText(m))} <small>of ${esc(apiLimitText(m))}</small></div>
+      <div class="v">${blocked ? `<span style="color:var(--red)">Blocked</span>` : esc(apiUsedText(m))} <small>of ${esc(apiLimitText(m))}</small></div>
       <span class="bud-bar ${tone}" style="margin:8px 0 6px"><i style="width:${pct}%"></i></span>
-      <div class="hint">On pace for ${esc(m.unit === 'usd' ? apiMoney(m.forecast) : apiNum(m.forecast) + ' credits')} · ${apiNum(m.calls)} calls</div>
+      <div class="hint">${blocked
+        ? `Limit reached${until ? ', back ' + esc(dateOnly(until)) : ''}. ${esc(apiUsedText(m))} logged here; the rest was spent before logging started.`
+        : `On pace for ${esc(m.unit === 'usd' ? apiMoney(m.forecast) : apiNum(m.forecast) + ' credits')} · ${apiNum(m.calls)} calls`}</div>
     </div>`;
   };
   const order = ['anthropic', 'apollo', 'evaboot'];
