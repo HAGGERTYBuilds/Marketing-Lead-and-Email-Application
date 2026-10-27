@@ -1366,6 +1366,9 @@ const WHOAMI = { 'liam@haggertybuilds.com':'liam',
    sees those on the Permits tab. */
 const visiblePages = () => S.me === 'george'
   ? PAGES.filter(([k]) => k === 'sales')
+  /* Iyanna works her own list, Social and Reel Ideas; nothing else. */
+  : S.me === 'iyanna'
+  ? PAGES.filter(([k]) => k === 'iyanna' || k === 'social' || k === 'reels')
   : S.me === 'reviewer'
   ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns' || ((k === 'rjobs' || k === 'sales') && SOC_BRAND === 'rhino'))
   : PAGES.filter(([k]) => k !== 'rjobs')
@@ -1405,7 +1408,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-27c';
+const BUILD = '2026-10-27e';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3363,7 +3366,7 @@ const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'george' ? ['sales']
                       : me === 'reviewer' ? (SOC_BRAND === 'rhino' ? ['rjobs','sales','social','campaigns'] : ['social','campaigns'])
-                      : me === 'iyanna' ? ['iyanna','reels','social','leads']
+                      : me === 'iyanna' ? ['iyanna','social','reels']
                       /* Liam's own Home and Day lead; Outreach is Pat's. */
                       : me === 'liam'   ? ['home','myday','approvals','kpis']
                                         : ['home','today','approvals','kpis'];
@@ -3476,8 +3479,8 @@ function shell(inner){
 /* The strip across the top while Liam views as the reviewer. */
 function previewBar(){
   if(!S.preview) return '';
-  if(S.preview.kind === 'george') return `<div class="previewbar"><span>Viewing as <b>George</b>, RHINO sales.
-    This is his screen. Forms open, but nothing you save reaches his log or Pipedrive.</span>
+  if(S.preview.kind === 'george') return `<div class="previewbar"><span>Acting as <b>George</b>, RHINO sales.
+    Anything you save counts as his and goes to Pipedrive under his name, marked as entered by you.</span>
     <button class="btn small" data-preview-exit>Back to my view</button></div>`;
   return `<div class="previewbar"><span>Viewing as <b>${esc(S.revName)}</b>, the ${esc(SOC_BRANDS[SOC_BRAND])} reviewer.
     This is what they see. Nothing you click is saved.</span>
@@ -3494,7 +3497,7 @@ function topbar(){
   const live = S.board.filter(r=>r.status !== 'skipped');
   const done = live.filter(r=>r.handled).length;
   return `<header class="topbar">
-    ${S.me === 'reviewer' || S.me === 'george' ? '' : `<div class="crmbox">
+    ${S.me === 'reviewer' || S.me === 'george' || S.me === 'iyanna' ? '' : `<div class="crmbox">
       <input type="search" id="crmQ" value="${esc(S.crmQ)}" autocomplete="off"
              placeholder="Search contacts and companies" aria-label="Search the CRM" />
       ${S.crmQ?`<button class="crmx" id="crmClear" aria-label="Clear">&times;</button>`:''}
@@ -8489,7 +8492,7 @@ async function loadSales(){
   let q = sb.from('sales_log').select('*').is('deleted_at', null)
     .or('happened_on.gte.' + since + ',and(next_done_at.is.null,next_date.not.is.null)')
     .order('happened_on', { ascending:false }).order('logged_at', { ascending:false }).limit(3000);
-  q = q.eq('rep_email', slIsRep() && !PREVIEW_ON ? S.email : SALES_REP);
+  q = q.eq('rep_email', slIsRep() && !S.preview ? S.email : SALES_REP);
   const [log, tg, pipe, stages] = await Promise.all([
     q,
     sb.from('sales_targets').select('*').order('sort'),
@@ -8697,6 +8700,9 @@ function slLogRow(r){
   if(r.kind === 'blog' && r.blog_words) bits.push(num(r.blog_words) + ' words');
   if(r.kind === 'lunch' && r.lunch_source === 'adjuster_call') bits.push('from a call');
   if(r.new_contact) bits.push('new contact');
+  const typedBy = r.entered_by && r.rep_email && r.entered_by !== r.rep_email
+    ? ({ 'liam@haggertybuilds.com':'Liam', 'p.dobson@haggertybuilds.com':'Pat', 'iyanna@haggertybuilds.com':'Iyanna' }[r.entered_by] || r.entered_by.split('@')[0]) : '';
+  if(typedBy) bits.push('entered by ' + typedBy);
   const removing = S.sl.busy === 'del' + r.id;
   return `<div class="sl-log">
     <div class="sl-log-d">${esc(slDay(r.happened_on))}${r.same_day ? '' : '<span class="sl-late" title="Logged after the day it happened">late</span>'}</div>
@@ -8791,7 +8797,7 @@ function pageSales(){
     <p class="hint" style="margin:8px 0 0">Log it the same day, with how it went and what is next. That is what counts on the scorecard, and it lands in Pipedrive for you.</p>
   </section>` : `<div class="sl-review-head">
     <div><span class="eyebrow">RHINO Restores sales</span><h1>George Khanishian</h1></div>
-    ${S.me === 'liam' ? `<button class="btn small ghost" data-preview-as="${esc(SALES_REP)}">View as George</button>` : ''}
+    ${SALES_STAFF.includes(S.me) ? `<button class="btn small ghost" data-preview-as="${esc(SALES_REP)}">View as George</button>` : ''}
     <p class="hint">${slCanApprove() ? 'Approve his lunches here. Everything he logs also lands in Pipedrive under his name.' : 'Read only. Everything he logs also lands in Pipedrive under his name.'}</p>
   </div>`;
 
@@ -9038,6 +9044,8 @@ function slRowOf(f){
     est_value: f.kind === 'fire' && f.job_opened ? n(f.est_value) : null
   };
   if(f.followup_of && !f.id) row.followup_of = f.followup_of;
+  /* Acting as George: the row is his; the database stamps entered_by. */
+  if(S.preview && S.preview.kind === 'george') row.rep_email = SALES_REP;
   return row;
 }
 
@@ -15204,16 +15212,22 @@ async function boot(){
     if(rv.error || !rv.data || !SOC_BRANDS[rv.data.brand]) return renderNoAccess(email);
     S.me = 'reviewer'; S.revName = rv.data.name || email.split('@')[0];
     SOC_BRAND = rv.data.brand; SOC_FOCUS = SOC_FOCUS_BY[SOC_BRAND];
+  }else if(S.me === 'pat'){
+    /* Pat can act as George from the RHINO Sales tab (see below). */
+    let as = null;
+    try{ as = sessionStorage.getItem(PREVIEW_KEY); }catch(e){}
+    if(as === SALES_REP){ S.preview = { email: as, kind: 'george', actor: S.me }; S.me = 'george'; S.revName = 'George'; }
+    else if(as){ try{ sessionStorage.removeItem(PREVIEW_KEY); }catch(e){} }
   }else if(S.me === 'liam'){
     /* View as the reviewer, switched on from the Social tab. Kept per
        browser tab (sessionStorage), so other tabs stay Liam's own. */
     let as = null;
     try{ as = sessionStorage.getItem(PREVIEW_KEY); }catch(e){}
     if(as === SALES_REP){
-      /* View as George, switched on from his tab. Same guard as the
-         reviewer preview: every write is stopped before it leaves. */
-      PREVIEW_ON = true;
-      S.preview = { email: as, kind: 'george' };
+      /* Act as George, switched on from his tab. Unlike the reviewer
+         preview, saving works: entries are George's, and the database
+         records who typed them (sales_log.entered_by). */
+      S.preview = { email: as, kind: 'george', actor: S.me };
       S.me = 'george'; S.revName = 'George';
     }else if(as){
       const rv = await sb.from('social_reviewers').select('email,brand,name').eq('email', as).maybeSingle();

@@ -498,3 +498,20 @@ begin
   return query select true, rep.pipedrive_user_id, null::text;
 end $$;
 revoke execute on function public.deal_write_ok(text, bigint, integer) from anon, authenticated, public;
+
+-- sales_log_entered_by (2026-10-27): Pat and Liam can act as George from
+-- "View as George" on the RHINO Sales tab. Their entries are George's
+-- (rep_email), count on his scorecard and go to Pipedrive as his;
+-- entered_by records who typed them. A rep can still only log as
+-- themselves. The full sales_log_guard() is the version in the
+-- migration of the same name; the parts that changed:
+--   INSERT: staff may set rep_email to an active sales rep, otherwise
+--           rep_email := caller; entered_by := caller always.
+--   UPDATE: entered_by is kept as it was.
+alter table public.sales_log add column if not exists entered_by text;
+drop policy if exists sales_log_insert on public.sales_log;
+create policy sales_log_insert on public.sales_log for insert to authenticated
+  with check (
+    ((select public.is_sales_rep()) and rep_email = lower(coalesce((select auth.jwt()) ->> 'email', '')))
+    or ((select public.is_dashboard_user())
+        and lower(rep_email) in (select p.email from public.sales_people p where p.active)));
