@@ -9677,6 +9677,9 @@ function socAwaitingReview(p){
 }
 /* Not yet in Metricool: still free to change its mind. */
 function socUnsent(p){ return p.status === 'queued' && !p.metricool; }
+/* A reviewer may move a post's date until it reaches Metricool. The
+   database (social_review_guard) holds the same line. */
+function socRevCanDate(p){ return ['draft','approved','queued'].includes(p.status) && !p.metricool; }
 function socReviewChip(p){
   if(!socNeedsReview()) return '';
   if(p.review_status === 'ok') return `<span class="chip good">OK to post</span>`;
@@ -9793,7 +9796,10 @@ function socSheet(){
             Instagram needs at least one photo or video on every post.</p>`}
         </div>
         <div class="socside">
-          ${rev ? '' : p.status==='extra'
+          ${rev ? (socRevCanDate(p) ? `<div class="field" style="margin-top:0"><label for="socDate">Post date</label>
+                 <input type="date" id="socDate" value="${esc(f.post_date)}" min="${socTodayISO()}" />
+                 <span class="hint" style="margin:4px 0 0">Move it to another day if this one does not work. Your OK stays with the post.</span></div>` : '')
+            : p.status==='extra'
             ? `<div class="field" style="margin-top:0"><label for="socUseDate">Use on</label>
                  <select id="socUseDate">
                    <option value="">Not scheduled yet</option>
@@ -10116,6 +10122,12 @@ async function saveSocial(status, review, reedit){
       if(isExtra && when) patch.status = 'draft';
       if(status) patch.status = status;
     }
+    const moved = rev && cur && socRevCanDate(cur) && f.post_date
+      && f.post_date !== String(cur.post_date).slice(0,10);
+    if(moved){
+      if(f.post_date < socTodayISO()){ throw new Error('Pick today or a later day.'); }
+      patch.post_date = f.post_date; patch.month = f.post_date.slice(0,7);
+    }
     if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
     const { error } = await sb.from('social_posts').update(patch).eq('id', id);
     if(error) throw error;
@@ -10129,6 +10141,7 @@ async function saveSocial(status, review, reedit){
       if(r.error) throw r.error;
     }
     S.socNote = reedit ? 'Saved. Re-edit requested; the new cut shows up on this post when it is ready.'
+      : moved ? 'Moved to ' + socDay(f.post_date) + (review === 'ok' ? ' and marked OK to post.' : review === 'changes' ? ' and marked Needs changes.' : '.')
       : review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
       : status === 'approved' ? 'Saved and approved. ' + socAfterApprove() : 'Saved.';
