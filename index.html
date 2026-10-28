@@ -1408,7 +1408,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-27e';
+const BUILD = '2026-10-28m';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -14461,7 +14461,10 @@ const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
 const HOME_SOCIAL_DAYS = 14;
 
 S.home = { hot:null, hotBusy:'', hotErr:'', hotAll:false, pipe:null, socDrafts:null,
-           stages:null, daily:null, monthly:null, reach:null, sys:null };
+           stages:null, daily:null, monthly:null, reach:null, sys:null, ms:null, msBusy:'', msErr:'' };
+/* Job milestones: days a super starred "Tell marketing" on the 3-week
+   look-ahead (sql/job_milestones.sql). Home shows this many days ahead. */
+const HOME_MS_DAYS = 21;
 
 /* Home's own reads, one function each, so a live update or an action can
    refresh just the part it touched (refreshKeys('home.daily')) instead
@@ -14486,6 +14489,12 @@ const HOME_PARTS = {
      Haggerty Freshness Check emails about (sql/system_health.sql). */
   sys: () => sb.from('v_system_health').select('*').order('kind').order('title')
     .then(r => { S.home.sys = r.error ? null : (r.data || []); }),
+  ms: () => {
+    const end = new Date(); end.setDate(end.getDate() + HOME_MS_DAYS);
+    return sb.from('job_milestones').select('*').is('removed_at', null).neq('status', 'skipped')
+      .gte('day', today()).lte('day', ymdOf(end)).order('day').order('job')
+      .then(r => { S.home.ms = r.error ? null : (r.data || []); });
+  },
   socDrafts: () => {
     const soon = new Date(); soon.setDate(soon.getDate() + HOME_SOCIAL_DAYS);
     return sb.from('social_posts').select('id,post_date')
@@ -14495,7 +14504,7 @@ const HOME_PARTS = {
   }
 };
 const homeParts = () => S.me === 'pat' ? ['hot','pipe','stages','daily','monthly']
-  : ['hot','pipe','stages','daily','monthly','reach','sys','socDrafts'];
+  : ['hot','pipe','stages','daily','monthly','reach','sys','socDrafts','ms'];
 /* The other tabs' loaders Home reads from. */
 const homeDeps = () => S.me === 'pat'
   ? ['board','health','approvals','week','seq','invites','permits']
@@ -14881,6 +14890,54 @@ function homeSysPanel(){
     <p class="hint">Liam gets an email for these too. Each clears on its own once the refresh runs or the item is fixed.</p>`, 'sysHealth');
 }
 
+const msDaysOut = ymd => -daysAgoFrom(ymd);
+const msWhen = ymd => {
+  const n = msDaysOut(ymd);
+  const d = new Date(String(ymd).slice(0,10) + 'T12:00:00Z')
+    .toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
+  return `${d} · ${n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`}`;
+};
+/* Liam only. A super stars a day on the look-ahead; Liam marks it planned
+   once it's on his calendar, or skips it. Skipped ones drop off. */
+function homeMsPanel(){
+  const rows = S.home.ms;
+  const body = !rows ? `<p class="hint">Milestones could not load.</p>`
+    : !rows.length ? `<p class="hint">No milestones starred in the next ${HOME_MS_DAYS / 7} weeks. Supers add them with ⭐ Tell marketing on the look-ahead.</p>`
+    : `<div class="hlist">${rows.map(m => `<div class="hotlead">
+        <div class="hotlead-top">
+          <span class="n">${esc(m.note || m.task)}${m.critical ? ' <em>inspection or delivery day</em>' : ''}</span>
+          <span class="w">${esc(msWhen(m.day))}</span>
+        </div>
+        <div class="hotlead-t">${esc([m.job_number, m.job].filter(Boolean).join(' '))}${m.task && m.task !== m.note ? ' · ' + esc(m.task) : ''}${m.super ? ' · ' + esc(m.super) : ''}</div>
+        ${m.moved_from ? `<div class="hotlead-what">Moved from ${esc(dateOnly(m.moved_from))}</div>` : ''}
+        <div class="hotlead-act">
+          ${m.status === 'planned' ? `<span class="hint">Planned${m.status_by ? ' by ' + esc(m.status_by) : ''}</span>` : ''}
+          <span class="spacer"></span>
+          ${m.status === 'planned'
+            ? `<button class="btn small ghost" data-ms="${esc(m.key)}" data-val="open" ${S.home.msBusy ? 'disabled' : ''}>Undo</button>`
+            : `<button class="btn small ghost" data-ms="${esc(m.key)}" data-val="skipped" ${S.home.msBusy ? 'disabled' : ''}>Skip</button>
+               <button class="btn small" data-ms="${esc(m.key)}" data-val="planned" ${S.home.msBusy ? 'disabled' : ''}>${S.home.msBusy === m.key ? 'Saving&hellip;' : 'Mark planned'}</button>`}
+        </div>
+      </div>`).join('')}</div>
+      ${S.home.msErr ? `<p class="hint err">${esc(S.home.msErr)}</p>` : ''}
+      <p class="hint">You get an email 3 workdays before each one. Starred by the supers on the look-ahead; stars never print on their sheets.</p>`;
+  return homePanel(`Job milestones${rows && rows.length ? ` (${rows.length})` : ''}`, '', '', body, 'jobMs');
+}
+
+async function msMark(key, status){
+  if(S.home.msBusy) return;
+  S.home.msBusy = key; S.home.msErr = ''; render();
+  try{
+    const who = await socWho();
+    const { error } = await sb.from('job_milestones')
+      .update({ status, status_by: status === 'open' ? null : who, status_at: new Date().toISOString() }).eq('key', key);
+    if(error) throw error;
+    S.home.ms = status === 'skipped' ? (S.home.ms || []).filter(m => m.key !== key)
+      : (S.home.ms || []).map(m => m.key === key ? { ...m, status, status_by: status === 'open' ? null : who } : m);
+  }catch(err){ S.home.msErr = 'Could not save that. ' + (err.message || err); }
+  S.home.msBusy = ''; render();
+}
+
 function homeLiam(){
   const rows = (S.tasks.liam || []).filter(t => !t.parent_id);
   const openT = rows.filter(t => t.status !== 'done');
@@ -14914,6 +14971,8 @@ function homeLiam(){
   if(apv && apv.changes) needs.push(['hot', apv.changes, 'Sent back for changes', 'Approvals Pat returned to you', 'approvals']);
   if(budPct !== null && budPct > 100) needs.push(['bad', budPct + '%', 'Over budget', `${money(bud.used)} of ${money(bud.planned)}`, 'budget']);
   if(hot && hot.length) needs.push(['hot', hot.length, hot.length === 1 ? 'Hot lead' : 'Hot leads', 'Replied, clicked or said yes', 'home:hot']);
+  const msSoon = (S.home.ms || []).filter(m => m.status === 'open' && msDaysOut(m.day) <= 3).length;
+  if(msSoon) needs.push(['hot', msSoon, msSoon === 1 ? 'Job milestone' : 'Job milestones', 'In the next 3 days, not planned yet', 'home:ms']);
 
   const kpis = [kpiPipeline(), kpiReplies(days), kpiReach(),
     { label:'Budget used', go:'budget', tone: budPct !== null && budPct > 100 ? 'bad' : '',
@@ -14934,6 +14993,7 @@ function homeLiam(){
     <div class="kpis">${kpis.map(kpiTile).join('')}</div>
     <div class="home-cols">
       <div>
+        ${homeMsPanel()}
         ${homePanel('Pipeline by stage', 'kpis', 'Open Pipeline & KPIs', homeStages())}
         ${homeEmailPanel(days, patLine)}
       </div>
@@ -14975,6 +15035,11 @@ async function homeGo(target){
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     return;
   }
+  if(page === 'home' && view === 'ms'){
+    const el = document.getElementById('jobMs');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
   if(page === 'home' && view === 'permits'){
     const el = document.getElementById('patPermits');
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -14987,6 +15052,8 @@ async function homeGo(target){
 function wireHome(){
   document.querySelectorAll('[data-hot-done]').forEach(el =>
     el.addEventListener('click', () => hotDone(el.dataset.hotDone)));
+  document.querySelectorAll('[data-ms]').forEach(el =>
+    el.addEventListener('click', () => msMark(el.dataset.ms, el.dataset.val)));
   const ha = document.getElementById('hotAll');
   if(ha) ha.addEventListener('click', () => { S.home.hotAll = true; render(); });
   document.querySelectorAll('[data-home-go]').forEach(el =>
@@ -15100,7 +15167,7 @@ const LIVE_TABLES = {
   email_queue:['board','tiles'], email_drafts:['board'],
   email_sends:['board','seq','health','metrics','home.daily','home.hot'],
   email_events:['health','metrics','home.daily'],
-  asset_clicks:['home.hot','clicks'], hot_lead_done:['home.hot'],
+  asset_clicks:['home.hot','clicks'], hot_lead_done:['home.hot'], job_milestones:['home.ms'],
   event_invites:['invites','ret'], event_invitations:['invites','home.hot'],
   calendar_events:['week'],
   deals:['kpis','home.pipe','home.stages','home.monthly','ret'], deal_sources:['ret'],
