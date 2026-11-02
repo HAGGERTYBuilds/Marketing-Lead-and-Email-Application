@@ -779,6 +779,74 @@
   .filebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
   .socmonth{font-family:var(--display);font-weight:700;font-size:21px;text-transform:uppercase;
             letter-spacing:.06em;min-width:190px;text-align:center}
+  /* week calendar (Social tab, Week view) */
+  .socmonth.socweek{min-width:220px;font-size:19px}
+  .scal-wrap{margin-bottom:6px}
+  .scal{background:var(--card);border:1px solid var(--rule);overflow-x:auto}
+  .scal-head,.scal-grid{display:grid;grid-template-columns:52px repeat(7,minmax(112px,1fr));min-width:836px}
+  .scal-head{border-bottom:1px solid var(--rule);background:var(--card)}
+  .scal-tz{font-family:var(--mono);font-size:10px;color:var(--slate);align-self:end;padding:0 4px 7px}
+  .scal-day{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:13.5px;
+            font-weight:600;color:var(--slate);padding:9px 8px 7px;border-left:1px solid var(--rule-soft)}
+  .scal-day b{color:var(--ink);font-weight:700}
+  .scal-day.past{opacity:.6}
+  .scal-day.today{color:var(--orange-ink);box-shadow:inset 0 -3px 0 var(--orange)}
+  .scal-day.today b{color:var(--orange-ink)}
+  .scal-body{max-height:max(420px, calc(100vh - 300px));overflow-y:auto;min-width:836px}
+  .scal-grid{position:relative;
+    background-image:repeating-linear-gradient(to bottom, var(--rule-soft) 0 1px, transparent 1px var(--scal-h));}
+  .scal-hours{position:relative}
+  .scal-hours span{position:absolute;right:6px;transform:translateY(-1px);font-family:var(--mono);font-size:10.5px;
+                   color:var(--slate);white-space:nowrap;padding-top:2px}
+  .scal-col{position:relative;border-left:1px solid var(--rule-soft)}
+  .scal-col.today{background:color-mix(in srgb, var(--orange-tint) 45%, transparent)}
+  .scal-past{position:absolute;left:0;right:0;top:0;pointer-events:none;
+    background:repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--rule) 38%, transparent) 7px 8px)}
+  .scal-now{position:absolute;left:-1px;right:0;height:2px;background:var(--orange);z-index:3;pointer-events:none}
+  .scal-now::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--orange)}
+  .scal-post{position:absolute;height:60px;z-index:2;display:flex;flex-direction:column;gap:4px;text-align:left;
+    padding:5px 6px 5px 7px;background:var(--card);color:var(--ink);font:inherit;cursor:grab;overflow:hidden;
+    border:1px solid var(--rule);border-left:4px solid var(--slate);box-shadow:0 1px 2px rgba(0,0,0,.08);
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .scal-post:hover{border-top-color:var(--ink);border-right-color:var(--ink);border-bottom-color:var(--ink);z-index:4}
+  .scal-post:focus-visible{outline:2px solid var(--orange);outline-offset:1px;z-index:4}
+  .scal-post.draft{border-left-style:dashed;border-left-color:var(--slate);background:var(--paper)}
+  .scal-post.approved,.scal-post.queued{border-left-color:var(--green)}
+  .scal-post.sent,.scal-post.inmc{border-left-color:var(--orange)}
+  .scal-post.locked{cursor:pointer;opacity:.78}
+  .scal-post.dragging{opacity:.3}
+  .scal-post.moving{animation:scalPulse 1s ease-in-out infinite}
+  @keyframes scalPulse{50%{opacity:.45}}
+  .scal-post .r1{display:flex;align-items:center;gap:4px;min-width:0}
+  .scal-post .tm{font-family:var(--mono);font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+  .scal-post .nets{display:flex;gap:2px;margin-left:auto;flex:0 0 auto}
+  .scal-post .nets i{font-style:normal;font-family:var(--mono);font-size:9px;line-height:1;padding:2px 3px;
+                     border:1px solid var(--rule);color:var(--slate)}
+  .scal-post.narrow .nets{display:none}
+  .scal-post.tight .th{display:none}
+  .scal-post .r2{display:flex;gap:6px;min-width:0;align-items:flex-start}
+  .scal-post .th{flex:0 0 30px;height:30px;background:#000;overflow:hidden}
+  .scal-post .th img,.scal-post .th video{width:100%;height:100%;object-fit:cover;display:block}
+  .scal-post .tx{font-size:11.5px;line-height:1.3;color:var(--grey);display:-webkit-box;-webkit-line-clamp:2;
+                 -webkit-box-orient:vertical;overflow:hidden;min-width:0}
+  .flag{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+  .flag.waiting{background:var(--paper);border:2px solid var(--orange)}
+  .flag.changes{background:var(--red)}
+  .scal-ghost{z-index:1000;pointer-events:none;cursor:grabbing;opacity:.92;transform:rotate(-1.5deg);
+              box-shadow:0 8px 22px rgba(0,0,0,.22)}
+  .scal-ghost.bad{opacity:.55}
+  body.scal-dragging,body.scal-dragging *{cursor:grabbing !important}
+  .scal-drop{position:absolute;left:2px;right:2px;height:60px;z-index:1;pointer-events:none;display:flex;align-items:flex-end;
+    border:2px dashed var(--orange);background:color-mix(in srgb, var(--orange-tint) 70%, transparent);
+    font-family:var(--mono);font-size:10.5px;color:var(--orange-ink);padding:3px 5px;white-space:nowrap;overflow:hidden}
+  .scal-drop.bad{border-color:var(--red);color:var(--red);background:transparent}
+  .scal-legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12.5px;color:var(--slate);margin:10px 0 0}
+  .scal-legend span{display:inline-flex;align-items:center;gap:6px}
+  .scal-legend .k{display:inline-block;width:4px;height:14px;background:var(--slate)}
+  .scal-legend .k.draft{background:none;border-left:4px dashed var(--slate);width:0}
+  .scal-legend .k.approved{background:var(--green)}
+  .scal-legend .k.sent{background:var(--orange)}
+  .scal-help{flex-basis:100%}
   @media (max-width:820px){
     .socgrid2{grid-template-columns:1fr}
     .socside{border-left:0;border-top:1px solid var(--rule);max-height:none}
@@ -1440,7 +1508,7 @@ const S = {
   reelBusy:'', reelErr:'', reelNote:'', reelNotes:'', reelAddOpen:false,
   reelSaving:false, reelForm:{ url:'', text:'', brand:'haggerty', priority:'2' },
   /* social calendar */
-  social:null, socJobs:[], socMonth:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
+  social:null, socJobs:[], socMonth:'', socWeek:'', socView:'', socFilter:'all', socOpenId:null, socClearId:null, socWhy:'',
   socFocus:'all', socMix:{}, socMixOpen:false, socMixForm:{},
   socStyle:'', socStyleOpen:false, socStyleForm:'',
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
@@ -9558,9 +9626,15 @@ async function socWho(){
 
 async function loadSocial(){
   if(!S.socMonth) S.socMonth = socThisMonth();
+  /* Week view loads every month the week touches. */
+  const week = socView() === 'week';
+  if(week){
+    if(!S.socWeek) S.socWeek = socWeekFor(S.socMonth);
+    S.socMonth = socWeekMonth();
+  }
   const { data, error } = await sb.from('social_posts')
     .select('*, social_post_media(*)')
-    .eq('brand', SOC_BRAND).eq('month', S.socMonth)
+    .eq('brand', SOC_BRAND).in('month', week ? socWeekMonths() : [S.socMonth])
     .order('post_date', { ascending:true }).order('seq', { ascending:true });
   if(error) throw error;
   S.social = data || [];
@@ -9797,6 +9871,336 @@ function socReviewProxy(p){
   return 'Given by ' + who + ' for ' + socReviewerName(p.reviewed_by).split(' ')[0];
 }
 
+/* ---- week calendar ----
+   The Social tab's Week view: Monday to Sunday down a time-of-day grid,
+   Pacific time, one block per post at its send time. Drag a block to
+   another day or time to move the post.
+   - A post with no post_time sits at 10:00 AM (Instagram and Facebook go
+     then; LinkedIn follows at 11:00). Dropping it back on 10:00 on another
+     day only changes the day; any other time sets post_time, so every
+     network goes at that time.
+   - Not yet in Metricool: the page saves the new date and time. A queued
+     post gets a fresh send job from the database and is pushed again.
+   - Already in Metricool (staff only): n8n "Haggerty Social Move In
+     Metricool" moves the Metricool drafts first and then saves the date,
+     so the two never disagree. The editor's date and time go the same way.
+   - The reviewer (and Liam in View as Freddie) can move a post only until
+     it reaches Metricool, and only to later today or after; the database
+     holds the same line (social_review_guard).
+   Nothing moves to a time that has already passed. */
+const SOC_MOVE_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-social-move';
+const SCAL = { from:6, to:22, hour:48, block:64, snap:15 };
+let SOC_VIEW_PICK = '';
+try{ SOC_VIEW_PICK = localStorage.getItem('socView') || ''; }catch(e){}
+function socView(){
+  const v = S.socView || SOC_VIEW_PICK;
+  return v === 'week' || v === 'cards' ? v : (socIsReviewer() ? 'cards' : 'week');
+}
+function socIsoAdd(iso, n){
+  const [y,m,d] = String(iso).slice(0,10).split('-').map(Number);
+  return new Date(Date.UTC(y, m-1, d+n)).toISOString().slice(0,10);
+}
+function socMonday(iso){
+  const [y,m,d] = String(iso).slice(0,10).split('-').map(Number);
+  const wd = new Date(Date.UTC(y, m-1, d)).getUTCDay();
+  return socIsoAdd(iso, wd === 0 ? -6 : 1 - wd);
+}
+function socWeekDays(){ return [0,1,2,3,4,5,6].map(i => socIsoAdd(S.socWeek, i)); }
+/* The months a week touches, so a week across a month end shows both. */
+function socWeekMonths(){ return [...new Set(socWeekDays().map(d => d.slice(0,7)))]; }
+/* The month the week mostly sits in (its Thursday): what Generate month,
+   the job notes and Cards view use while the week is on screen. */
+function socWeekMonth(){ return socIsoAdd(S.socWeek, 3).slice(0,7); }
+function socWeekLabel(){
+  const a = S.socWeek, b = socIsoAdd(a, 6);
+  const mo = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month:'short' });
+  const dd = iso => Number(iso.slice(8,10));
+  return mo(a) + ' ' + dd(a) + ' to ' + (a.slice(0,7) === b.slice(0,7) ? '' : mo(b) + ' ') + dd(b) + ', ' + b.slice(0,4);
+}
+/* The first week to show for a month: this week when it is this month,
+   otherwise the week holding the 1st. */
+function socWeekFor(month){
+  const today = socTodayISO();
+  return socMonday(today.slice(0,7) === month ? today : month + '-01');
+}
+function socNowLA(){
+  return new Date().toLocaleString('sv-SE', { timeZone:'America/Los_Angeles', hour12:false }).slice(0,16).replace(' ', 'T');
+}
+function socMins(t){ const [h,m] = String(t).split(':').map(Number); return h*60 + (m||0); }
+function socHHMM(min){ return String(Math.floor(min/60)).padStart(2,'0') + ':' + String(min%60).padStart(2,'0'); }
+/* Where a post sits on the grid: its own time, else its first send. */
+function socCalStart(p){
+  return socTimeOf(p) || (socNetsOf(p).some(n => n !== 'linkedin') ? '10:00' : '11:00');
+}
+function socInMc(p){ return !!(p && p.metricool && Object.keys(p.metricool).length); }
+/* Whether this person can drag the post, and why not when they can't. */
+function socCalLock(p){
+  const gone = String(p.post_date).slice(0,10) + 'T' + socCalStart(p) <= socNowLA();
+  if(socInMc(p) || p.status === 'sent'){
+    if(socIsReviewer()) return 'Already in Metricool, so only marketing can move it.';
+    if(gone) return 'Its time has passed, so it has posted or is posting now.';
+    return '';
+  }
+  if(socIsReviewer() && !socRevCanDate(p)) return 'Only marketing can move this one.';
+  return '';
+}
+function socCalPosts(){
+  const days = new Set(socWeekDays());
+  return (S.social || []).filter(p => socLive(p) && days.has(String(p.post_date).slice(0,10)));
+}
+/* Blocks that overlap share the column width, side by side. */
+function socCalLayout(list){
+  const span = SCAL.block / SCAL.hour * 60;
+  const items = list.map(p => ({ p, s: socMins(socCalStart(p)) }))
+    .sort((a,b) => a.s - b.s || String(a.p.seq).localeCompare(String(b.p.seq), undefined, { numeric:true }));
+  let group = [], end = -1;
+  const flush = () => {
+    const cols = [];
+    for(const it of group){
+      let c = cols.findIndex(e => e <= it.s);
+      if(c < 0){ c = cols.length; cols.push(0); }
+      cols[c] = it.s + span; it.col = c;
+    }
+    for(const it of group) it.cols = cols.length;
+    group = [];
+  };
+  for(const it of items){
+    if(group.length && it.s >= end) flush();
+    group.push(it); end = Math.max(end, it.s + span);
+  }
+  flush();
+  return items;
+}
+function socCalTop(min){
+  const clamp = Math.max(SCAL.from*60, Math.min(SCAL.to*60 - 30, min));
+  return (clamp - SCAL.from*60) / 60 * SCAL.hour;
+}
+function socCalBlock(it){
+  const p = it.p, media = socMedia(p), lock = socCalLock(p);
+  const nets = socNetsOf(p).map(n => SOC_NET_SHORT[n] === 'LinkedIn' ? 'in' : SOC_NET_SHORT[n]);
+  const t = socTimeOf(p);
+  const time = socTimeLabel(t || socCalStart(p));
+  const split = !t && socNetsOf(p).includes('linkedin') && socNetsOf(p).length > 1;
+  const flag = socNeedsReview() && p.review_status === 'changes' ? 'changes'
+    : socAwaitingReview(p) || (socNeedsReview() && p.status === 'draft' && !p.review_status) ? 'waiting' : '';
+  const w = 100 / it.cols;
+  const tip = [socWhen(p.post_date, t || socCalStart(p)) + (split ? ' (LinkedIn 11:00 AM)' : ''), SOC_STATUS[p.status] || p.status,
+    flag === 'changes' ? 'Needs changes' : flag === 'waiting' ? 'Waiting on review' : '',
+    p.topic || '', lock || 'Drag to move. Click to open.'].filter(Boolean).join(' · ');
+  return `<button class="scal-post ${esc(p.status)}${it.cols > 1 ? ' narrow' : ''}${it.cols > 2 ? ' tight' : ''}${socInMc(p) ? ' inmc' : ''}${lock ? ' locked' : ''}${S.socBusy === p.id ? ' moving' : ''}"
+      data-key="scal-${esc(p.id)}" data-scal-id="${esc(p.id)}" ${lock ? '' : 'data-scal-move="1"'}
+      style="top:${socCalTop(it.s)}px;left:calc(${(it.col*w).toFixed(3)}% + 2px);width:calc(${w.toFixed(3)}% - 4px)"
+      title="${esc(tip)}" aria-label="${esc(tip)}">
+    <span class="r1"><span class="tm">${esc(time)}</span>
+      <span class="nets">${nets.map(n => `<i>${esc(n)}</i>`).join('')}</span>
+      ${flag ? `<span class="flag ${flag}" aria-hidden="true"></span>` : ''}</span>
+    <span class="r2">${media.length ? `<span class="th">${media[0].kind === 'video'
+        ? `<video src="${esc(socUrl(media[0].storage_path))}#t=0.5" preload="metadata" muted playsinline></video>`
+        : `<img src="${esc(socUrl(media[0].storage_path))}" alt="" loading="lazy" />`}</span>` : ''}
+      <span class="tx">${esc(p.topic || p.caption || '')}</span></span>
+  </button>`;
+}
+function socWeekView(){
+  const days = socWeekDays(), today = socTodayISO(), now = socNowLA();
+  const posts = socCalPosts();
+  const byDay = new Map(days.map(d => [d, []]));
+  for(const p of posts) byDay.get(String(p.post_date).slice(0,10)).push(p);
+  const hours = [];
+  for(let h = SCAL.from; h < SCAL.to; h++) hours.push(h);
+  const H = (SCAL.to - SCAL.from) * SCAL.hour;
+  const nowMin = socMins(now.slice(11));
+  const rev = socIsReviewer();
+  return `<div class="scal-wrap">
+    <div class="scal" id="socCal" style="--scal-h:${SCAL.hour}px">
+      <div class="scal-head">
+        <span class="scal-tz">Pacific</span>
+        ${days.map(d => { const t = new Date(d + 'T12:00:00');
+          return `<span class="scal-day ${d === today ? 'today' : d < today ? 'past' : ''}">
+            <b>${esc(t.toLocaleDateString('en-US', { weekday:'short' }))}</b> ${t.getDate()}</span>`; }).join('')}
+      </div>
+      <div class="scal-body" id="socCalBody">
+        <div class="scal-grid" style="height:${H}px">
+          <div class="scal-hours">${hours.map(h => `<span style="top:${(h-SCAL.from)*SCAL.hour}px">${esc(socTimeLabel(socHHMM(h*60)).replace(':00',''))}</span>`).join('')}</div>
+          ${days.map(d => {
+            const past = d < today, isToday = d === today;
+            const shade = past ? H : isToday ? Math.max(0, Math.min(H, socCalTop(nowMin) )) : 0;
+            const lay = socCalLayout(byDay.get(d));
+            return `<div class="scal-col ${isToday ? 'today' : ''}" data-scal-day="${d}">
+              ${shade ? `<span class="scal-past" style="height:${isToday && nowMin < SCAL.from*60 ? 0 : shade}px"></span>` : ''}
+              ${isToday && nowMin >= SCAL.from*60 && nowMin < SCAL.to*60 ? `<span class="scal-now" style="top:${socCalTop(nowMin)}px"></span>` : ''}
+              ${lay.map(socCalBlock).join('')}
+            </div>`; }).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="scal-legend">
+      <span><i class="k draft"></i>Draft</span><span><i class="k approved"></i>Approved</span>
+      <span><i class="k sent"></i>In Metricool</span>
+      ${socNeedsReview() ? `<span><i class="flag waiting"></i>Waiting on review</span><span><i class="flag changes"></i>Needs changes</span>` : ''}
+      <span class="scal-help">${rev
+        ? 'Drag a post to another day or time to move it. Posts already in Metricool are moved by marketing.'
+        : 'Drag a post to another day or time to move it. Posts already in Metricool move there too.'}
+        ${posts.length ? '' : ' Nothing is scheduled this week.'}</span>
+    </div>
+  </div>`;
+}
+
+/* Dragging. Mouse and pen start on a short move; touch starts after a
+   short hold, so a swipe still scrolls the calendar. */
+const SCAL_DRAG = { el:null, id:'', x:0, y:0, dy:0, on:false, timer:0, ghost:null, mark:null, target:null, touch:false };
+function socCalDown(e){
+  const el = e.target.closest && e.target.closest('.scal-post');
+  if(!el || e.button > 0 || S.socBusy) return;
+  Object.assign(SCAL_DRAG, { el, id: el.dataset.scalId, x: e.clientX, y: e.clientY,
+    dy: e.clientY - el.getBoundingClientRect().top, on:false, target:null, touch: e.pointerType === 'touch' });
+  if(SCAL_DRAG.touch && el.dataset.scalMove){
+    SCAL_DRAG.timer = setTimeout(() => socCalStartDrag(e), 380);
+  }
+  document.addEventListener('pointermove', socCalMoveEv);
+  document.addEventListener('pointerup', socCalUp);
+  document.addEventListener('pointercancel', socCalCancel);
+  document.addEventListener('keydown', socCalKey);
+  document.addEventListener('touchmove', socCalTouch, { passive:false });
+}
+function socCalTouch(e){ if(SCAL_DRAG.on) e.preventDefault(); }
+function socCalStartDrag(e){
+  const el = SCAL_DRAG.el;
+  if(!el || SCAL_DRAG.on || !el.dataset.scalMove) return;
+  SCAL_DRAG.on = true;
+  el.classList.add('dragging');
+  document.body.classList.add('scal-dragging');
+  const r = el.getBoundingClientRect();
+  const g = el.cloneNode(true);
+  g.classList.add('scal-ghost'); g.removeAttribute('data-key'); g.removeAttribute('id');
+  g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
+  document.body.appendChild(g);
+  SCAL_DRAG.ghost = g; SCAL_DRAG.gx = r.left - SCAL_DRAG.x;
+  const m = document.createElement('div');
+  m.className = 'scal-drop';
+  SCAL_DRAG.mark = m;
+  if(navigator.vibrate && SCAL_DRAG.touch){ try{ navigator.vibrate(15); }catch(err){} }
+  socCalTrack(e.clientX, e.clientY);
+}
+function socCalMoveEv(e){
+  if(!SCAL_DRAG.el) return;
+  const far = Math.abs(e.clientX - SCAL_DRAG.x) + Math.abs(e.clientY - SCAL_DRAG.y) > 6;
+  if(!SCAL_DRAG.on){
+    if(far && SCAL_DRAG.touch){ clearTimeout(SCAL_DRAG.timer); return socCalEnd(); }   /* a swipe: let it scroll */
+    if(far) socCalStartDrag(e);
+    return;
+  }
+  e.preventDefault();
+  socCalTrack(e.clientX, e.clientY);
+}
+/* Works out the day and time under the pointer and shows the drop mark. */
+function socCalTrack(x, y){
+  const g = SCAL_DRAG.ghost, m = SCAL_DRAG.mark;
+  g.style.left = (x + SCAL_DRAG.gx) + 'px';
+  g.style.top = (y - SCAL_DRAG.dy) + 'px';
+  const body = document.getElementById('socCalBody');
+  if(body){   /* scroll the grid when dragging near its top or bottom */
+    const b = body.getBoundingClientRect();
+    if(y < b.top + 30) body.scrollTop -= 12; else if(y > b.bottom - 30) body.scrollTop += 12;
+  }
+  const col = [...document.querySelectorAll('.scal-col')].find(c => {
+    const r = c.getBoundingClientRect(); return x >= r.left && x < r.right; });
+  if(!col){ m.remove(); SCAL_DRAG.target = null; g.classList.add('bad'); return; }
+  const r = col.getBoundingClientRect();
+  let min = SCAL.from*60 + (y - SCAL_DRAG.dy - r.top) / SCAL.hour * 60;
+  min = Math.round(min / SCAL.snap) * SCAL.snap;
+  min = Math.max(SCAL.from*60, Math.min(SCAL.to*60 - SCAL.snap, min));
+  const day = col.dataset.scalDay, time = socHHMM(min);
+  const p = (S.social || []).find(x => x.id === SCAL_DRAG.id);
+  const why = socCalWhyNot(p, day, time);
+  SCAL_DRAG.target = why ? null : { day, time };
+  m.className = 'scal-drop' + (why ? ' bad' : '');
+  m.style.top = socCalTop(min) + 'px';
+  m.textContent = why || (socDay(day) + ', ' + socTimeLabel(time));
+  if(m.parentNode !== col) col.appendChild(m);
+  g.classList.toggle('bad', !!why);
+}
+function socCalWhyNot(p, day, time){
+  if(!p) return 'Gone';
+  if(day + 'T' + time <= socNowLA()) return 'That time has passed';
+  return '';
+}
+function socCalUp(e){
+  const d = Object.assign({}, SCAL_DRAG);
+  clearTimeout(SCAL_DRAG.timer);
+  socCalEnd();
+  if(!d.on){
+    if(!d.touch || Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 8) socOpen(d.id);
+    return;
+  }
+  SCAL_DRAG.justDropped = Date.now();
+  if(d.target) socCalMove(d.id, d.target.day, d.target.time);
+}
+function socCalCancel(){ clearTimeout(SCAL_DRAG.timer); socCalEnd(); }
+function socCalKey(e){ if(e.key === 'Escape' && SCAL_DRAG.el){ clearTimeout(SCAL_DRAG.timer); socCalEnd(); } }
+function socCalEnd(){
+  if(SCAL_DRAG.el) SCAL_DRAG.el.classList.remove('dragging');
+  if(SCAL_DRAG.ghost) SCAL_DRAG.ghost.remove();
+  if(SCAL_DRAG.mark) SCAL_DRAG.mark.remove();
+  document.body.classList.remove('scal-dragging');
+  document.removeEventListener('pointermove', socCalMoveEv);
+  document.removeEventListener('pointerup', socCalUp);
+  document.removeEventListener('pointercancel', socCalCancel);
+  document.removeEventListener('keydown', socCalKey);
+  document.removeEventListener('touchmove', socCalTouch, { passive:false });
+  Object.assign(SCAL_DRAG, { el:null, on:false, ghost:null, mark:null });
+}
+
+/* Moves a post in Metricool through n8n, which saves the new date and
+   time on the post once Metricool has taken it. */
+async function socMcMove(id, date, time){
+  const r = await fetch(SOC_MOVE_URL, { method:'POST', headers: await authHeaders(),
+    body: JSON.stringify({ post_id: id, post_date: date, post_time: time || null }) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Metricool did not take the change (HTTP ' + r.status + ').');
+  return j;
+}
+async function socCalMove(id, day, time){
+  const p = (S.social || []).find(x => x.id === id);
+  if(!p || S.socBusy) return;
+  /* A post on the usual times keeps them when only its day changes. */
+  const t = !p.post_time && time === socCalStart(p) ? null : time;
+  if(day === String(p.post_date).slice(0,10) && (t || '') === socTimeOf(p)) return;
+  const inMc = socInMc(p);
+  const before = { post_date: p.post_date, month: p.month, post_time: p.post_time };
+  Object.assign(p, { post_date: day, month: day.slice(0,7), post_time: t });   /* show it there right away */
+  S.socBusy = id; S.socErr = '';
+  S.socNote = inMc ? 'Moving it in Metricool too…' : '';
+  render();
+  try{
+    if(inMc){
+      await socMcMove(id, day, t);
+    }else{
+      const patch = { post_date: day, month: day.slice(0,7), post_time: t };
+      const w = S.preview ? await previewAct(() => sb.from('social_posts').update(patch).eq('id', id))
+                          : await sb.from('social_posts').update(patch).eq('id', id);
+      if(w.error) throw w.error;
+      SOC_PUSHED.delete(id);
+    }
+    S.socNote = 'Moved to ' + socWhen(day, t || socCalStart(p)) + (inMc ? ', in Metricool too.' : '.')
+      + (t && !before.post_time && socNetsOf(p).length > 1 ? ' Every network goes at that time.' : '');
+    await reloadSocial();
+  }catch(err){
+    Object.assign(p, before);
+    S.socNote = '';
+    S.socErr = 'That did not move: ' + (err.message || err);
+  }
+  S.socBusy = ''; render();
+}
+function socCalScroll(){
+  const body = document.getElementById('socCalBody');
+  const key = SOC_BRAND + S.socWeek;
+  if(!body || body.__scalAt === key) return;
+  body.__scalAt = key;   /* a property, so a repaint keeps it */
+  /* Open on the morning, or on the earliest post if one is before 8. */
+  const first = Math.min(8*60, ...socCalPosts().map(p => socMins(socCalStart(p))));
+  body.scrollTop = Math.max(0, socCalTop(first) - 12);
+}
+
 /* ---- video edits ----
    The laptop task cuts each video itself: it picks clips from the archive,
    trims them, crops to vertical and joins them (reel_sources.json in the
@@ -9938,7 +10342,7 @@ function socSheet(){
               <span class="hint" style="margin:4px 0 0">Re-edit sends these notes${S.socStyle ? ' and the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' video style' : ''} to the laptop, which cuts a new version from the original clips.</span></div>
               ${socReeditLine(p) ? `<p class="hint" style="margin-top:10px">${esc(socReeditLine(p))}</p>` : ''}` : ''}
           ${p.status==='skipped' && p.notes?`<p class="hint" style="margin-top:10px">Cleared: ${esc(p.notes)}</p>`:''}
-          ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. Changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
+          ${p.status==='sent'?`<p class="hint" style="margin-top:10px">This post is already in Metricool. A new date or time moves it there too; other changes made here stay here, so edit the draft in Metricool as well.</p>`:''}
           ${rev && open ? `<div class="field"><label for="socRevNote">What needs to change</label>
               <textarea id="socRevNote" placeholder="For example: crew in photo 2 has no hard hat, or the caption names the wrong city">${esc(f.review_note)}</textarea></div>`
             : !rev && socNeedsReview() && (p.review_status || p.review_note)
@@ -10120,7 +10524,9 @@ async function saveSocialStyle(){
 
 function pageSocial(){
   if(!S.loaded.social) return loading();
-  const all = S.social || [];
+  /* Week view may hold two months; the counts and buttons are the month's. */
+  const all = (S.social || []).filter(p => p.month === S.socMonth);
+  const week = socView() === 'week' && S.socWeek;
   const count = k => all.filter(p => p.status === k).length;
   const live = all.filter(socLive);
   const byStatus = all.filter(p => S.socFilter === 'all' ? socLive(p) : (p.status === S.socFilter
@@ -10150,9 +10556,16 @@ function pageSocial(){
       ${rev ? `<span class="chip hot">${esc(SOC_BRANDS[SOC_BRAND])}</span>`
         : `<div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k,l]) =>
         `<button class="filt ${SOC_BRAND===k?'on':''}" data-socbrand="${k}" ${busy?'disabled':''}>${esc(l)}</button>`).join('')}</div>`}
-      <button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
+      <div class="filters" role="group" aria-label="View">
+        <button class="filt ${week?'on':''}" data-socview="week" ${busy?'disabled':''}>Week</button>
+        <button class="filt ${week?'':'on'}" data-socview="cards" ${busy?'disabled':''}>Cards</button></div>
+      ${week ? `<button class="btn small ghost" data-socweek="-1" aria-label="Previous week" ${busy?'disabled':''}>&larr;</button>
+      <span class="socmonth socweek">${esc(socWeekLabel())}</span>
+      <button class="btn small ghost" data-socweek="1" aria-label="Next week" ${busy?'disabled':''}>&rarr;</button>
+      ${S.socWeek !== socMonday(socTodayISO()) ? `<button class="btn small ghost" data-socweek="0" ${busy?'disabled':''}>This week</button>` : ''}`
+      : `<button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
       <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
-      <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
+      <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>`}
       <span style="flex:1"></span>
       ${!rev && S.me === 'liam' && socNeedsReview() ? `<button class="btn small ghost" data-preview-as="${esc(S.socReviewers[0].email)}"
               title="See this tab and the Email tab exactly as ${esc(socReviewerName(S.socReviewers[0].email))} does. You can give OK to post or Needs changes for them; nothing else saves.">View as ${esc(socReviewerName(S.socReviewers[0].email).split(' ')[0])}</button>` : ''}
@@ -10175,21 +10588,22 @@ function pageSocial(){
           waiting ? ` <b>${waiting} approved post${waiting===1?' is':'s are'} waiting on review.</b>` : ''}${
           pastDue ? ` <b>${pastDue} approved post${pastDue===1?' is':'s are'} dated before today and won't go. Give ${pastDue===1?'it':'them'} a new date or clear ${pastDue===1?'it':'them'}.</b>` : ''}</p>`}
 
-    ${socResultsStrip()}
+    ${week ? '' : `${socResultsStrip()}
     <div class="fchips" style="margin:0 0 ${S.socFilter === 'results' || !all.length ? 14 : 8}px">${chips}</div>
     ${S.socFilter !== 'results' && all.length ? socFocusChips(byStatus) + socMixLine(live) : ''}
-    ${!rev && S.socFilter !== 'results' ? socStyleLine() : ''}
+    ${!rev && S.socFilter !== 'results' ? socStyleLine() : ''}`}
 
     ${notes.map(n=>`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(n)}</p></div>`).join('')}
     ${S.socNote?`<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(S.socNote)}</p></div>`:''}
     ${S.socProg && !S.socOpenId?`<p class="hint" style="margin-bottom:14px">${esc(S.socProg)}</p>`:''}
     ${S.socErr && !S.socOpenId?`<p class="hint err" style="margin-bottom:14px">${esc(S.socErr)}</p>`:''}
 
-    ${!rev && all.length && openDates.length && S.socFilter !== 'results' ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
+    ${!week && !rev && all.length && openDates.length && S.socFilter !== 'results' ? `<p class="socopen"><b>${openDates.length} open date${openDates.length===1?'':'s'}:</b>
         ${openDates.map(d=>esc(socDay(d))).join(', ')}. ${extras
           ? 'Pick an extra option and choose Use on.'
           : 'Click Get more options to have spare posts built, then assign one to each date.'}</p>` : ''}
-    ${S.socFilter === 'results' ? socResultsView()
+    ${week ? socWeekView()
+      : S.socFilter === 'results' ? socResultsView()
       : rows.length
       ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
       : `<div class="empty" style="padding:44px 0">
@@ -10252,6 +10666,20 @@ async function saveSocial(status, review, reedit){
     }
     /* The reviewer (or Liam viewing as them) may move the day and the time
        until the post reaches Metricool (sql/social_post_time.sql). */
+    /* Staff moving a post that is already in Metricool: Metricool moves
+       first (n8n, after the other edits save), then n8n saves the date. */
+    let mcMove = null;
+    if(!rev && cur && socInMc(cur)){
+      const d = patch.post_date || String(cur.post_date).slice(0,10);
+      const t = 'post_time' in patch ? patch.post_time : (cur.post_time || null);
+      delete patch.post_date; delete patch.month; delete patch.post_time;
+      if(d !== String(cur.post_date).slice(0,10) || (t || '') !== socTimeOf(cur)){
+        const lock = socCalLock(cur);
+        if(lock) throw new Error(lock);
+        if(d + 'T' + (t || socCalStart(cur)) <= socNowLA()) throw new Error('Pick a time that has not passed yet.');
+        mcMove = { d, t };
+      }
+    }
     const canMove = rev && cur && socRevCanDate(cur);
     const moved = canMove && f.post_date && f.post_date !== String(cur.post_date).slice(0,10);
     const retimed = canMove && (f.post_time || '') !== socTimeOf(cur);
@@ -10276,6 +10704,16 @@ async function saveSocial(status, review, reedit){
       const { error } = await sb.from('social_posts').update(patch).eq('id', id);
       if(error) throw error;
     }
+    if(mcMove){
+      S.socProg = 'Moving it in Metricool…'; render();
+      try{ await socMcMove(id, mcMove.d, mcMove.t); }
+      catch(err){
+        S.socProg = ''; S.socErr = 'Your other edits saved, but the move did not: ' + (err.message || err);
+        try{ await reloadSocial(); }catch(e){}
+        S.socBusy = ''; return render();
+      }
+      S.socProg = '';
+    }
     if(reedit){
       const vid = socMedia(cur).find(m => m.kind === 'video') || socMedia(cur)[0] || {};
       const r = await sb.from('social_jobs').insert({
@@ -10286,6 +10724,7 @@ async function saveSocial(status, review, reedit){
       if(r.error) throw r.error;
     }
     S.socNote = reedit ? 'Saved. Re-edit requested; the new cut shows up on this post when it is ready.'
+      : mcMove ? 'Saved and moved to ' + socWhen(mcMove.d, mcMove.t || socCalStart(cur)) + ', in Metricool too.'
       : moved || retimed ? 'Moved to ' + socWhen(f.post_date || cur.post_date, f.post_time) + (review === 'ok' ? ' and marked OK to post.' : review === 'changes' ? ' and marked Needs changes.' : '.')
       : review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
@@ -10853,6 +11292,40 @@ function wireSocial(){
     }));
   document.querySelectorAll('[data-socfilter]').forEach(el=>
     el.addEventListener('click',()=>{ S.socFilter = el.dataset.socfilter; render(); }));
+  const socReload = async () => {
+    S.socNote = ''; S.socErr = ''; S.loaded.social = false; render();
+    try{ await loadSocial(); }
+    catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
+    render();
+  };
+  document.querySelectorAll('[data-socview]').forEach(el=>
+    el.addEventListener('click',()=>{
+      const v = el.dataset.socview;
+      if(v === socView() || S.socBusy) return;
+      S.socView = SOC_VIEW_PICK = v;
+      try{ localStorage.setItem('socView', v); }catch(e){}
+      if(v === 'week' && (!S.socWeek || socWeekMonth() !== S.socMonth)) S.socWeek = socWeekFor(S.socMonth);
+      if(v === 'cards') S.socFilter = 'all';
+      socReload();
+    }));
+  document.querySelectorAll('[data-socweek]').forEach(el=>
+    el.addEventListener('click',()=>{
+      if(S.socBusy) return;
+      const n = Number(el.dataset.socweek);
+      S.socWeek = n ? socIsoAdd(S.socWeek, 7*n) : socMonday(socTodayISO());
+      socReload();
+    }));
+  const cal = document.getElementById('socCal');
+  if(cal){
+    cal.addEventListener('pointerdown', socCalDown);
+    /* Enter or Space on a block (a click with no pointer) opens it. */
+    cal.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('.scal-post');
+      if(b && e.detail === 0) socOpen(b.dataset.scalId);
+    });
+    cal.addEventListener('dragstart', e => e.preventDefault());
+    socCalScroll();
+  }
   document.querySelectorAll('[data-soc-open]').forEach(el=>
     el.addEventListener('click',()=> socOpen(el.dataset.socOpen)));
   document.querySelectorAll('[data-soc-set]').forEach(el=>
