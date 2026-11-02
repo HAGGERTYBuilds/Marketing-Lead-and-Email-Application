@@ -9583,8 +9583,9 @@ async function loadSocial(){
   const rv = await sb.from('social_reviewers').select('email,name').eq('brand', SOC_BRAND);
   S.socReviewers = rv.error ? [] : (rv.data || []);
   S.loaded.social = true;
+  socPushNow();
 }
-async function reloadSocial(){ S.loaded.social = false; await loadSocial(); socPushNow(); }
+async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
 
 /* Approving a post (or the reviewer's OK) makes the database queue it and
    add a send_cloud job (sql/social_auto_send.sql). As soon as this page
@@ -9593,12 +9594,34 @@ async function reloadSocial(){ S.loaded.social = false; await loadSocial(); socP
    which stays on as the backup. Fire and forget: n8n claims the jobs, so
    two pages asking at once can't send a post twice. */
 const SOC_PUSHED = new Set();
-function socPushNow(){
+function socPushNow(release){
   const fresh = (S.social || []).filter(p => socUnsent(p) && !SOC_PUSHED.has(p.id));
-  if(!fresh.length) return;
+  if(!fresh.length && !release) return;
   fresh.forEach(p => SOC_PUSHED.add(p.id));
-  authHeaders().then(h => fetch(SOC_PUSH_URL, { method:'POST', headers: h, body: JSON.stringify({ brand: SOC_BRAND }) }))
+  return authHeaders().then(h => fetch(SOC_PUSH_URL, { method:'POST', headers: h,
+      body: JSON.stringify({ brand: SOC_BRAND, release: !!release }) }))
     .catch(() => {});   /* Realtime shows the result when n8n saves it. */
+}
+
+/* Send waiting now: every approved post of this brand goes to Metricool as
+   a draft right away. Approved posts dated before today are queued too
+   (the database only queues today or later on its own); for a brand with a
+   reviewer, only ones already marked OK to post. In release mode n8n moves
+   any post whose time has passed to tomorrow and marks it old_post. */
+async function socReleaseAll(){
+  if(S.socBusy) return;
+  S.socBusy = 'release'; S.socErr = ''; render();
+  try{
+    let q = sb.from('social_posts').update({ status:'queued' })
+      .eq('brand', SOC_BRAND).eq('status', 'approved').lt('post_date', socTodayISO());
+    if(socNeedsReview()) q = q.eq('review_status', 'ok');
+    const { error } = await q;
+    if(error) throw error;
+    await socPushNow(true);
+    S.socNote = 'Sending the waiting posts to Metricool as drafts now. Any whose date has passed go for tomorrow, tagged Old post.';
+    await reloadSocial();
+  }catch(err){ S.socErr = 'That did not send: ' + (err.message || err); }
+  S.socBusy = ''; render();
 }
 
 function socMediaTag(m, controls){
@@ -9737,6 +9760,14 @@ function socReviewerName(email){
    reviewer, marked OK to post (sql/social_auto_send.sql). These say why an
    approved post is still sitting here. */
 function socPast(p){ return String(p.post_date).slice(0,10) < socTodayISO(); }
+/* An "Old post" went (or is waiting to go) after its own date passed. The
+   release button sends those to Metricool for tomorrow instead, and the
+   send records old_post on the Metricool half it moved. */
+function socOld(p){
+  const mc = p.metricool || {};
+  return !!((mc.ig_fb && mc.ig_fb.old_post) || (mc.linkedin && mc.linkedin.old_post)
+    || (['approved','queued'].includes(p.status) && !p.metricool && socPast(p)));
+}
 function socTodayISO(){ return new Date().toLocaleDateString('en-CA', { timeZone:'America/Los_Angeles' }); }
 function socAwaitingReview(p){
   return p.status === 'approved' && !socPast(p) && socNeedsReview() && p.review_status !== 'ok';
@@ -9800,6 +9831,7 @@ function socCard(p){
         ${p.focus && SOC_FOCUS[p.focus] ? `<span class="chip">${esc(SOC_FOCUS[p.focus])}</span>` : ''}
         <span class="chip ${p.status==='approved'||p.status==='sent'||p.status==='queued'?'hot':''}">${esc(SOC_STATUS[p.status] || p.status)}</span>
         ${socReviewChip(p)}
+        ${socOld(p) ? '<span class="chip warnchip" title="Its original date had passed, so it went to Metricool for the next day.">Old post</span>' : ''}
       </span>
     </button>
     <div class="socbody">
@@ -10100,6 +10132,8 @@ function pageSocial(){
   const approved = count('approved');
   const waiting = all.filter(socAwaitingReview).length;
   const pastDue = all.filter(p => p.status === 'approved' && socPast(p)).length;
+  const toRelease = all.filter(p => socUnsent(p) || (p.status === 'approved' && socPast(p)
+    && (!socNeedsReview() || p.review_status === 'ok'))).length;
   const drafts = count('draft');
   const rev = socIsReviewer();
   const genOpen = (S.socJobs||[]).some(j => j.kind==='generate' && ['pending','running','ready'].includes(j.status));
@@ -10130,6 +10164,8 @@ function pageSocial(){
               title="Upload photos or a video for one post. Claude writes the caption and hashtags in the cloud.">Upload photos</button>
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
+      ${toRelease?`<button class="btn small" id="socRelease" ${busy?'disabled':''}
+              title="Send every approved post that is waiting to Metricool as drafts now. Posts whose date has passed go for tomorrow and get an Old post tag.">Send ${toRelease} waiting now</button>`:''}
       ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}
               title="Approved posts go to Metricool as drafts on their own${socNeedsReview()?', once reviewed':''}.">Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}`}
     </div>
@@ -10901,6 +10937,8 @@ function wireSocial(){
   if(ge) ge.addEventListener('click',()=> requestSocialJob('generate'));
   const aa = document.getElementById('socApproveAll');
   if(aa) aa.addEventListener('click', approveAllSocial);
+  const rl = document.getElementById('socRelease');
+  if(rl) rl.addEventListener('click', socReleaseAll);
   const im = document.getElementById('socImport');
   if(im) im.addEventListener('change',()=> importSocialFolder(im.files));
 
