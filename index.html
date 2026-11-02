@@ -14469,7 +14469,12 @@ function exvSuggestPerspective(p){
   if(/safety/.test(t)) return 'Safety';
   if(/mitigation|tech/.test(t)) return 'Mitigation';
   if(/operations|ops/.test(t)) return 'Operations';
-  if(/admin|office|account|coordinator|assistant/.test(t)) return 'Admin / office';
+  if(/admin|office|account|coordinator|assistant|receptionist|payroll|hr\b|finance|cfo/.test(t)) return 'Admin / office';
+  const d = String((p && p.department) || '');
+  if(d === 'Restore') return 'Mitigation';
+  if(d === 'Advise') return 'Preconstruction';
+  if(d === 'Build' || d === 'Maintain') return /technician|tradesman|laborer|foreman|painter|carpenter/.test(t) ? 'Superintendent' : 'Project manager';
+  if(d === 'Support') return 'Admin / office';
   return '';
 }
 const exvPerspLine = persp => persp ? `Answer as: ${persp}${EXV_PERSPECTIVES[persp] ? ', ' + EXV_PERSPECTIVES[persp] : ''}.` : '';
@@ -14833,14 +14838,18 @@ async function exvCall(body){
   return j;
 }
 
-function exvPeopleView(){
-  const E = S.exv;
-  const ppl = E.people.filter(p => p.brand === E.brand);
-  return `${exvTop()}
-    <p class="hint" style="margin:0 0 16px">Who can be asked. Add each person's cell so Text it fills in their number.
-      Notes on how someone talks (phrases they use, what they light up on) help the drafts sound like them.
-      Needs their OK means anything quoting them goes to them before it can be marked published.</p>
-    <div class="exv-ptable">${ppl.map(p => `<div class="exv-prow ${p.active ? '' : 'dim'}" data-exv-prow="${esc(p.id)}">
+/* Departments from the company directory (Liam, 2026-11-02). Restore is
+   RHINO Restores; the rest are HAGGERTY. */
+const EXV_DEPTS = ['Support', 'Advise', 'Build', 'Maintain', 'Restore'];
+const exvDeptOrder = d => { const i = EXV_DEPTS.indexOf(d); return i < 0 ? 99 : i; };
+function exvByDept(list){
+  const groups = {};
+  list.forEach(p => { const d = p.department || 'Other'; (groups[d] = groups[d] || []).push(p); });
+  return Object.keys(groups).sort((a, b) => exvDeptOrder(a) - exvDeptOrder(b) || a.localeCompare(b))
+    .map(d => [d, groups[d].sort((a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name))]);
+}
+function exvPersonCard(p){
+  return `<div class="exv-prow ${p.active ? '' : 'dim'}" data-exv-prow="${esc(p.id)}">
       <div class="apv-pair">
         <div class="field"><label>Name</label><input type="text" data-k="name" value="${esc(p.name)}" /></div>
         <div class="field"><label>Title</label><input type="text" data-k="title" value="${esc(p.title)}" /></div>
@@ -14849,15 +14858,35 @@ function exvPeopleView(){
         <div class="field"><label>Cell</label><input type="text" data-k="phone" value="${esc(p.phone)}" inputmode="tel" placeholder="209-555-0123" /></div>
         <div class="field"><label>Email</label><input type="email" data-k="email" value="${esc(p.email)}" /></div>
       </div>
-      <div class="field"><label>How they talk</label><input type="text" data-k="notes" value="${esc(p.notes)}" placeholder="Optional" /></div>
+      <div class="apv-pair">
+        <div class="field"><label>Department</label><input type="text" data-k="department" value="${esc(p.department || '')}" list="exvDeptList" /></div>
+        <div class="field"><label>How they talk</label><input type="text" data-k="notes" value="${esc(p.notes)}" placeholder="Optional" /></div>
+      </div>
       <div class="actions">
         <label class="exv-check-l"><input type="checkbox" data-k="needs_signoff" ${p.needs_signoff ? 'checked' : ''} /> Needs their OK before posting</label>
         <label class="exv-check-l"><input type="checkbox" data-k="active" ${p.active ? 'checked' : ''} /> Active</label>
         <span class="spacer"></span>
+        <button class="linkbtn" data-exv-pedit="">Close</button>
         <button class="btn small ghost" data-exv-psave="${esc(p.id)}">Save</button>
       </div>
-    </div>`).join('')}
-    <div class="exv-prow" data-exv-prow="new">
+    </div>`;
+}
+function exvPeopleView(){
+  const E = S.exv;
+  const q = (E.pfind || '').trim().toLowerCase();
+  const ppl = E.people.filter(p => p.brand === E.brand && (!q || (p.name + ' ' + p.title + ' ' + (p.department || '')).toLowerCase().includes(q)));
+  return `${exvTop()}
+    <p class="hint" style="margin:0 0 12px">Who can be asked, by department. Edit a person to add their cell, how they talk
+      (phrases they use, what they light up on), or Needs their OK (anything quoting them goes to them before it is published).</p>
+    <datalist id="exvDeptList">${EXV_DEPTS.map(d => `<option>${d}</option>`).join('')}</datalist>
+    <div class="field" style="max-width:360px"><input type="text" id="exvPFind" value="${esc(E.pfind || '')}" placeholder="Find someone by name, title or department" /></div>
+    ${exvByDept(ppl).map(([d, list]) => `<h2 class="sec" style="margin-top:18px">${esc(d)} <span class="hint">${list.length}</span></h2>
+      <div class="pho-list">${list.map(p => E.pedit === p.id ? exvPersonCard(p) : `<div class="pho-row ${p.active ? '' : 'dim'}" style="cursor:default">
+        <span class="pho-main"><b>${esc(p.name)}</b><span class="hint">${esc(p.title || '')}${p.active ? '' : ' &middot; inactive'}</span></span>
+        <span class="pho-meta"><span class="hint">${p.phone ? 'Cell' : 'No cell'} &middot; ${p.email ? 'Email' : 'No email'}${p.needs_signoff ? ' &middot; Needs OK' : ''}</span>
+          <button class="linkbtn" data-exv-pedit="${esc(p.id)}">Edit</button></span></div>`).join('')}</div>`).join('')
+      || '<p class="hint">Nobody matches.</p>'}
+    <div class="exv-prow" data-exv-prow="new" style="margin-top:20px">
       <span class="eyebrow">Add someone</span>
       <div class="apv-pair">
         <div class="field"><label>Name</label><input type="text" data-k="name" /></div>
@@ -14867,9 +14896,10 @@ function exvPeopleView(){
         <div class="field"><label>Cell</label><input type="text" data-k="phone" inputmode="tel" /></div>
         <div class="field"><label>Email</label><input type="email" data-k="email" /></div>
       </div>
+      <div class="field" style="max-width:300px"><label>Department</label><input type="text" data-k="department" list="exvDeptList" /></div>
       <div class="actions"><label class="exv-check-l"><input type="checkbox" data-k="needs_signoff" /> Needs their OK before posting</label>
         <span class="spacer"></span><button class="btn small" data-exv-psave="new">Add to ${esc(SOC_BRANDS[E.brand])}</button></div>
-    </div></div>`;
+    </div>`;
 }
 
 /* Industry topics: what the construction (or restoration) press is talking
@@ -14937,7 +14967,9 @@ function exvBankView(){
 function exvForm(){
   const E = S.exv, f = E.form;
   if(!f) return '';
-  const ppl = E.people.filter(p => p.brand === f.brand && p.active);
+  const fq = (f.find || '').trim().toLowerCase();
+  const ppl = E.people.filter(p => p.brand === f.brand && p.active &&
+    (!fq || f.who[p.id] !== undefined || (p.name + ' ' + p.title + ' ' + (p.department || '')).toLowerCase().includes(fq)));
   const bank = E.prompts.filter(q => q.brand === f.brand && q.active);
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Ask a question">
     <div class="sheet-in wide">
@@ -14954,12 +14986,13 @@ function exvForm(){
       <div class="field"><label for="exvFHelp">A line of help under it (optional)</label>
         <input type="text" id="exvFHelp" value="${esc(f.help)}" placeholder="Think of one real job. What happened, what did you do, what did you learn?" /></div>
       <div class="field"><label>Who answers, and the voice each should use</label>
-        <div class="exv-pick">${ppl.map(p => { const w = f.who[p.id], on = w !== undefined;
+        <input type="text" id="exvFFind" value="${esc(f.find || '')}" placeholder="Find by name, title or department" style="margin-bottom:6px" />
+        <div class="exv-pick">${exvByDept(ppl).map(([d, list]) => `<div class="exv-pick-row" style="background:var(--card);position:sticky;top:0;z-index:1"><span class="eyebrow" style="margin:0">${esc(d)}</span></div>` + list.map(p => { const w = f.who[p.id], on = w !== undefined;
           return `<div class="exv-pick-row ${on ? 'on' : ''}">
             <label><input type="checkbox" data-exv-fwho="${esc(p.id)}" ${on ? 'checked' : ''} /> <b>${esc(p.name)}</b> <span class="hint">${esc(p.title)}</span></label>
             ${on ? `<div class="actions" style="margin-top:6px;flex-wrap:nowrap;gap:8px">${exvPerspSelect('data-exv-fpersp', p.id, w.perspective)}
               <input type="text" data-exv-fangle="${esc(p.id)}" value="${esc(w.angle)}" placeholder="Angle for ${esc(exvFirst(p))} (optional)" style="margin-top:0" /></div>` : ''}
-          </div>`; }).join('') || '<p class="hint">Nobody active for this company yet. Add people first.</p>'}</div>
+          </div>`; }).join('')).join('') || '<p class="hint">Nobody matches.</p>'}</div>
         <p class="hint" style="margin-top:6px">Asking several people? Give them different seats (Executive, Project manager, Superintendent) and the blog post gets layers.</p></div>
       ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
       <div class="sheet-foot"><button class="btn" id="exvFGo" ${E.busy ? 'disabled' : ''}>${E.busy ? 'Creating&hellip;' : 'Create the links'}</button></div>
@@ -15190,6 +15223,9 @@ function wireVoices(){
   });
 
   /* People */
+  each('[data-exv-pedit]', el => { E.pedit = el.dataset.exvPedit || null; render(); });
+  on('exvPFind', e => { E.pfind = e.target.value; clearTimeout(E.findT);
+    E.findT = setTimeout(() => { render(); const i = document.getElementById('exvPFind'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); }, 'input');
   each('[data-exv-psave]', async el => {
     const id = el.dataset.exvPsave, row = document.querySelector(`[data-exv-prow="${id}"]`);
     const v = {};
@@ -15224,6 +15260,8 @@ function wireVoices(){
     on('exvFQ', e => { f.question = e.target.value; }, 'input');
     on('exvFHelp', e => { f.help = e.target.value; }, 'input');
     on('exvFGoal', e => { f.goal = e.target.value; }, 'input');
+    on('exvFFind', e => { f.find = e.target.value; clearTimeout(E.findT);
+      E.findT = setTimeout(() => { render(); const i = document.getElementById('exvFFind'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); }, 'input');
     each('[data-exv-fwho]', el => {
       const id = el.dataset.exvFwho;
       if(el.checked) f.who[id] = f.who[id] || { angle:'', perspective:f.persp || exvSuggestPerspective(exvPerson(id)) };

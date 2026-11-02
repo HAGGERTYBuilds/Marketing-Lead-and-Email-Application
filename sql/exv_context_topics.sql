@@ -77,3 +77,10 @@ begin
 end $$;
 revoke execute on function public.exv_get(text) from public;
 grant execute on function public.exv_get(text) to anon, authenticated;
+
+-- 2026-11-02 (applied via migration exv_people_department): department
+-- from the company directory (Support, Advise, Build, Maintain, Restore).
+-- Restore people are RHINO Restores. The People view and the ask form
+-- group by it. Liam's roster (97 people) was loaded the same day: 87 new,
+-- 10 existing got their cell and department filled in.
+alter table public.exv_people add column if not exists department text not null default '';
