@@ -12,12 +12,32 @@ alter table public.social_jobs drop constraint social_jobs_kind_check;
 alter table public.social_jobs add constraint social_jobs_kind_check
   check (kind = any (array['generate','send','extras','send_cloud']));
 
+-- Instant push (2026-11-02)
+-- -------------------------
+-- The Social tab now asks n8n to send right away: after any save that
+-- leaves a post queued, it POSTs (signed in) to
+-- https://haggertybuilds.app.n8n.cloud/webhook/haggerty-social-push, the
+-- n8n workflow "Haggerty Social Push To Metricool" (malH1xo2wX6efGKW). It
+-- claims every pending send_cloud job, creates the drafts through the
+-- Metricool API (header X-Mc-Auth, credential "Metricool API"; needs the
+-- Advanced plan) with exactly the rules in steps 2 to 5 below, saves
+-- social_posts.metricool and finishes the job (result.by = 'n8n instant
+-- push'). Posts approved while it runs are picked up before it stops.
+-- The routine stays on at 8:17, 12:17 and 4:17 as the backup and usually
+-- finds nothing to claim. Neither claims a job whose brand and month
+-- another run started sending in the last 10 minutes, so the two can
+-- never send the same post twice. No database change was needed.
+
 -- What the routine does on each run
 -- ---------------------------------
 -- 1. Claim the oldest pending job, so two runs can't both send it:
 --      update social_jobs set status = 'running', started_at = now()
 --       where id = (select id from social_jobs
 --                    where kind = 'send_cloud' and status = 'pending'
+--                      and not exists (select 1 from social_jobs r
+--                           where r.kind = 'send_cloud' and r.status = 'running'
+--                             and r.brand = social_jobs.brand and r.month = social_jobs.month
+--                             and r.started_at > now() - interval '10 minutes')
 --                    order by created_at limit 1)
 --         and status = 'pending'
 --      returning *;
