@@ -34,6 +34,8 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 --    Timezone America/Los_Angeles, draft true. These are drafts in
 --    Metricool only: the routine never publishes; a person does that in
 --    Metricool:
+--    When social_posts.post_time is set (sql/social_post_time.sql), both
+--    halves go at post_date + post_time instead of 10:00 / 11:00.
 --      a. Instagram + Facebook at post_date 10:00. Text = caption, a blank
 --         line, hashtags. instagramData.type and facebookData.type are
 --         REEL when the post has a video, else POST.

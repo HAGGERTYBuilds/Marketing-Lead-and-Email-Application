@@ -1415,7 +1415,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-11-02a';
+const BUILD = '2026-11-02b';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -9469,6 +9469,23 @@ function socDay(d){
   const t = new Date(String(d).slice(0,10) + 'T12:00:00');
   return t.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
 }
+/* A post's own send time (social_posts.post_time, Pacific). Without one,
+   Instagram and Facebook go at 10:00 AM and LinkedIn at 11:00 AM. */
+function socTimeOf(p){ return p && p.post_time ? String(p.post_time).slice(0,5) : ''; }
+function socTimeLabel(t){
+  if(!t) return '';
+  const [h,m] = String(t).split(':').map(Number);
+  return new Date(2000,0,1,h,m).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
+function socWhen(d, t){ return socDay(d) + (t ? ' at ' + socTimeLabel(t) : ''); }
+function socTimeField(f){
+  return `<div class="field"><label for="socTime">Post time</label>
+    <input type="time" id="socTime" value="${esc(f.post_time || '')}" step="300" />
+    <span class="hint" style="margin:4px 0 0">${f.post_time
+      ? 'Every network goes at this time, Pacific. Clear it to go back to the usual times.'
+      : 'Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific.'}
+      Drafts reach Metricool at 8:17 AM, 12:17 PM or 4:17 PM, so a time later today needs to be after the next of those.</span></div>`;
+}
 function socMonthLabel(m){
   const [y,mo] = String(m).split('-').map(Number);
   return new Date(y, mo-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
@@ -9685,6 +9702,9 @@ function socAwaitingReview(p){
 }
 /* Not yet in Metricool: still free to change its mind. */
 function socUnsent(p){ return p.status === 'queued' && !p.metricool; }
+/* A reviewer may move a post's date until it reaches Metricool. The
+   database (social_review_guard) holds the same line. */
+function socRevCanDate(p){ return ['draft','approved','queued'].includes(p.status) && !p.metricool; }
 function socReviewChip(p){
   if(!socNeedsReview()) return '';
   if(p.review_status === 'ok') return `<span class="chip good">OK to post</span>`;
@@ -9742,7 +9762,7 @@ function socCard(p){
       </span>
     </button>
     <div class="socbody">
-      <span class="d">${p.status==='extra' ? 'Not scheduled' : esc(socDay(p.post_date))}</span>
+      <span class="d">${p.status==='extra' ? 'Not scheduled' : esc(socWhen(p.post_date, socTimeOf(p)))}</span>
       ${p.topic?`<span class="t">${esc(p.topic)}</span>`:''}
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
@@ -9810,14 +9830,19 @@ function socSheet(){
             Instagram needs at least one photo or video on every post.</p>`}
         </div>
         <div class="socside">
-          ${rev ? '' : p.status==='extra'
+          ${rev ? (socRevCanDate(p) ? `<div class="field" style="margin-top:0"><label for="socDate">Post date</label>
+                 <input type="date" id="socDate" value="${esc(f.post_date)}" min="${socTodayISO()}" />
+                 <span class="hint" style="margin:4px 0 0">Move it to another day or time if this one does not work. Your OK stays with the post.</span></div>
+                 ${socTimeField(f)}` : '')
+            : p.status==='extra'
             ? `<div class="field" style="margin-top:0"><label for="socUseDate">Use on</label>
                  <select id="socUseDate">
                    <option value="">Not scheduled yet</option>
                    ${socOpenDates().map(d=>`<option value="${d}" ${f.use_date===d?'selected':''}>${esc(socDay(d))}</option>`).join('')}
                  </select></div>`
             : `<div class="field" style="margin-top:0"><label for="socDate">Post date</label>
-                 <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>`}
+                 <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>
+                 ${socTimeField(f)}`}
           <div class="field"><label for="socTopic">Topic</label>
             <input type="text" id="socTopic" value="${esc(f.topic)}" autocomplete="off" /></div>
           <div class="field"><label for="socFocusSel">Focus</label>
@@ -10097,7 +10122,7 @@ function pageSocial(){
          </div>`}
 
     <p class="hint" style="margin-top:18px">Instagram and Facebook go out at 10:00 AM and LinkedIn at 11:00 AM,
-      the peak hours on the Metricool heatmap. Sending creates drafts in Metricool, so nothing publishes until it is approved there.</p>
+      the peak hours on the Metricool heatmap, unless a post has its own time. Sending creates drafts in Metricool, so nothing publishes until it is approved there.</p>
   </main>${socSheet()}${socClearSheet()}${rev ? '' : socUploadSheet()}`;
 }
 
@@ -10105,7 +10130,7 @@ function socOpen(id){
   const p = (S.social||[]).find(x => x.id === id);
   if(!p) return;
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
-  S.socForm = { post_date: String(p.post_date||'').slice(0,10), use_date: '', topic: p.topic || '', focus: p.focus || '',
+  S.socForm = { post_date: String(p.post_date||'').slice(0,10), post_time: socTimeOf(p), use_date: '', topic: p.topic || '', focus: p.focus || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '',
                 review_note: p.review_note || '', edit_notes: p.edit_notes || '' };
   render();
@@ -10139,6 +10164,17 @@ async function saveSocial(status, review, reedit){
       if(isExtra && when) patch.status = 'draft';
       if(status) patch.status = status;
     }
+    if(!rev && !isExtra) patch.post_time = f.post_time || null;
+    /* The reviewer (or Liam viewing as them) may move the day and the time
+       until the post reaches Metricool (sql/social_post_time.sql). */
+    const canMove = rev && cur && socRevCanDate(cur);
+    const moved = canMove && f.post_date && f.post_date !== String(cur.post_date).slice(0,10);
+    const retimed = canMove && (f.post_time || '') !== socTimeOf(cur);
+    if(moved || retimed){
+      if(String(f.post_date || cur.post_date).slice(0,10) < socTodayISO()){ throw new Error('Pick today or a later day.'); }
+      if(moved){ patch.post_date = f.post_date; patch.month = f.post_date.slice(0,7); }
+      if(retimed) patch.post_time = f.post_time || null;
+    }
     if(S.preview){
       /* Liam acting for the reviewer: edits are his (a staff edit sends an
          earlier review back for another look), then the review, saved as
@@ -10165,6 +10201,7 @@ async function saveSocial(status, review, reedit){
       if(r.error) throw r.error;
     }
     S.socNote = reedit ? 'Saved. Re-edit requested; the new cut shows up on this post when it is ready.'
+      : moved || retimed ? 'Moved to ' + socWhen(f.post_date || cur.post_date, f.post_time) + (review === 'ok' ? ' and marked OK to post.' : review === 'changes' ? ' and marked Needs changes.' : '.')
       : review === 'ok' ? 'Marked OK to post.' : review === 'changes' ? 'Marked Needs changes.'
       : !rev && isExtra && when ? 'Scheduled for ' + socDay(when) + '.'
       : status === 'approved' ? 'Saved and approved. ' + socAfterApprove() : 'Saved.';
@@ -10753,7 +10790,7 @@ function wireSocial(){
     const el = document.getElementById(id);
     if(el) el.addEventListener('input',()=>{ S.socForm[key] = el.value; });
   };
-  bind('socDate','post_date'); bind('socTopic','topic'); bind('socCaption','caption');
+  bind('socDate','post_date'); bind('socTime','post_time'); bind('socTopic','topic'); bind('socCaption','caption');
   const fs = document.getElementById('socFocusSel');
   if(fs) fs.addEventListener('change',()=>{ S.socForm.focus = fs.value; });
   document.querySelectorAll('[data-socfocus]').forEach(el=>
