@@ -13968,10 +13968,48 @@ const EXV_TEXT_ON = false;
 const EXV_TEXT_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-text';
 /* Until then Send emails them from Liam's Outlook (n8n "Haggerty Voices Email"). */
 const EXV_EMAIL_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-email';
+/* Industry topics scan (n8n "Haggerty Voices Industry Topics"): Mondays,
+   or Scan now on the Industry topics view. */
+const EXV_TOPICS_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-topics';
+/* The seat someone answers from. Hugo (2026-11-02): say what you are after
+   and which voice to use, so a roundtable gets layers (the executive view,
+   the PM view, the field view) instead of five versions of the same one. */
+const EXV_PERSPECTIVES = {
+  'Executive':            'the big picture: where the company and the industry are headed, and why we do it this way',
+  'Operations':           'how the work actually gets run across jobs: people, schedule, systems',
+  'Project manager':      'what the owner and the team see day to day: cost, schedule, communication',
+  'Superintendent':       'what happens on site: the crew, the trades, safety, getting it built',
+  'Preconstruction':      'before the job starts: budgets, estimates, design and constructability',
+  'Business development': 'what owners ask about and worry about before they hire a builder',
+  'Safety':               'keeping people safe and what that takes in practice',
+  'Mitigation':           'the first hours and days on a loss: drying, containment, the homeowner',
+  'Admin / office':       'what keeps the job and the client relationship running behind the scenes'
+};
+/* A starting point from someone's title; Liam can change it per ask. */
+function exvSuggestPerspective(p){
+  const t = String((p && p.title) || '').toLowerCase();
+  if(/ceo|president|owner|chief|vp|vice president|principal/.test(t)) return 'Executive';
+  if(/super/.test(t)) return 'Superintendent';
+  if(/precon|estimat/.test(t)) return 'Preconstruction';
+  if(/project manager|\bpm\b|project engineer/.test(t)) return 'Project manager';
+  if(/business development|sales|advisory/.test(t)) return 'Business development';
+  if(/safety/.test(t)) return 'Safety';
+  if(/mitigation|tech/.test(t)) return 'Mitigation';
+  if(/operations|ops/.test(t)) return 'Operations';
+  if(/admin|office|account|coordinator|assistant/.test(t)) return 'Admin / office';
+  return '';
+}
+const exvPerspLine = persp => persp ? `Answer as: ${persp}${EXV_PERSPECTIVES[persp] ? ', ' + EXV_PERSPECTIVES[persp] : ''}.` : '';
+function exvPerspSelect(attr, id, val){
+  const opts = Object.keys(EXV_PERSPECTIVES);
+  if(val && !opts.includes(val)) opts.push(val);
+  return `<select ${attr}="${esc(id)}" style="width:auto;min-width:170px">
+    <option value="">No suggested voice</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+}
 const exvCanSend = p => !!(p && (EXV_TEXT_ON ? p.phone : p.email));
 const exvCallLine = () => EXV_CALL_NUMBER ? ` Or just call ${EXV_CALL_NUMBER} and talk your answer.` : '';
 
-S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[],
+S.exv = { brand:'haggerty', view:'asks', open:null, people:[], prompts:[], asks:[], reqs:[], answers:[], pieces:[], topics:[], topicsErr:'', showOld:false,
           audio:{}, form:null, busy:'', err:'', note:'', loadErr:'', show:{}, draftTab:{}, timer:null };
 
 const exvLink = token => new URL('voices.html?t=' + encodeURIComponent(token), location.href).href;
@@ -13989,7 +14027,10 @@ const exvDays = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 :
 const exvSms = (phone, body) => 'sms:' + String(phone || '').replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(body);
 
 function exvAskText(p, r){
-  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together? ${exvLink(r.token)}${exvCallLine()}`;
+  const k = S.exv.asks.find(x => x.id === r.ask_id) || {};
+  const extra = [k.goal ? `What I'm hoping to get: ${k.goal.trim().replace(/\.$/, '')}.` : '',
+                 r.perspective ? `Answer it from your seat as ${/^[aeiou]/i.test(r.perspective) ? 'an' : 'a'} ${r.perspective.toLowerCase()}.` : ''].filter(Boolean).join(' ');
+  return `Hey ${exvFirst(p) || 'there'}, it's Liam. Could you please answer this question for a blog that I'm putting together?${extra ? ' ' + extra : ''} ${exvLink(r.token)}${exvCallLine()}`;
 }
 function exvNudgeText(p, r){
   return `Hey ${exvFirst(p) || 'there'}, just a nudge on the blog question when you get a couple of minutes. You can talk your answer into your phone. ${exvLink(r.token)}${exvCallLine()}`;
@@ -14042,6 +14083,10 @@ async function loadVoices(){
     E.loadErr = '';
     E.people = pe.data || []; E.prompts = pr.data || []; E.asks = ak.data || [];
     E.reqs = rq.data || []; E.answers = an.data || []; E.pieces = pc.data || [];
+    const tp = await sb.from('exv_topics').select('*').order('created_at', { ascending:false }).limit(200);
+    E.topics = tp.error ? [] : (tp.data || []);
+    E.topicsErr = tp.error ? (/does not exist|schema cache|PGRST205|42P01/i.test((tp.error.message || '') + ' ' + (tp.error.code || ''))
+      ? 'Run sql/exv_context_topics.sql in the Supabase SQL editor to turn on industry topics.' : 'Could not load topics. ' + (tp.error.message || '')) : '';
   }
   S.loaded.voices = true;
 }
@@ -14076,7 +14121,8 @@ function pageVoices(){
   if(E.loadErr) return `<main class="page"><div class="empty"><h2>Executive Voices is not set up yet</h2>
     <p>${esc(E.loadErr)}</p></div></main>`;
   const k = E.view === 'ask' && E.open && E.asks.find(x => x.id === E.open);
-  const body = k ? exvDetail(k) : E.view === 'people' ? exvPeopleView() : E.view === 'bank' ? exvBankView() : exvList();
+  const body = k ? exvDetail(k) : E.view === 'people' ? exvPeopleView() : E.view === 'bank' ? exvBankView()
+    : E.view === 'topics' ? exvTopicsView() : exvList();
   return `<main class="page" style="max-width:1060px">${body}</main>${exvForm()}`;
 }
 
@@ -14089,8 +14135,9 @@ function exvTop(){
         `<button class="${E.brand === b ? 'on' : ''}" data-exv-brand="${b}">${esc(v)}</button>`).join('')}</span>
       <button class="btn small" id="exvNew">Ask a question</button>
     </div>
-    <div class="exv-views">${[['asks','Questions'],['people','People'],['bank','Question bank']].map(([v, l]) =>
-      `<button class="tab ${E.view === v || (v === 'asks' && E.view === 'ask') ? 'on' : ''}" data-exv-view="${v}">${l}</button>`).join('')}</div>
+    <div class="exv-views">${[['asks','Questions'],['topics','Industry topics'],['bank','Question bank'],['people','People']].map(([v, l]) => {
+      const n = v === 'topics' ? E.topics.filter(t => t.brand === E.brand && t.status === 'new').length : 0;
+      return `<button class="tab ${E.view === v || (v === 'asks' && E.view === 'ask') ? 'on' : ''}" data-exv-view="${v}">${l}${n ? ` <span class="chip hot">${n}</span>` : ''}</button>`; }).join('')}</div>
     ${E.note ? `<div class="done-banner"><p style="margin:0">${esc(E.note)}</p></div>` : ''}
     ${E.err ? `<p class="hint err" style="margin-bottom:14px">${esc(E.err)}</p>` : ''}`;
 }
@@ -14137,6 +14184,11 @@ function exvDetail(k){
     <p class="eyebrow" style="margin:0 0 4px">${esc(SOC_BRANDS[k.brand] || '')} &middot; asked ${esc(shortDate(k.created_at))}${k.status === 'closed' ? ' &middot; closed' : ''}</p>
     <h1 class="exv-q">${esc(k.question)}</h1>
     ${k.help ? `<p class="hint" style="margin:-4px 0 14px">${esc(k.help)}</p>` : ''}
+    ${k.status === 'open' ? `<div class="field" style="max-width:720px"><label for="exvGoalEdit">What I'm looking for (goes in the email, the text and their page)</label>
+      <div class="actions" style="margin-top:0;flex-wrap:nowrap"><input type="text" id="exvGoalEdit" value="${esc(k.goal || '')}"
+        placeholder="e.g. One real story for a blog post on how we keep occupied schools running" />
+        <button class="btn small ghost" id="exvGoalSave">Save</button></div></div>`
+      : k.goal ? `<p class="exv-angle" style="margin:-4px 0 14px">Looking for: ${esc(k.goal)}</p>` : ''}
 
     <h2 class="sec" style="margin-top:22px">Who is being asked</h2>
     <div class="exv-people">${rs.map(r => exvReqRow(k, r)).join('')}</div>
@@ -14181,10 +14233,13 @@ function exvReqRow(k, r){
   const late = !answered && r.sent_at && exvDays(r.reminded_at || r.sent_at) >= EXV_NUDGE_DAYS;
   const mail = 'mailto:' + encodeURIComponent(p.email || '') + '?subject=' + encodeURIComponent('A quick question for a blog post') +
     '&body=' + encodeURIComponent(`Hi ${exvFirst(p) || 'there'},\n\nCould you answer this question for a blog I'm putting together?\n\n"${k.question}"\n\n` +
+      (k.goal ? `What I'm hoping to get: ${k.goal}\n` : '') + (r.perspective ? exvPerspLine(r.perspective) + '\n' : '') + (k.goal || r.perspective ? '\n' : '') +
       `Tap the link, hit the button and just talk. A couple of minutes is plenty, or type if you'd rather.\n\n${exvLink(r.token)}\n\n${EXV_CALL_NUMBER ? `Or call ${EXV_CALL_NUMBER}, hear the question, and talk your answer.\n\n` : ''}Thanks!\nLiam`);
   return `<div class="exv-person">
     <div class="exv-who"><b>${esc(p.name)}</b>${p.title ? `<span class="hint">${esc(p.title)}</span>` : ''}
-      ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}</div>
+      ${r.angle ? `<span class="exv-angle">Angle: ${esc(r.angle)}</span>` : ''}
+      ${k.status === 'open' && !answered ? `<span class="exv-angle">Answer as ${exvPerspSelect('data-exv-rpersp', r.id, r.perspective || '')}</span>`
+        : r.perspective ? `<span class="exv-angle">Answered as: ${esc(r.perspective)}</span>` : ''}</div>
     <span class="chip ${st.cls}">${esc(st.label)}</span>
     ${k.status === 'open' && !answered ? `<span class="exv-acts">
       ${exvCanSend(p) ? `<button class="btn small ${r.sent_at && !late ? 'ghost' : ''}" data-exv-send="${esc(r.id)}"
@@ -14344,6 +14399,44 @@ function exvPeopleView(){
     </div></div>`;
 }
 
+/* Industry topics: what the construction (or restoration) press is talking
+   about this week, picked by the Monday scan, with questions that let our
+   people put HAGGERTY's view on it. Ask this opens the ask form with the
+   question, the goal and the suggested voice filled in. */
+function exvTopicsView(){
+  const E = S.exv;
+  const all = E.topics.filter(t => t.brand === E.brand);
+  const list = all.filter(t => E.showOld ? true : t.status === 'new');
+  const last = all.length ? all.reduce((m, t) => t.created_at > m ? t.created_at : m, '') : '';
+  return `${exvTop()}
+    <p class="hint" style="margin:0 0 14px">Every Monday the dashboard reads the week's ${E.brand === 'rhino' ? 'restoration and insurance' : 'construction industry'} news
+      and picks the conversations worth weighing in on, so ${esc(SOC_BRANDS[E.brand])} can share what it believes about the bigger issues, not only its own jobs.
+      Each comes with questions, the voice to answer in, and what you are hoping to get.</p>
+    <div class="actions" style="margin:0 0 18px">
+      <button class="btn small" id="exvScan" ${E.busy || E.topicsErr ? 'disabled' : ''}>${E.busy === 'scan' ? 'Reading the news&hellip; about a minute' : 'Scan now'}</button>
+      <span class="hint">${last ? 'Last scan ' + esc(shortDate(last)) + '. ' : ''}Costs about a cent a scan.</span>
+      <span class="spacer"></span>
+      ${all.some(t => t.status !== 'new') ? `<button class="linkbtn" id="exvShowOld">${E.showOld ? 'Hide used and hidden' : 'Show used and hidden'}</button>` : ''}
+    </div>
+    ${E.topicsErr ? `<p class="hint err">${esc(E.topicsErr)}</p>` : ''}
+    ${list.length ? `<div class="exv-ptable">${list.map(t => `<div class="exv-prow ${t.status === 'new' ? '' : 'dim'}">
+      <span class="eyebrow">${esc(t.source || 'Industry news')}${t.published_at ? ' &middot; ' + esc(shortDate(t.published_at)) : ''}${t.status === 'used' ? ' &middot; asked' : t.status === 'dismissed' ? ' &middot; hidden' : ''}</span>
+      <h3 style="margin:4px 0 6px;font-size:18px">${esc(t.headline)}</h3>
+      ${t.summary ? `<p style="margin:0 0 6px;font-size:14px;line-height:1.5">${esc(t.summary)}</p>` : ''}
+      ${t.angle ? `<p class="exv-angle" style="margin:0 0 10px">Where we could weigh in: ${esc(t.angle)}</p>` : ''}
+      <div class="exv-pick">${(t.questions || []).map((q, i) => `<div class="exv-pick-row">
+        <b style="font-weight:500">${esc(q.question || '')}</b>
+        <div class="hint" style="margin-top:3px">${q.perspective ? 'Answer as: ' + esc(q.perspective) : ''}${q.perspective && q.goal ? ' &middot; ' : ''}${q.goal ? 'Looking for: ' + esc(q.goal) : ''}</div>
+        <div class="actions" style="margin-top:6px"><button class="btn small ghost" data-exv-task data-t="${esc(t.id)}" data-i="${i}">Ask this</button>
+          <button class="linkbtn" data-exv-tbank data-t="${esc(t.id)}" data-i="${i}">Save to bank</button></div>
+      </div>`).join('')}</div>
+      <div class="actions">${t.url ? `<a class="linkbtn" href="${esc(t.url)}" target="_blank" rel="noopener" style="padding-left:0">Read the article</a>` : ''}
+        <span class="spacer"></span>
+        ${t.status === 'new' ? `<button class="linkbtn" data-exv-tdrop="${esc(t.id)}">Not for us</button>` : `<button class="linkbtn" data-exv-tnew="${esc(t.id)}">Put back</button>`}</div>
+    </div>`).join('')}</div>`
+    : E.topicsErr ? '' : `<div class="empty" style="padding:30px 0"><h2>No topics yet</h2><p>Scan now reads this week's news. The Monday scan adds more.</p></div>`}`;
+}
+
 function exvBankView(){
   const E = S.exv;
   const qs = E.prompts.filter(q => q.brand === E.brand && q.active);
@@ -14354,7 +14447,8 @@ function exvBankView(){
     ${groups.map(g => `<h2 class="sec" style="margin-top:20px">${esc(g)}</h2>
       <div class="pho-list">${qs.filter(q => (q.for_who || 'Anyone') === g).map(q => `<div class="pho-row" style="cursor:default">
         <span class="pho-main"><b style="font-weight:500">${esc(q.question)}</b>
-          <span class="hint">${esc(q.theme || '')}${used(q.id) ? ' &middot; asked ' + used(q.id) + ' time' + (used(q.id) === 1 ? '' : 's') : ''}</span></span>
+          <span class="hint">${esc(q.theme || '')}${q.perspective ? ' &middot; as ' + esc(q.perspective) : ''}${used(q.id) ? ' &middot; asked ' + used(q.id) + ' time' + (used(q.id) === 1 ? '' : 's') : ''}</span>
+          ${q.goal ? `<span class="hint">Looking for: ${esc(q.goal)}</span>` : ''}</span>
         <span class="pho-meta"><button class="btn small ghost" data-exv-askq="${esc(q.id)}">Ask this</button>
           <button class="linkbtn" data-exv-retire="${esc(q.id)}">Retire</button></span>
       </div>`).join('')}</div>`).join('')}
@@ -14381,14 +14475,19 @@ function exvForm(){
           `<option value="${esc(q.id)}" ${f.prompt_id === q.id ? 'selected' : ''}>${esc(q.question.length > 90 ? q.question.slice(0, 88) + '…' : q.question)}</option>`).join('')}</select></div>
       <div class="field"><label for="exvFQ">The question</label>
         <textarea id="exvFQ" style="min-height:80px">${esc(f.question)}</textarea></div>
+      ${f.topic ? `<p class="exv-angle" style="margin:4px 0 0">From the industry topic: ${esc(f.topic)}</p>` : ''}
+      <div class="field"><label for="exvFGoal">What I'm looking for (shows in the email, the text and their page)</label>
+        <input type="text" id="exvFGoal" value="${esc(f.goal)}" placeholder="e.g. HAGGERTY's view on the labor shortage, with one example from a current job" /></div>
       <div class="field"><label for="exvFHelp">A line of help under it (optional)</label>
         <input type="text" id="exvFHelp" value="${esc(f.help)}" placeholder="Think of one real job. What happened, what did you do, what did you learn?" /></div>
-      <div class="field"><label>Who answers</label>
-        <div class="exv-pick">${ppl.map(p => { const on = f.who[p.id] !== undefined;
+      <div class="field"><label>Who answers, and the voice each should use</label>
+        <div class="exv-pick">${ppl.map(p => { const w = f.who[p.id], on = w !== undefined;
           return `<div class="exv-pick-row ${on ? 'on' : ''}">
             <label><input type="checkbox" data-exv-fwho="${esc(p.id)}" ${on ? 'checked' : ''} /> <b>${esc(p.name)}</b> <span class="hint">${esc(p.title)}</span></label>
-            ${on ? `<input type="text" data-exv-fangle="${esc(p.id)}" value="${esc(f.who[p.id])}" placeholder="Angle for ${esc(exvFirst(p))} (optional), e.g. from the field side" />` : ''}
-          </div>`; }).join('') || '<p class="hint">Nobody active for this company yet. Add people first.</p>'}</div></div>
+            ${on ? `<div class="actions" style="margin-top:6px;flex-wrap:nowrap;gap:8px">${exvPerspSelect('data-exv-fpersp', p.id, w.perspective)}
+              <input type="text" data-exv-fangle="${esc(p.id)}" value="${esc(w.angle)}" placeholder="Angle for ${esc(exvFirst(p))} (optional)" style="margin-top:0" /></div>` : ''}
+          </div>`; }).join('') || '<p class="hint">Nobody active for this company yet. Add people first.</p>'}</div>
+        <p class="hint" style="margin-top:6px">Asking several people? Give them different seats (Executive, Project manager, Superintendent) and the blog post gets layers.</p></div>
       ${E.err ? `<p class="hint err">${esc(E.err)}</p>` : ''}
       <div class="sheet-foot"><button class="btn" id="exvFGo" ${E.busy ? 'disabled' : ''}>${E.busy ? 'Creating&hellip;' : 'Create the links'}</button></div>
     </div></div>`;
@@ -14402,10 +14501,15 @@ async function exvCreate(){
   else if(!who.length) E.err = 'Pick at least one person.';
   if(E.err) return render();
   E.busy = 'create'; render();
-  const ins = await sb.from('exv_asks').insert({ brand:f.brand, question:f.question.trim(), help:f.help.trim(),
-    prompt_id:f.prompt_id || null }).select().single();
+  const askRow = { brand:f.brand, question:f.question.trim(), help:f.help.trim(), prompt_id:f.prompt_id || null };
+  if((f.goal || '').trim()) askRow.goal = f.goal.trim();
+  const ins = await sb.from('exv_asks').insert(askRow).select().single();
   if(ins.error){ E.busy = ''; E.err = 'Could not save the question. ' + (ins.error.message || ''); return render(); }
-  const rq = await sb.from('exv_requests').insert(who.map(id => ({ ask_id:ins.data.id, person_id:id, angle:(f.who[id] || '').trim() }))).select();
+  const rq = await sb.from('exv_requests').insert(who.map(id => {
+    const w = f.who[id] || {}, row = { ask_id:ins.data.id, person_id:id, angle:(w.angle || '').trim() };
+    if(w.perspective) row.perspective = w.perspective;
+    return row; })).select();
+  if(!rq.error && f.topic_id) exvUpdate('exv_topics', f.topic_id, { status:'used' });
   E.busy = '';
   if(rq.error){ E.err = 'The question saved but the links did not. ' + (rq.error.message || ''); return render(); }
   E.asks.unshift(ins.data); E.reqs.push(...(rq.data || []));
@@ -14418,7 +14522,7 @@ async function exvUpdate(table, id, patch, note){
   const E = S.exv;
   const { data, error } = await sb.from(table).update(patch).eq('id', id).select().single();
   if(error){ E.err = 'Could not save. ' + (error.message || ''); render(); return null; }
-  const list = { exv_people:E.people, exv_prompts:E.prompts, exv_asks:E.asks, exv_requests:E.reqs, exv_answers:E.answers, exv_pieces:E.pieces }[table];
+  const list = { exv_people:E.people, exv_prompts:E.prompts, exv_asks:E.asks, exv_requests:E.reqs, exv_answers:E.answers, exv_pieces:E.pieces, exv_topics:E.topics }[table];
   const i = list.findIndex(x => x.id === id);
   if(i >= 0) list[i] = data;
   E.err = ''; if(note !== undefined) E.note = note;
@@ -14440,10 +14544,44 @@ function wireVoices(){
     await exvLoadAudio(E.open); render();
   });
   on('exvBack', async () => { E.view = 'asks'; E.open = null; E.note = ''; E.err = ''; await loadVoices(); render(); });
-  on('exvNew', () => { E.err = ''; E.note = ''; E.form = { brand:E.brand, prompt_id:'', question:'', help:'', who:{} }; render(); });
+  on('exvNew', () => { E.err = ''; E.note = ''; E.form = { brand:E.brand, prompt_id:'', question:'', help:'', goal:'', persp:'', who:{} }; render(); });
   each('[data-exv-askq]', el => {
     const q = E.prompts.find(x => x.id === el.dataset.exvAskq);
-    E.err = ''; E.form = { brand:E.brand, prompt_id:q.id, question:q.question, help:'', who:{} }; render();
+    E.err = ''; E.form = { brand:E.brand, prompt_id:q.id, question:q.question, help:'', goal:q.goal || '', persp:q.perspective || '', who:{} }; render();
+  });
+  on('exvGoalSave', () => exvUpdate('exv_asks', E.open, { goal:document.getElementById('exvGoalEdit').value.trim() }, 'Saved. Emails and texts sent from now on include it, and their page shows it.'));
+  each('[data-exv-rpersp]', el => exvUpdate('exv_requests', el.dataset.exvRpersp, { perspective:el.value }), 'change');
+
+  /* Industry topics */
+  on('exvScan', async () => {
+    if(E.busy) return;
+    E.busy = 'scan'; E.err = ''; E.note = ''; render();
+    try{
+      const res = await fetch(EXV_TOPICS_URL, { method:'POST', headers:await authHeaders(), body:JSON.stringify({ action:'scan' }) });
+      let j = null; try{ j = await res.json(); }catch(e){}
+      if(!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('The scan answered ' + res.status + '.'));
+      await loadVoices();
+      E.note = j.added ? `Found ${j.added} new topic${j.added === 1 ? '' : 's'}.` : 'Scanned. Nothing new worth weighing in on since the last scan.';
+    }catch(e){ E.err = 'The scan did not finish. ' + e.message; }
+    E.busy = ''; render();
+  });
+  on('exvShowOld', () => { E.showOld = !E.showOld; render(); });
+  each('[data-exv-tdrop]', el => exvUpdate('exv_topics', el.dataset.exvTdrop, { status:'dismissed' }, 'Hidden. It will not come back.'));
+  each('[data-exv-tnew]', el => exvUpdate('exv_topics', el.dataset.exvTnew, { status:'new' }, 'Back on the list.'));
+  const topicQ = el => { const t = E.topics.find(x => x.id === el.dataset.t); return t && { t, q:(t.questions || [])[+el.dataset.i] }; };
+  each('[data-exv-task]', el => {
+    const x = topicQ(el); if(!x || !x.q) return;
+    E.err = ''; E.note = '';
+    E.form = { brand:x.t.brand, prompt_id:'', question:x.q.question || '', help:'', goal:x.q.goal || '', persp:x.q.perspective || '',
+               topic:x.t.headline, topic_id:x.t.id, who:{} };
+    render();
+  });
+  each('[data-exv-tbank]', async el => {
+    const x = topicQ(el); if(!x || !x.q) return;
+    const { data, error } = await sb.from('exv_prompts').insert({ brand:x.t.brand, question:x.q.question, for_who:'Anyone', theme:'Industry',
+      goal:x.q.goal || '', perspective:x.q.perspective || '' }).select().single();
+    if(error){ E.err = 'Could not add. ' + (error.message || ''); return render(); }
+    E.prompts.push(data); E.err = ''; E.note = 'Saved to the Question bank under Industry.'; render();
   });
   each('[data-exv-copy]', (el, e) => { e.preventDefault(); exvCopy(el.dataset.exvCopy, null, el); });
 
@@ -14505,7 +14643,9 @@ function wireVoices(){
   on('exvAddGo', async () => {
     const id = document.getElementById('exvAddWho').value;
     if(!id) return;
-    const { data, error } = await sb.from('exv_requests').insert({ ask_id:E.open, person_id:id }).select().single();
+    const pv = exvSuggestPerspective(exvPerson(id)), row = { ask_id:E.open, person_id:id };
+    if(pv) row.perspective = pv;
+    const { data, error } = await sb.from('exv_requests').insert(row).select().single();
     if(error){ E.err = 'Could not add. ' + (error.message || ''); return render(); }
     E.reqs.push(data); E.note = `${exvPerson(id).name} added. Text them their link.`; render();
   });
@@ -14610,12 +14750,15 @@ function wireVoices(){
     }, 'change');
     on('exvFQ', e => { f.question = e.target.value; }, 'input');
     on('exvFHelp', e => { f.help = e.target.value; }, 'input');
+    on('exvFGoal', e => { f.goal = e.target.value; }, 'input');
     each('[data-exv-fwho]', el => {
       const id = el.dataset.exvFwho;
-      if(el.checked) f.who[id] = f.who[id] || ''; else delete f.who[id];
+      if(el.checked) f.who[id] = f.who[id] || { angle:'', perspective:f.persp || exvSuggestPerspective(exvPerson(id)) };
+      else delete f.who[id];
       render();
     }, 'change');
-    each('[data-exv-fangle]', el => { f.who[el.dataset.exvFangle] = el.value; }, 'input');
+    each('[data-exv-fangle]', el => { f.who[el.dataset.exvFangle].angle = el.value; }, 'input');
+    each('[data-exv-fpersp]', el => { f.who[el.dataset.exvFpersp].perspective = el.value; }, 'change');
     on('exvFGo', exvCreate);
   }
   exvPoll();

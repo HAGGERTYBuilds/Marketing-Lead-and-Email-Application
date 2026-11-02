@@ -135,6 +135,19 @@ const SUPABASE_KEY = 'sb_publishable_bdyRB7Mx0BKzNj1EcYlRCg_8JLDXEIL';
    minute rather than at the next hourly sweep. */
 const NEW_ANSWER_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-voices-new';
 const MAX_S = 180;
+/* The seat they answer from (set per person on the Voices tab). Same
+   seats as EXV_PERSPECTIVES in index.html. */
+const VOICE_HINT = {
+  'Executive': 'Talk about the big picture: where the company and the industry are headed, and why we do it this way.',
+  'Operations': 'Talk about how the work gets run across jobs: people, schedule, systems.',
+  'Project manager': 'Talk about what the owner and the team see day to day: cost, schedule, communication.',
+  'Superintendent': 'Talk about what happens on site: the crew, the trades, safety, getting it built.',
+  'Preconstruction': 'Talk about before the job starts: budgets, estimates, design and constructability.',
+  'Business development': 'Talk about what owners ask about and worry about before they hire a builder.',
+  'Safety': 'Talk about keeping people safe and what that takes in practice.',
+  'Mitigation': 'Talk about the first hours and days on a loss: drying, containment, the homeowner.',
+  'Admin / office': 'Talk about what keeps the job and the client relationship running behind the scenes.'
+};
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:false } });
 const app = document.getElementById('app');
 const Q = new URLSearchParams(location.search);
@@ -202,6 +215,8 @@ function renderAnswer(){
     <p class="eyebrow">The question</p>
     <h1>${esc(d.question)}</h1>
     ${d.help ? `<p class="help">${esc(d.help)}</p>` : `<p class="help">Think of one real job or moment. What happened, what did you do, and what did you learn?</p>`}
+    ${d.goal ? `<div class="angle"><b>What Liam is hoping to get:</b> ${esc(d.goal)}</div>` : ''}
+    ${d.perspective ? `<div class="angle"><b>Answer as:</b> ${esc(d.perspective)}${VOICE_HINT[d.perspective] ? '. ' + esc(VOICE_HINT[d.perspective]) : ''}</div>` : ''}
     ${d.angle ? `<div class="angle">${esc(d.angle)}</div>` : ''}
     ${before ? `<p class="hint" style="margin:-6px 0 16px">You already sent ${before === 1 ? 'an answer' : before + ' answers'}. Anything you add here goes with it.</p>` : ''}
     ${A.mode === 'voice' ? recorder(recording) : typer()}
