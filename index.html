@@ -779,6 +779,36 @@
   .filebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
   .socmonth{font-family:var(--display);font-weight:700;font-size:21px;text-transform:uppercase;
             letter-spacing:.06em;min-width:190px;text-align:center}
+  /* 6 weeks view */
+  .s6{background:var(--card);border:1px solid var(--rule);overflow-x:auto}
+  .s6-head,.s6-row{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) repeat(2,minmax(84px,.7fr));min-width:760px}
+  .s6-head span{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:13px;font-weight:600;
+                color:var(--slate);padding:8px 8px 6px;border-left:1px solid var(--rule-soft);border-bottom:1px solid var(--rule)}
+  .s6-head span:first-child,.s6-day:first-child{border-left:0}
+  .s6-row + .s6-row{border-top:1px solid var(--rule-soft)}
+  .s6-day{min-height:104px;padding:5px 5px 7px;border-left:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:4px;min-width:0}
+  .s6-day.wkend{background:var(--wash)}
+  .s6-day.past{background-image:repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--rule) 38%, transparent) 7px 8px)}
+  .s6-day.today{box-shadow:inset 0 3px 0 var(--orange)}
+  .s6-day.drop{outline:2px dashed var(--orange);outline-offset:-3px;background-color:color-mix(in srgb, var(--orange-tint) 70%, transparent)}
+  .s6-day.drop.bad{outline-color:var(--red);background-color:transparent}
+  .s6-date{font-family:var(--mono);font-size:11px;color:var(--slate);padding:0 2px}
+  .s6-day.today .s6-date{color:var(--orange-ink);font-weight:600}
+  .s6-post{display:flex;align-items:center;gap:5px;width:100%;text-align:left;font:inherit;color:var(--ink);cursor:grab;
+    background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--slate);padding:3px 5px 3px 4px;min-width:0;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .s6-post:hover{border-top-color:var(--ink);border-right-color:var(--ink);border-bottom-color:var(--ink)}
+  .s6-post:focus-visible{outline:2px solid var(--orange);outline-offset:1px}
+  .s6-post.draft{border-left-style:dashed;background:var(--paper)}
+  .s6-post.approved,.s6-post.queued{border-left-color:var(--green)}
+  .s6-post.sent,.s6-post.inmc{border-left-color:var(--orange)}
+  .s6-post.locked{cursor:pointer;opacity:.78}
+  .s6-post.dragging{opacity:.3}
+  .s6-post.moving{animation:scalPulse 1s ease-in-out infinite}
+  .s6-post .th{flex:0 0 22px;height:22px;background:#000;overflow:hidden}
+  .s6-post .th img,.s6-post .th video{width:100%;height:100%;object-fit:cover;display:block}
+  .s6-post .tx{font-size:11.5px;line-height:1.25;color:var(--grey);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1}
+  .s6-post .tx b{font-family:var(--mono);font-size:10.5px;color:var(--ink);font-weight:600}
   /* week calendar (Social tab, Week view) */
   .socmonth.socweek{min-width:220px;font-size:19px}
   .scal-wrap{margin-bottom:6px}
@@ -9627,7 +9657,7 @@ async function socWho(){
 async function loadSocial(){
   if(!S.socMonth) S.socMonth = socThisMonth();
   /* Week view loads every month the week touches. */
-  const week = socView() === 'week';
+  const week = socView() !== 'cards';
   if(week){
     if(!S.socWeek) S.socWeek = socWeekFor(S.socMonth);
     S.socMonth = socWeekMonth();
@@ -9894,8 +9924,11 @@ let SOC_VIEW_PICK = '';
 try{ SOC_VIEW_PICK = localStorage.getItem('socView') || ''; }catch(e){}
 function socView(){
   const v = S.socView || SOC_VIEW_PICK;
-  return v === 'week' || v === 'cards' ? v : (socIsReviewer() ? 'cards' : 'week');
+  return v === 'week' || v === 'six' || v === 'cards' ? v : (socIsReviewer() ? 'cards' : 'week');
 }
+/* Week shows 7 days on a time grid; 6 weeks shows 42 days as day boxes,
+   for scheduling ahead. Both start on S.socWeek (a Monday). */
+function socSpan(){ return socView() === 'six' ? 42 : 7; }
 function socIsoAdd(iso, n){
   const [y,m,d] = String(iso).slice(0,10).split('-').map(Number);
   return new Date(Date.UTC(y, m-1, d+n)).toISOString().slice(0,10);
@@ -9905,14 +9938,14 @@ function socMonday(iso){
   const wd = new Date(Date.UTC(y, m-1, d)).getUTCDay();
   return socIsoAdd(iso, wd === 0 ? -6 : 1 - wd);
 }
-function socWeekDays(){ return [0,1,2,3,4,5,6].map(i => socIsoAdd(S.socWeek, i)); }
+function socWeekDays(){ return Array.from({ length: socSpan() }, (_, i) => socIsoAdd(S.socWeek, i)); }
 /* The months a week touches, so a week across a month end shows both. */
 function socWeekMonths(){ return [...new Set(socWeekDays().map(d => d.slice(0,7)))]; }
 /* The month the week mostly sits in (its Thursday): what Generate month,
    the job notes and Cards view use while the week is on screen. */
 function socWeekMonth(){ return socIsoAdd(S.socWeek, 3).slice(0,7); }
 function socWeekLabel(){
-  const a = S.socWeek, b = socIsoAdd(a, 6);
+  const a = S.socWeek, b = socIsoAdd(a, socSpan() - 1);
   const mo = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month:'short' });
   const dd = iso => Number(iso.slice(8,10));
   return mo(a) + ' ' + dd(a) + ' to ' + (a.slice(0,7) === b.slice(0,7) ? '' : mo(b) + ' ') + dd(b) + ', ' + b.slice(0,4);
@@ -10049,7 +10082,7 @@ function socWeekView(){
    short hold, so a swipe still scrolls the calendar. */
 const SCAL_DRAG = { el:null, id:'', x:0, y:0, dy:0, on:false, timer:0, ghost:null, mark:null, target:null, touch:false };
 function socCalDown(e){
-  const el = e.target.closest && e.target.closest('.scal-post');
+  const el = e.target.closest && e.target.closest('.scal-post,.s6-post');
   if(!el || e.button > 0 || S.socBusy) return;
   Object.assign(SCAL_DRAG, { el, id: el.dataset.scalId, x: e.clientX, y: e.clientY,
     dy: e.clientY - el.getBoundingClientRect().top, on:false, target:null, touch: e.pointerType === 'touch' });
@@ -10102,6 +10135,7 @@ function socCalTrack(x, y){
     const b = body.getBoundingClientRect();
     if(y < b.top + 30) body.scrollTop -= 12; else if(y > b.bottom - 30) body.scrollTop += 12;
   }
+  if(document.querySelector('.s6')) return socSixTrack(x, y);
   const col = [...document.querySelectorAll('.scal-col')].find(c => {
     const r = c.getBoundingClientRect(); return x >= r.left && x < r.right; });
   if(!col){ m.remove(); SCAL_DRAG.target = null; g.classList.add('bad'); return; }
@@ -10141,6 +10175,7 @@ function socCalEnd(){
   if(SCAL_DRAG.el) SCAL_DRAG.el.classList.remove('dragging');
   if(SCAL_DRAG.ghost) SCAL_DRAG.ghost.remove();
   if(SCAL_DRAG.mark) SCAL_DRAG.mark.remove();
+  document.querySelectorAll('.s6-day.drop').forEach(c => c.classList.remove('drop', 'bad'));
   document.body.classList.remove('scal-dragging');
   document.removeEventListener('pointermove', socCalMoveEv);
   document.removeEventListener('pointerup', socCalUp);
@@ -10150,6 +10185,70 @@ function socCalEnd(){
   Object.assign(SCAL_DRAG, { el:null, on:false, ghost:null, mark:null });
 }
 
+
+/* ---- 6 weeks ----
+   Six rows of Monday to Sunday, a box per day with its posts listed by
+   time. Dragging a post to another day keeps its time (or the usual
+   times when it has none). */
+function socSixView(){
+  const days = socWeekDays(), today = socTodayISO(), now = socNowLA();
+  const by = new Map(days.map(d => [d, []]));
+  for(const p of socCalPosts()) by.get(String(p.post_date).slice(0,10)).push(p);
+  const rows = [];
+  for(let w = 0; w < 6; w++) rows.push(days.slice(w*7, w*7 + 7));
+  const rev = socIsReviewer();
+  const n = socCalPosts().length;
+  return `<div class="scal-wrap">
+    <div class="s6" id="socCal">
+      <div class="s6-head">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<span>${d}</span>`).join('')}</div>
+      ${rows.map(r => `<div class="s6-row">${r.map(d => {
+        const list = by.get(d).sort((a,b) => socCalStart(a).localeCompare(socCalStart(b)));
+        const dd = Number(d.slice(8,10));
+        const wd = new Date(d + 'T12:00:00').getDay();
+        return `<div class="s6-day ${d === today ? 'today' : d < today ? 'past' : ''} ${wd === 0 || wd === 6 ? 'wkend' : ''}" data-scal-day="${d}">
+          <span class="s6-date">${dd === 1 || d === days[0] ? esc(new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month:'short' })) + ' ' : ''}${dd}</span>
+          ${list.map(socSixPost).join('')}
+        </div>`; }).join('')}</div>`).join('')}
+    </div>
+    <div class="scal-legend">
+      <span><i class="k draft"></i>Draft</span><span><i class="k approved"></i>Approved</span>
+      <span><i class="k sent"></i>In Metricool</span>
+      ${socNeedsReview() ? `<span><i class="flag waiting"></i>Waiting on review</span><span><i class="flag changes"></i>Needs changes</span>` : ''}
+      <span class="scal-help">${n} post${n===1?'':'s'} in these 6 weeks. Drag a post to another day to move it; it keeps its time.
+        Use Week to change the time.${rev ? ' Posts already in Metricool are moved by marketing.' : ''}</span>
+    </div>
+  </div>`;
+}
+function socSixPost(p){
+  const media = socMedia(p), lock = socCalLock(p), t = socTimeOf(p);
+  const flag = socNeedsReview() && p.review_status === 'changes' ? 'changes'
+    : socAwaitingReview(p) || (socNeedsReview() && p.status === 'draft' && !p.review_status) ? 'waiting' : '';
+  const tip = [socWhen(p.post_date, t || socCalStart(p)), SOC_STATUS[p.status] || p.status,
+    flag === 'changes' ? 'Needs changes' : flag === 'waiting' ? 'Waiting on review' : '',
+    p.topic || '', lock || 'Drag to another day. Click to open.'].filter(Boolean).join(' · ');
+  return `<button class="s6-post ${esc(p.status)}${socInMc(p) ? ' inmc' : ''}${lock ? ' locked' : ''}${S.socBusy === p.id ? ' moving' : ''}"
+      data-key="s6-${esc(p.id)}" data-scal-id="${esc(p.id)}" ${lock ? '' : 'data-scal-move="1"'} title="${esc(tip)}" aria-label="${esc(tip)}">
+    ${media.length ? `<span class="th">${media[0].kind === 'video'
+      ? `<video src="${esc(socUrl(media[0].storage_path))}#t=0.5" preload="metadata" muted playsinline></video>`
+      : `<img src="${esc(socUrl(media[0].storage_path))}" alt="" loading="lazy" />`}</span>` : ''}
+    <span class="tx"><b>${esc(socTimeLabel(t || socCalStart(p)).replace(':00 ', ' '))}</b> ${esc(p.topic || p.caption || '')}</span>
+    ${flag ? `<span class="flag ${flag}" aria-hidden="true"></span>` : ''}
+  </button>`;
+}
+function socSixTrack(x, y){
+  const g = SCAL_DRAG.ghost;
+  const cell = [...document.querySelectorAll('.s6-day')].find(c => {
+    const r = c.getBoundingClientRect(); return x >= r.left && x < r.right && y >= r.top && y < r.bottom; });
+  document.querySelectorAll('.s6-day.drop').forEach(c => { if(c !== cell) c.classList.remove('drop', 'bad'); });
+  if(!cell){ SCAL_DRAG.target = null; g.classList.add('bad'); return; }
+  const p = (S.social || []).find(q => q.id === SCAL_DRAG.id);
+  const day = cell.dataset.scalDay, time = p ? socCalStart(p) : '10:00';
+  const why = socCalWhyNot(p, day, time);
+  SCAL_DRAG.target = why ? null : { day, time };
+  cell.classList.add('drop'); cell.classList.toggle('bad', !!why);
+  cell.title = why || '';
+  g.classList.toggle('bad', !!why);
+}
 /* Moves a post in Metricool through n8n, which saves the new date and
    time on the post once Metricool has taken it. */
 async function socMcMove(id, date, time){
@@ -10526,7 +10625,8 @@ function pageSocial(){
   if(!S.loaded.social) return loading();
   /* Week view may hold two months; the counts and buttons are the month's. */
   const all = (S.social || []).filter(p => p.month === S.socMonth);
-  const week = socView() === 'week' && S.socWeek;
+  const week = socView() !== 'cards' && S.socWeek;
+  const six = week && socView() === 'six';
   const count = k => all.filter(p => p.status === k).length;
   const live = all.filter(socLive);
   const byStatus = all.filter(p => S.socFilter === 'all' ? socLive(p) : (p.status === S.socFilter
@@ -10557,12 +10657,13 @@ function pageSocial(){
         : `<div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k,l]) =>
         `<button class="filt ${SOC_BRAND===k?'on':''}" data-socbrand="${k}" ${busy?'disabled':''}>${esc(l)}</button>`).join('')}</div>`}
       <div class="filters" role="group" aria-label="View">
-        <button class="filt ${week?'on':''}" data-socview="week" ${busy?'disabled':''}>Week</button>
+        <button class="filt ${week&&!six?'on':''}" data-socview="week" ${busy?'disabled':''}>Week</button>
+        <button class="filt ${six?'on':''}" data-socview="six" ${busy?'disabled':''}>6 weeks</button>
         <button class="filt ${week?'':'on'}" data-socview="cards" ${busy?'disabled':''}>Cards</button></div>
-      ${week ? `<button class="btn small ghost" data-socweek="-1" aria-label="Previous week" ${busy?'disabled':''}>&larr;</button>
+      ${week ? `<button class="btn small ghost" data-socweek="-1" aria-label="${six?'Previous 6 weeks':'Previous week'}" ${busy?'disabled':''}>&larr;</button>
       <span class="socmonth socweek">${esc(socWeekLabel())}</span>
-      <button class="btn small ghost" data-socweek="1" aria-label="Next week" ${busy?'disabled':''}>&rarr;</button>
-      ${S.socWeek !== socMonday(socTodayISO()) ? `<button class="btn small ghost" data-socweek="0" ${busy?'disabled':''}>This week</button>` : ''}`
+      <button class="btn small ghost" data-socweek="1" aria-label="${six?'Next 6 weeks':'Next week'}" ${busy?'disabled':''}>&rarr;</button>
+      ${S.socWeek !== socMonday(socTodayISO()) ? `<button class="btn small ghost" data-socweek="0" ${busy?'disabled':''}>${six?'From this week':'This week'}</button>` : ''}`
       : `<button class="btn small ghost" data-socmonth="-1" aria-label="Previous month">&larr;</button>
       <span class="socmonth">${esc(socMonthLabel(S.socMonth))}</span>
       <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>`}
@@ -10602,7 +10703,7 @@ function pageSocial(){
         ${openDates.map(d=>esc(socDay(d))).join(', ')}. ${extras
           ? 'Pick an extra option and choose Use on.'
           : 'Click Get more options to have spare posts built, then assign one to each date.'}</p>` : ''}
-    ${week ? socWeekView()
+    ${six ? socSixView() : week ? socWeekView()
       : S.socFilter === 'results' ? socResultsView()
       : rows.length
       ? `<div class="soc-grid">${rows.map(socCard).join('')}</div>`
@@ -11304,7 +11405,7 @@ function wireSocial(){
       if(v === socView() || S.socBusy) return;
       S.socView = SOC_VIEW_PICK = v;
       try{ localStorage.setItem('socView', v); }catch(e){}
-      if(v === 'week' && (!S.socWeek || socWeekMonth() !== S.socMonth)) S.socWeek = socWeekFor(S.socMonth);
+      if(v !== 'cards' && (!S.socWeek || socWeekMonth() !== S.socMonth)) S.socWeek = socWeekFor(S.socMonth);
       if(v === 'cards') S.socFilter = 'all';
       socReload();
     }));
@@ -11312,7 +11413,7 @@ function wireSocial(){
     el.addEventListener('click',()=>{
       if(S.socBusy) return;
       const n = Number(el.dataset.socweek);
-      S.socWeek = n ? socIsoAdd(S.socWeek, 7*n) : socMonday(socTodayISO());
+      S.socWeek = n ? socIsoAdd(S.socWeek, socSpan()*n) : socMonday(socTodayISO());
       socReload();
     }));
   const cal = document.getElementById('socCal');
@@ -11320,7 +11421,7 @@ function wireSocial(){
     cal.addEventListener('pointerdown', socCalDown);
     /* Enter or Space on a block (a click with no pointer) opens it. */
     cal.addEventListener('click', e => {
-      const b = e.target.closest && e.target.closest('.scal-post');
+      const b = e.target.closest && e.target.closest('.scal-post,.s6-post');
       if(b && e.detail === 0) socOpen(b.dataset.scalId);
     });
     cal.addEventListener('dragstart', e => e.preventDefault());
