@@ -75,7 +75,8 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 --         hashtags_li (or hashtags when that is empty).
 --         linkedinData {previewIncluded: true, type: "post"}.
 --      c. Google Business Profile (since 2026-11-02, sql/social_google.sql),
---         ONLY when networks includes 'google' (null networks = no Google).
+--         When networks includes 'google', or networks is null (null =
+--         all four networks since 2026-11-02, see sql/social_google.sql).
 --         Provider network "gmb" at post_date 10:00 (or post_time).
 --         Text = caption only, no hashtags, cut to 1,500 characters.
 --         Media = the first photo only (none when the post is video only).
