@@ -1314,16 +1314,23 @@ const APPROVE_CHUNK = 8;
    signed-in account is still Liam's, so while it is on every write is
    stopped here, before it leaves the page: only reads, sign-in and the
    signed links that show photos go through. supabase-js keeps the fetch
-   it finds when the client is made, so this has to come first. */
+   it finds when the client is made, so this has to come first.
+   The one exception is the review itself: while previewAct() runs, an
+   update to social_posts goes through, so Liam can give OK to post or
+   Needs changes for the reviewer. The database saves it as the reviewer's
+   review and records Liam in review_entered_by (sql/social_review_proxy.sql). */
 const PREVIEW_KEY = 'hg-preview-as';
 let PREVIEW_ON = false;
+let PREVIEW_ACT = 0;
+async function previewAct(fn){ PREVIEW_ACT++; try{ return await fn(); } finally{ PREVIEW_ACT--; } }
 const pageFetch = window.fetch.bind(window);
 window.fetch = (input, init) => {
   if(PREVIEW_ON){
     const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
     const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
     const read = method === 'GET' || method === 'HEAD' || url.includes('/auth/v1/') || url.includes('/storage/v1/object/sign/');
-    if(!read) return Promise.resolve(new Response(JSON.stringify({
+    const review = PREVIEW_ACT > 0 && method === 'PATCH' && url.includes('/rest/v1/social_posts?');
+    if(!read && !review) return Promise.resolve(new Response(JSON.stringify({
       message: 'Preview only: nothing is saved while you view as ' + ((S && S.revName) || 'the reviewer') + '.' }),
       { status:403, headers:{ 'Content-Type':'application/json' } }));
   }
@@ -1408,7 +1415,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-28m';
+const BUILD = '2026-11-02a';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -3483,7 +3490,8 @@ function previewBar(){
     Anything you save counts as his and goes to Pipedrive under his name, marked as entered by you.</span>
     <button class="btn small" data-preview-exit>Back to my view</button></div>`;
   return `<div class="previewbar"><span>Viewing as <b>${esc(S.revName)}</b>, the ${esc(SOC_BRANDS[SOC_BRAND])} reviewer.
-    This is what they see. Nothing you click is saved.</span>
+    This is what they see. OK to post and Needs changes are saved as their review, marked as given by you.
+    Nothing else you click is saved.</span>
     <button class="btn small" data-preview-exit>Back to my view</button></div>`;
 }
 function previewSwitch(email){
@@ -9684,8 +9692,17 @@ function socReviewChip(p){
   return p.status === 'draft' || p.status === 'approved' ? `<span class="chip">Waiting on review</span>` : '';
 }
 function socReviewLine(p){
-  if(!p.review_note || !socNeedsReview()) return '';
-  return `<span class="why">${esc(socReviewerName(p.reviewed_by))}: ${esc(p.review_note)}</span>`;
+  if(!socNeedsReview()) return '';
+  const by = socReviewProxy(p);
+  if(!p.review_note) return by && p.review_status ? `<span class="why">${esc(by)}</span>` : '';
+  return `<span class="why">${esc(socReviewerName(p.reviewed_by))}: ${esc(p.review_note)}${by ? ' (' + esc(by) + ')' : ''}</span>`;
+}
+/* An OK or Needs changes that Liam gave from View as Freddie. */
+function socReviewProxy(p){
+  if(!p.review_entered_by || p.review_entered_by === p.reviewed_by) return '';
+  const who = ({ 'liam@haggertybuilds.com':'Liam', 'p.dobson@haggertybuilds.com':'Pat', 'iyanna@haggertybuilds.com':'Iyanna' }[p.review_entered_by]
+    || String(p.review_entered_by).split('@')[0]);
+  return 'Given by ' + who + ' for ' + socReviewerName(p.reviewed_by).split(' ')[0];
 }
 
 /* ---- video edits ----
@@ -9825,6 +9842,7 @@ function socSheet(){
             : !rev && socNeedsReview() && (p.review_status || p.review_note)
               ? `<p class="hint" style="margin-top:10px"><b>${p.review_status==='ok'?'OK to post':p.review_status==='changes'?'Needs changes':'Waiting on review'}</b>${
                   p.review_note ? ': ' + esc(socReviewerName(p.reviewed_by)) + ' wrote &ldquo;' + esc(p.review_note) + '&rdquo;' : ''}${
+                  p.review_status && socReviewProxy(p) ? ' (' + esc(socReviewProxy(p)) + ')' : ''}${
                   p.review_status ? '' : ' Your edits sent it back for another look.'}</p>` : ''}
           ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
           ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
@@ -10033,7 +10051,7 @@ function pageSocial(){
       <button class="btn small ghost" data-socmonth="1" aria-label="Next month">&rarr;</button>
       <span style="flex:1"></span>
       ${!rev && S.me === 'liam' && socNeedsReview() ? `<button class="btn small ghost" data-preview-as="${esc(S.socReviewers[0].email)}"
-              title="See this tab and the Email tab exactly as ${esc(socReviewerName(S.socReviewers[0].email))} does. Read-only.">View as ${esc(socReviewerName(S.socReviewers[0].email).split(' ')[0])}</button>` : ''}
+              title="See this tab and the Email tab exactly as ${esc(socReviewerName(S.socReviewers[0].email))} does. You can give OK to post or Needs changes for them; nothing else saves.">View as ${esc(socReviewerName(S.socReviewers[0].email).split(' ')[0])}</button>` : ''}
       ${rev ? '' : `<button class="btn small ghost" id="socGenerate" ${busy||genOpen||all.length?'disabled':''}
               title="${all.length?'This month already has posts.':'Ask for a month of posts built from the ' + SOC_BRANDS[SOC_BRAND] + ' photo archive.'}">Generate month</button>
       ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
@@ -10116,9 +10134,22 @@ async function saveSocial(status, review, reedit){
       if(isExtra && when) patch.status = 'draft';
       if(status) patch.status = status;
     }
-    if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
-    const { error } = await sb.from('social_posts').update(patch).eq('id', id);
-    if(error) throw error;
+    if(S.preview){
+      /* Liam acting for the reviewer: edits are his (a staff edit sends an
+         earlier review back for another look), then the review, saved as
+         the reviewer's. Two updates so the edit can't undo the review. */
+      const w = await previewAct(() => sb.from('social_posts').update(patch).eq('id', id));
+      if(w.error) throw w.error;
+      if(review){
+        const r = await previewAct(() => sb.from('social_posts').update({ review_status: review,
+          review_note: String(f.review_note||'').trim() || null, reviewed_by: S.preview.email }).eq('id', id));
+        if(r.error) throw r.error;
+      }
+    }else{
+      if(review){ patch.review_status = review; patch.review_note = String(f.review_note||'').trim() || null; }
+      const { error } = await sb.from('social_posts').update(patch).eq('id', id);
+      if(error) throw error;
+    }
     if(reedit){
       const vid = socMedia(cur).find(m => m.kind === 'video') || socMedia(cur)[0] || {};
       const r = await sb.from('social_jobs').insert({
@@ -10148,9 +10179,11 @@ async function socReviewOk(id){
   if(S.socBusy) return;
   S.socBusy = id; S.socErr = ''; render();
   try{
-    const { error } = await sb.from('social_posts').update({ review_status:'ok' }).eq('id', id);
+    const patch = { review_status:'ok' };
+    if(S.preview) patch.reviewed_by = S.preview.email;
+    const { error } = await previewAct(() => sb.from('social_posts').update(patch).eq('id', id));
     if(error) throw error;
-    S.socNote = 'Marked OK to post.';
+    S.socNote = S.preview ? 'Marked OK to post for ' + S.revName + '.' : 'Marked OK to post.';
     await reloadSocial();
   }catch(err){ S.socErr = err.message || String(err); }
   S.socBusy = ''; render();
