@@ -1415,7 +1415,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-11-02b';
+const BUILD = '2026-11-02c';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -9486,6 +9486,28 @@ function socTimeField(f){
       : 'Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific.'}
       Drafts reach Metricool at 8:17 AM, 12:17 PM or 4:17 PM, so a time later today needs to be after the next of those.</span></div>`;
 }
+/* Where a post goes (social_posts.networks, sql/social_networks.sql). Null
+   means all three; the send routine skips any network left out. */
+const SOC_NETS = { instagram:'Instagram', facebook:'Facebook', linkedin:'LinkedIn' };
+const SOC_NET_SHORT = { instagram:'IG', facebook:'FB', linkedin:'LinkedIn' };
+function socNetsOf(p){
+  const n = p && Array.isArray(p.networks) ? p.networks.filter(k => SOC_NETS[k]) : [];
+  return n.length ? n : Object.keys(SOC_NETS);
+}
+function socNetsSave(list){
+  const n = Object.keys(SOC_NETS).filter(k => (list || []).includes(k));
+  return n.length === Object.keys(SOC_NETS).length ? null : n;
+}
+function socNetsField(nets, attr){
+  return `<div class="field"><label>Post on</label>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">${Object.entries(SOC_NETS).map(([k,l]) =>
+      `<label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:400">
+        <input type="checkbox" ${attr}="${k}" ${nets.includes(k)?'checked':''} /> ${esc(l)}</label>`).join('')}</div></div>`;
+}
+function socNetsLine(p){
+  const n = socNetsOf(p);
+  return n.length === Object.keys(SOC_NETS).length ? '' : n.map(k => SOC_NET_SHORT[k]).join(', ') + ' only';
+}
 function socMonthLabel(m){
   const [y,mo] = String(m).split('-').map(Number);
   return new Date(y, mo-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
@@ -9762,7 +9784,7 @@ function socCard(p){
       </span>
     </button>
     <div class="socbody">
-      <span class="d">${p.status==='extra' ? 'Not scheduled' : esc(socWhen(p.post_date, socTimeOf(p)))}</span>
+      <span class="d">${p.status==='extra' ? 'Not scheduled' : esc(socWhen(p.post_date, socTimeOf(p)))}${socNetsLine(p) ? ' &middot; ' + esc(socNetsLine(p)) : ''}</span>
       ${p.topic?`<span class="t">${esc(p.topic)}</span>`:''}
       <p>${esc(p.caption)}</p>
       ${p.status==='skipped' && p.notes?`<span class="why">Cleared: ${esc(p.notes)}</span>`:''}
@@ -9843,6 +9865,7 @@ function socSheet(){
             : `<div class="field" style="margin-top:0"><label for="socDate">Post date</label>
                  <input type="date" id="socDate" value="${esc(f.post_date)}" /></div>
                  ${socTimeField(f)}`}
+          ${rev ? '' : socNetsField(f.networks, 'data-soc-net')}
           <div class="field"><label for="socTopic">Topic</label>
             <input type="text" id="socTopic" value="${esc(f.topic)}" autocomplete="off" /></div>
           <div class="field"><label for="socFocusSel">Focus</label>
@@ -10130,7 +10153,7 @@ function socOpen(id){
   const p = (S.social||[]).find(x => x.id === id);
   if(!p) return;
   S.socOpenId = id; S.socErr = ''; S.socNote = ''; S.socProg = '';
-  S.socForm = { post_date: String(p.post_date||'').slice(0,10), post_time: socTimeOf(p), use_date: '', topic: p.topic || '', focus: p.focus || '',
+  S.socForm = { post_date: String(p.post_date||'').slice(0,10), post_time: socTimeOf(p), networks: socNetsOf(p), use_date: '', topic: p.topic || '', focus: p.focus || '',
                 caption: p.caption || '', hashtags: p.hashtags || '', hashtags_li: p.hashtags_li || '',
                 review_note: p.review_note || '', edit_notes: p.edit_notes || '' };
   render();
@@ -10165,6 +10188,13 @@ async function saveSocial(status, review, reedit){
       if(status) patch.status = status;
     }
     if(!rev && !isExtra) patch.post_time = f.post_time || null;
+    if(!rev){
+      if(!(f.networks || []).length){ throw new Error('Pick at least one place to post it.'); }
+      const nets = socNetsSave(f.networks);
+      /* Only write the column when it changes, so posts save as before
+         even if sql/social_networks.sql has not been run yet. */
+      if(JSON.stringify(nets) !== JSON.stringify(socNetsSave(socNetsOf(cur)))) patch.networks = nets;
+    }
     /* The reviewer (or Liam viewing as them) may move the day and the time
        until the post reaches Metricool (sql/social_post_time.sql). */
     const canMove = rev && cur && socRevCanDate(cur);
@@ -10504,9 +10534,15 @@ function socUploadSheet(){
       <div class="field"><label for="socUpWhen">When</label>
         <select id="socUpWhen">
           ${dates.map(d=>`<option value="${d}" ${u.when===d?'selected':''}>${esc(socDay(d))}</option>`).join('')}
+          <option value="other" ${u.when==='other'?'selected':''}>Another day...</option>
           <option value="extra" ${u.when==='extra'?'selected':''}>Extra option for ${esc(socMonthLabel(S.socMonth))}, date it later</option>
         </select>
-        ${dates.length ? '' : `<span class="hint" style="margin:6px 0 0">No open weekdays left in ${esc(socMonthLabel(S.socMonth))}, so it goes in as an extra option.</span>`}</div>
+        ${u.when === 'other' ? `<input type="date" id="socUpDate" value="${esc(u.date || '')}" min="${socTodayISO()}" style="margin-top:8px" />` : ''}
+        ${dates.length || u.when === 'other' ? '' : `<span class="hint" style="margin:6px 0 0">No open weekdays left in ${esc(socMonthLabel(S.socMonth))}. Pick another day, or it goes in as an extra option.</span>`}</div>
+      ${u.when === 'extra' ? '' : `<div class="field"><label for="socUpTime">Time</label>
+        <input type="time" id="socUpTime" value="${esc(u.time || '')}" step="300" />
+        <span class="hint" style="display:block;margin:4px 0 0">Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific. Set, every network goes at this time.</span></div>`}
+      ${socNetsField(u.nets, 'data-soc-upnet')}
       ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
       ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
       <div class="actions" style="margin-top:16px">
@@ -10519,7 +10555,7 @@ function socUploadSheet(){
 function socUploadOpen(){
   socUpFiles = [];
   const dates = socUpDates();
-  S.socUp = { notes:'', focus:'', when: dates[0] || 'extra' };
+  S.socUp = { notes:'', focus:'', when: dates[0] || 'extra', date:'', time:'', nets: Object.keys(SOC_NETS) };
   S.socUpOpen = true; S.socErr = ''; S.socNote = ''; S.socProg = '';
   render();
 }
@@ -10536,8 +10572,12 @@ async function socUploadGo(){
   if(files.length > SOC_UP_MAX){ S.socErr = 'Up to ' + SOC_UP_MAX + ' files in one post.'; return render(); }
   const bad = files.map(socCheckFile).find(Boolean);
   if(bad){ S.socErr = bad; return render(); }
+  if(u.when === 'other' && !u.date){ S.socErr = 'Pick the day it should go out.'; return render(); }
+  if(u.when === 'other' && u.date < socTodayISO()){ S.socErr = 'Pick today or a later day.'; return render(); }
+  if(!(u.nets || []).length){ S.socErr = 'Pick at least one place to post it.'; return render(); }
   const extra = u.when === 'extra' || !u.when;
-  const month = S.socMonth;
+  const day = u.when === 'other' ? u.date : u.when;
+  const month = extra ? S.socMonth : day.slice(0, 7);
   const kinds = files.map(f => ({ kind: f.type.startsWith('video') ? 'video' : 'image' }));
   const key = 'upload-' + Date.now();
   S.socBusy = 'upload'; S.socErr = ''; S.socProg = 'Reading the photos and writing the caption'; render();
@@ -10549,10 +10589,14 @@ async function socUploadGo(){
   try{
     const seq = (S.social || []).reduce((n, p) => Math.max(n, Number(p.seq) || 0), 0) + 1;
     const ins = await sb.from('social_posts').insert({
-      brand: SOC_BRAND, month, post_date: extra ? month + '-01' : u.when, seq,
+      brand: SOC_BRAND, month, post_date: extra ? month + '-01' : day, seq,
       format: socFormat(kinds), topic: String(u.notes||'').trim().slice(0, 60) || 'Uploaded photos', caption: '',
       focus: SOC_FOCUS[u.focus] ? u.focus : null,
-      status: extra ? 'extra' : 'draft', source_key: key }).select('id').single();
+      status: extra ? 'extra' : 'draft', source_key: key,
+      /* Only sent when set, so an upload still works before the
+         post_time / networks columns exist. */
+      ...(!extra && u.time ? { post_time: u.time } : {}),
+      ...(socNetsSave(u.nets) ? { networks: socNetsSave(u.nets) } : {}) }).select('id').single();
     if(ins.error) throw ins.error;
     postId = ins.data.id;
     for(let k = 0; k < files.length; k++){
@@ -10586,6 +10630,7 @@ async function socUploadGo(){
   }
   socUpFiles = []; S.socUpOpen = false; S.socBusy = ''; S.socProg = '';
   if(extra) S.socFilter = 'extra';
+  S.socMonth = month;
   try{ await reloadSocial(); }catch(e){}
   socOpen(postId);
   if(note) S.socErr = note;
@@ -10849,7 +10894,16 @@ function wireSocial(){
   const ufo = document.getElementById('socUpFocus');
   if(ufo) ufo.addEventListener('change',()=>{ S.socUp.focus = ufo.value; });
   const uw = document.getElementById('socUpWhen');
-  if(uw) uw.addEventListener('change',()=>{ S.socUp.when = uw.value; });
+  if(uw) uw.addEventListener('change',()=>{ S.socUp.when = uw.value; render(); });
+  const ud2 = document.getElementById('socUpDate');
+  if(ud2) ud2.addEventListener('change',()=>{ S.socUp.date = ud2.value; });
+  const ut = document.getElementById('socUpTime');
+  if(ut) ut.addEventListener('input',()=>{ S.socUp.time = ut.value; });
+  const netToggle = (list, k, on) => on ? Array.from(new Set(list.concat(k))) : list.filter(x => x !== k);
+  document.querySelectorAll('[data-soc-upnet]').forEach(el => el.addEventListener('change',()=>{
+    S.socUp.nets = netToggle(S.socUp.nets, el.dataset.socUpnet, el.checked); }));
+  document.querySelectorAll('[data-soc-net]').forEach(el => el.addEventListener('change',()=>{
+    S.socForm.networks = netToggle(S.socForm.networks || [], el.dataset.socNet, el.checked); }));
   const ug = document.getElementById('socUpGo');
   if(ug) ug.addEventListener('click', socUploadGo);
   ['socUpClose','socUpCancel'].forEach(id => {

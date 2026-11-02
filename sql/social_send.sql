@@ -36,6 +36,10 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 --    Metricool:
 --    When social_posts.post_time is set (sql/social_post_time.sql), both
 --    halves go at post_date + post_time instead of 10:00 / 11:00.
+--    When social_posts.networks is set (sql/social_networks.sql), send only
+--    to the networks in it: half a. goes to whichever of Instagram and
+--    Facebook are listed (skip it when neither is), half b. only when
+--    linkedin is listed. A half that is skipped counts as done.
 --      a. Instagram + Facebook at post_date 10:00. Text = caption, a blank
 --         line, hashtags. instagramData.type and facebookData.type are
 --         REEL when the post has a video, else POST.
