@@ -1408,7 +1408,7 @@ const BOARD_CAP = 10;
 
 /* Hover the date in the top bar to read this. Settles "is the new file
    actually live" without anyone opening developer tools. */
-const BUILD = '2026-10-28m';
+const BUILD = '2026-11-02a';
 const S = {
   page:'today', board:[], drafts:{}, dEdit:{}, activeId:null, open:{},
   busy:false, err:'', gen:'', metrics:null, week:null, tiles:null, goldOnly:false, goldPool:0,
@@ -9808,8 +9808,11 @@ function socSheet(){
               <option value="" ${f.focus?'':'selected'}>Not tagged</option>
               ${Object.entries(SOC_FOCUS).map(([k,l])=>`<option value="${k}" ${f.focus===k?'selected':''}>${esc(l)}</option>`).join('')}
             </select></div>
-          <div class="field"><label for="socCaption">Caption</label>
+          <div class="field"><label for="socCaption" style="display:flex;align-items:center;gap:8px">Caption
+              ${rev ? '' : `<span style="flex:1"></span><button class="linkbtn" id="socRewrite" ${busy?'disabled':''}
+                title="Claude looks at this post's photos and writes a new caption, topic and hashtags. Nothing is saved until you click Save.">Write caption</button>`}</label>
             <textarea id="socCaption">${esc(f.caption)}</textarea></div>
+          ${rev ? '' : socCheckLine(p)}
           <div class="field"><label for="socTags">Hashtags, Instagram and Facebook</label>
             <input type="text" id="socTags" value="${esc(f.hashtags)}" autocomplete="off" /></div>
           <div class="field"><label for="socTagsLi">Hashtags, LinkedIn</label>
@@ -10038,6 +10041,8 @@ function pageSocial(){
               title="${all.length?'This month already has posts.':'Ask for a month of posts built from the ' + SOC_BRANDS[SOC_BRAND] + ' photo archive.'}">Generate month</button>
       ${all.length?`<button class="btn small ghost" id="socExtras" ${busy||xOpen?'disabled':''}
               title="Ask for a batch of spare posts to choose from. Cleared posts and their reasons steer what gets picked.">Get more options</button>`:''}
+      <button class="btn small" id="socUpload" ${busy?'disabled':''}
+              title="Upload photos or a video for one post. Claude writes the caption and hashtags in the cloud.">Upload photos</button>
       <label class="btn small ghost filebtn" title="Pick a month folder, or an extras folder inside it, that contains plan.json">Import folder
         <input type="file" id="socImport" webkitdirectory multiple ${busy?'disabled':''} /></label>
       ${drafts?`<button class="btn small ghost" id="socApproveAll" ${busy?'disabled':''}
@@ -10070,12 +10075,12 @@ function pageSocial(){
            <h2>${all.length?'Nothing in this view':'No posts for ' + esc(socMonthLabel(S.socMonth))}</h2>
            <p>${all.length?(S.socFocus!=='all'&&byStatus.length?'No ' + esc(socFocusLabel(S.socFocus)) + ' posts here. Pick another focus above.':S.socFilter==='extra'?'No extra options yet. Click Get more options to have a batch built.':'Pick another filter above.')
              : rev ? 'Nothing to review this month yet. Use the arrows to look at another month.'
-             :'Generate month asks for a new set built from the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' photo archive. Import folder brings in a month folder that is already built.'}</p>
+             :'Upload photos makes one post from photos you pick, with the caption written for you. Generate month asks for a new set built from the ' + esc(SOC_BRANDS[SOC_BRAND]) + ' photo archive. Import folder brings in a month folder that is already built.'}</p>
          </div>`}
 
     <p class="hint" style="margin-top:18px">Instagram and Facebook go out at 10:00 AM and LinkedIn at 11:00 AM,
       the peak hours on the Metricool heatmap. Sending creates drafts in Metricool, so nothing publishes until it is approved there.</p>
-  </main>${socSheet()}${socClearSheet()}`;
+  </main>${socSheet()}${socClearSheet()}${rev ? '' : socUploadSheet()}`;
 }
 
 function socOpen(id){
@@ -10335,6 +10340,215 @@ async function socMoveMedia(mediaId, dir){
   S.socBusy = ''; render();
 }
 
+/* ---- upload photos, caption written in the cloud ----
+   For one post at a time, without the laptop. The photos go to the same
+   bucket as everything else, and a shrunk copy of the first four (about
+   1024 px JPEG, a frame for a video) goes to the n8n workflow "Haggerty
+   Social Caption" (haggerty-social-caption, signed-in staff only). Claude
+   writes topic, focus, caption and both hashtag sets in the brand's voice,
+   using the brand's six latest approved captions as examples, and sends
+   them back; the page saves the draft itself. A caption that does not
+   come back leaves the post saved with an empty caption, and Write
+   caption in the editor tries again. Costs a few cents a post. */
+const SOC_CAPTION_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-social-caption';
+const SOC_UP_MAX = 10;
+let socUpFiles = [];
+
+function socShrinkCanvas(src, w, h){
+  const k = Math.min(1, 1024 / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+}
+function socFrameOf(url){
+  return new Promise((resolve, reject) => {
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous'; v.muted = true; v.playsInline = true; v.preload = 'auto';
+    const done = setTimeout(() => reject(new Error('video frame timed out')), 20000);
+    v.addEventListener('loadeddata', () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); }, { once:true });
+    v.addEventListener('seeked', () => {
+      clearTimeout(done);
+      try{ resolve(socShrinkCanvas(v, v.videoWidth, v.videoHeight)); }catch(e){ reject(e); }
+    }, { once:true });
+    v.addEventListener('error', () => { clearTimeout(done); reject(new Error('video would not load')); }, { once:true });
+    v.src = url;
+  });
+}
+/* One small JPEG (base64, no prefix) from a picked file or a stored one. */
+async function socShrink(source, kind){
+  const local = source instanceof Blob;
+  if(kind === 'video'){
+    const url = local ? URL.createObjectURL(source) : source;
+    try{ return await socFrameOf(url); } finally { if(local) URL.revokeObjectURL(url); }
+  }
+  const blob = local ? source : await (await fetch(source)).blob();
+  const bmp = await createImageBitmap(blob);
+  try{ return socShrinkCanvas(bmp, bmp.width, bmp.height); } finally { if(bmp.close) bmp.close(); }
+}
+/* list = [{ src: File or public URL, kind: 'image'|'video' }] in post order. */
+async function socAskCaption(list, notes, focus){
+  const images = [];
+  for(const m of list.slice(0, 4)){
+    try{ images.push({ media_type:'image/jpeg', data: await socShrink(m.src, m.kind) }); }
+    catch(e){ /* one unreadable photo should not stop the rest */ }
+  }
+  if(!images.length && !String(notes||'').trim()) throw new Error('None of the photos could be read, so add a note about the post.');
+  const res = await fetch(SOC_CAPTION_URL, { method:'POST', headers: await authHeaders(),
+    body: JSON.stringify({ brand: SOC_BRAND, notes: notes || '', focus: focus || '', images,
+                           file_count: list.length, has_video: list.some(m => m.kind === 'video') }) });
+  let out = null;
+  try{ out = await res.json(); }catch(e){}
+  if(!out || !out.ok) throw new Error((out && out.error) || ('the caption writer answered ' + res.status));
+  return out;
+}
+
+function socUpDates(){
+  const today = socTodayISO();
+  return socOpenDates().filter(d => d > today);
+}
+function socUploadSheet(){
+  if(!S.socUpOpen) return '';
+  const u = S.socUp;
+  const busy = !!S.socBusy;
+  const dates = socUpDates();
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Upload photos">
+    <div class="sheet-in">
+      <div class="reel-head"><h2 style="margin:0">New ${esc(SOC_BRANDS[SOC_BRAND])} post from photos</h2>
+        <button class="linkbtn" id="socUpClose" ${busy?'disabled':''}>Close</button></div>
+      <p class="hint" style="margin:6px 0 0">Pick the photos or video for one post, in the order they should show.
+        Claude writes the caption and hashtags in the ${esc(SOC_BRANDS[SOC_BRAND])} voice. It lands as a draft for you to check.</p>
+      <div class="field"><label>Photos or video (up to ${SOC_UP_MAX})</label>
+        <label class="btn small ghost filebtn">${socUpFiles.length ? 'Pick again' : 'Choose files'}
+          <input type="file" id="socUpFiles" multiple accept="${SOC_OK.join(',')}" ${busy?'disabled':''} /></label>
+        ${socUpFiles.length ? `<span class="hint" style="margin:6px 0 0">${socUpFiles.length} picked: ${esc(socUpFiles.map(f => f.name).join(', '))}</span>`
+          : `<span class="hint" style="margin:6px 0 0">JPG, PNG, WebP, MP4 or MOV, up to 50 MB each. Two or more photos make a carousel.</span>`}</div>
+      <div class="field"><label for="socUpNotes">What is this? (optional, but it makes the caption better)</label>
+        <textarea id="socUpNotes" placeholder="${SOC_BRAND === 'rhino'
+          ? 'For example: water loss in a Lodi kitchen, dishwasher line broke, day 2 of drying'
+          : 'For example: Modesto library remodel, new carpet and the kids area going in this week'}">${esc(u.notes)}</textarea></div>
+      <div class="field"><label for="socUpFocus">Focus</label>
+        <select id="socUpFocus"><option value="">Let Claude pick</option>
+          ${Object.entries(SOC_FOCUS).map(([k,l])=>`<option value="${k}" ${u.focus===k?'selected':''}>${esc(l)}</option>`).join('')}
+        </select></div>
+      <div class="field"><label for="socUpWhen">When</label>
+        <select id="socUpWhen">
+          ${dates.map(d=>`<option value="${d}" ${u.when===d?'selected':''}>${esc(socDay(d))}</option>`).join('')}
+          <option value="extra" ${u.when==='extra'?'selected':''}>Extra option for ${esc(socMonthLabel(S.socMonth))}, date it later</option>
+        </select>
+        ${dates.length ? '' : `<span class="hint" style="margin:6px 0 0">No open weekdays left in ${esc(socMonthLabel(S.socMonth))}, so it goes in as an extra option.</span>`}</div>
+      ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
+      ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
+      <div class="actions" style="margin-top:16px">
+        <button class="btn" id="socUpGo" ${busy||!socUpFiles.length?'disabled':''}>Upload and write caption</button>
+        <button class="linkbtn" id="socUpCancel" ${busy?'disabled':''}>Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+function socUploadOpen(){
+  socUpFiles = [];
+  const dates = socUpDates();
+  S.socUp = { notes:'', focus:'', when: dates[0] || 'extra' };
+  S.socUpOpen = true; S.socErr = ''; S.socNote = ''; S.socProg = '';
+  render();
+}
+function socUploadClose(){
+  if(S.socBusy) return;
+  socUpFiles = []; S.socUpOpen = false; S.socErr = ''; S.socProg = ''; render();
+}
+
+async function socUploadGo(){
+  if(S.socBusy) return;
+  const files = socUpFiles.slice();
+  const u = S.socUp;
+  if(!files.length){ S.socErr = 'Choose at least one photo or video.'; return render(); }
+  if(files.length > SOC_UP_MAX){ S.socErr = 'Up to ' + SOC_UP_MAX + ' files in one post.'; return render(); }
+  const bad = files.map(socCheckFile).find(Boolean);
+  if(bad){ S.socErr = bad; return render(); }
+  const extra = u.when === 'extra' || !u.when;
+  const month = S.socMonth;
+  const kinds = files.map(f => ({ kind: f.type.startsWith('video') ? 'video' : 'image' }));
+  const key = 'upload-' + Date.now();
+  S.socBusy = 'upload'; S.socErr = ''; S.socProg = 'Reading the photos and writing the caption'; render();
+
+  /* The caption is written while the files upload. */
+  const capP = socAskCaption(files.map((f, i) => ({ src: f, kind: kinds[i].kind })), u.notes, u.focus)
+    .then(c => ({ c }), err => ({ err }));
+  let postId = null;
+  try{
+    const seq = (S.social || []).reduce((n, p) => Math.max(n, Number(p.seq) || 0), 0) + 1;
+    const ins = await sb.from('social_posts').insert({
+      brand: SOC_BRAND, month, post_date: extra ? month + '-01' : u.when, seq,
+      format: socFormat(kinds), topic: String(u.notes||'').trim().slice(0, 60) || 'Uploaded photos', caption: '',
+      focus: SOC_FOCUS[u.focus] ? u.focus : null,
+      status: extra ? 'extra' : 'draft', source_key: key }).select('id').single();
+    if(ins.error) throw ins.error;
+    postId = ins.data.id;
+    for(let k = 0; k < files.length; k++){
+      S.socProg = `Uploading ${k+1} of ${files.length}: ${files[k].name}`; render();
+      const path = socPrefix() + month + '/' + key + '/' + (k+1) + '-' + socSafe(files[k].name);
+      await socPut(path, files[k], false);
+      const r = await sb.from('social_post_media').insert({
+        post_id: postId, position: k + 1, kind: kinds[k].kind, storage_path: path,
+        file_name: files[k].name, bytes: files[k].size });
+      if(r.error) throw r.error;
+    }
+  }catch(err){
+    if(postId) await sb.from('social_posts').delete().eq('id', postId);
+    S.socErr = 'The upload did not go through: ' + (err.message || err) + '. Nothing was saved, so try again.';
+    S.socBusy = ''; S.socProg = ''; return render();
+  }
+
+  S.socProg = 'Waiting for the caption'; render();
+  const got = await capP;
+  let note = '';
+  if(got.c){
+    const c = got.c;
+    const patch = { caption: c.caption || '', hashtags: c.hashtags || null, hashtags_li: c.hashtags_li || null };
+    if(c.topic) patch.topic = c.topic;
+    if(SOC_FOCUS[c.focus]) patch.focus = c.focus;
+    const r = await sb.from('social_posts').update(patch).eq('id', postId);
+    if(r.error) note = 'The post is saved, but the caption did not save: ' + r.error.message + '. Click Write caption to try again.';
+    S.socCheck = { id: postId, list: Array.isArray(c.check) ? c.check : [] };
+  } else {
+    note = 'The post is saved, but the caption did not come back (' + (got.err.message || got.err) + '). Click Write caption to try again.';
+  }
+  socUpFiles = []; S.socUpOpen = false; S.socBusy = ''; S.socProg = '';
+  if(extra) S.socFilter = 'extra';
+  try{ await reloadSocial(); }catch(e){}
+  socOpen(postId);
+  if(note) S.socErr = note;
+  render();
+}
+
+/* Write caption in the editor: a fresh caption from the post's own media.
+   It fills the form only; Save keeps it. */
+async function socRewrite(){
+  const p = (S.social||[]).find(x => x.id === S.socOpenId);
+  if(!p || S.socBusy) return;
+  const f = S.socForm;
+  const list = socMedia(p).map(m => ({ src: socUrl(m.storage_path), kind: m.kind }));
+  const notes = [String(f.topic||'').trim() ? 'Topic: ' + String(f.topic).trim() : '',
+                 String(f.caption||'').trim() ? 'Current caption, write a better one: ' + String(f.caption).trim() : '']
+    .filter(Boolean).join('\n');
+  S.socBusy = p.id; S.socErr = ''; S.socProg = 'Writing a new caption'; render();
+  try{
+    const c = await socAskCaption(list, notes, f.focus);
+    Object.assign(S.socForm, { caption: c.caption || f.caption, hashtags: c.hashtags || f.hashtags,
+      hashtags_li: c.hashtags_li || f.hashtags_li, topic: c.topic || f.topic,
+      focus: SOC_FOCUS[c.focus] ? c.focus : f.focus });
+    S.socCheck = { id: p.id, list: Array.isArray(c.check) ? c.check : [], unsaved: true };
+  }catch(err){ S.socErr = 'No new caption: ' + (err.message || err); }
+  S.socBusy = ''; S.socProg = ''; render();
+}
+function socCheckLine(p){
+  const c = S.socCheck;
+  if(!c || c.id !== p.id) return '';
+  return `<p class="hint" style="margin-top:10px">${c.unsaved ? '<b>New caption written. Save to keep it.</b> ' : ''}${
+    c.list.length ? 'Check before approving: ' + c.list.map(esc).join('; ') + '.' : ''}</p>`;
+}
+
 async function requestSocialJob(kind){
   if(S.socBusy) return;
   S.socBusy = 'job'; S.socErr = ''; S.socNote = ''; render();
@@ -10453,7 +10667,7 @@ function wireSocial(){
       SOC_BRAND = b; SOC_FOCUS = SOC_FOCUS_BY[b];
       try{ localStorage.setItem('socBrand', b); }catch(e){}
       Object.assign(S, { socNote:'', socErr:'', socFilter:'all', socFocus:'all', socOpenId:null,
-                         socClearId:null, socMixOpen:false, socStyleOpen:false });
+                         socClearId:null, socMixOpen:false, socStyleOpen:false, socUpOpen:false });
       S.loaded.social = false; render();
       try{ await loadSocial(); }
       catch(err){ S.socErr = err.message || String(err); S.social = []; S.socJobs = []; S.loaded.social = true; }
@@ -10555,6 +10769,25 @@ function wireSocial(){
   if(aa) aa.addEventListener('click', approveAllSocial);
   const im = document.getElementById('socImport');
   if(im) im.addEventListener('change',()=> importSocialFolder(im.files));
+
+  const ub = document.getElementById('socUpload');
+  if(ub) ub.addEventListener('click', socUploadOpen);
+  const uf = document.getElementById('socUpFiles');
+  if(uf) uf.addEventListener('change',()=>{ socUpFiles = Array.from(uf.files || []); S.socErr = ''; render(); });
+  const un = document.getElementById('socUpNotes');
+  if(un) un.addEventListener('input',()=>{ S.socUp.notes = un.value; });
+  const ufo = document.getElementById('socUpFocus');
+  if(ufo) ufo.addEventListener('change',()=>{ S.socUp.focus = ufo.value; });
+  const uw = document.getElementById('socUpWhen');
+  if(uw) uw.addEventListener('change',()=>{ S.socUp.when = uw.value; });
+  const ug = document.getElementById('socUpGo');
+  if(ug) ug.addEventListener('click', socUploadGo);
+  ['socUpClose','socUpCancel'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', socUploadClose);
+  });
+  const rw = document.getElementById('socRewrite');
+  if(rw) rw.addEventListener('click', socRewrite);
 }
 
 /* ================= budget ================= */
