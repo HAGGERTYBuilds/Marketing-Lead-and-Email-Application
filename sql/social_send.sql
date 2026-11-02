@@ -74,8 +74,14 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 --      b. LinkedIn at post_date 11:00. Text = caption, a blank line,
 --         hashtags_li (or hashtags when that is empty).
 --         linkedinData {previewIncluded: true, type: "post"}.
---    Skip a half already recorded in social_posts.metricool (ig_fb or
---    linkedin), so a retry never makes a duplicate draft.
+--      c. Google Business Profile (since 2026-11-02, sql/social_google.sql),
+--         ONLY when networks includes 'google' (null networks = no Google).
+--         Provider network "gmb" at post_date 10:00 (or post_time).
+--         Text = caption only, no hashtags, cut to 1,500 characters.
+--         Media = the first photo only (none when the post is video only).
+--         gmbData {type: "publication"}. Saved as metricool.gmb.
+--    Skip a half already recorded in social_posts.metricool (ig_fb,
+--    linkedin or gmb), so a retry never makes a duplicate draft.
 --    A post dated before today stays queued and is named in the note.
 --    A post with no media stays queued: Instagram needs a photo or video.
 --

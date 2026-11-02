@@ -9585,30 +9585,36 @@ function socTimeField(f){
     <input type="time" id="socTime" value="${esc(f.post_time || '')}" step="300" />
     <span class="hint" style="margin:4px 0 0">${f.post_time
       ? 'Every network goes at this time, Pacific. Clear it to go back to the usual times.'
-      : 'Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific.'}
+      : 'Blank uses the usual times: Instagram, Facebook and Google 10:00 AM, LinkedIn 11:00 AM, Pacific.'}
       The draft reaches Metricool about a minute after approval, so any time later today works.</span></div>`;
 }
-/* Where a post goes (social_posts.networks, sql/social_networks.sql). Null
-   means all three; the send routine skips any network left out. */
-const SOC_NETS = { instagram:'Instagram', facebook:'Facebook', linkedin:'LinkedIn' };
-const SOC_NET_SHORT = { instagram:'IG', facebook:'FB', linkedin:'LinkedIn' };
+/* Where a post goes (social_posts.networks, sql/social_networks.sql and
+   sql/social_google.sql). Null means the usual three (Instagram, Facebook,
+   LinkedIn); Google Business Profile is opt-in per post. The send skips any
+   network left out. Google gets the caption without hashtags (1,500
+   characters at most) and the first photo. */
+const SOC_NETS = { instagram:'Instagram', facebook:'Facebook', linkedin:'LinkedIn', google:'Google Business' };
+const SOC_NET_SHORT = { instagram:'IG', facebook:'FB', linkedin:'LinkedIn', google:'Google' };
+const SOC_NETS_USUAL = ['instagram', 'facebook', 'linkedin'];
 function socNetsOf(p){
   const n = p && Array.isArray(p.networks) ? p.networks.filter(k => SOC_NETS[k]) : [];
-  return n.length ? n : Object.keys(SOC_NETS);
+  return n.length ? n : SOC_NETS_USUAL.slice();
 }
 function socNetsSave(list){
   const n = Object.keys(SOC_NETS).filter(k => (list || []).includes(k));
-  return n.length === Object.keys(SOC_NETS).length ? null : n;
+  return n.length === SOC_NETS_USUAL.length && SOC_NETS_USUAL.every(k => n.includes(k)) ? null : n;
 }
 function socNetsField(nets, attr){
   return `<div class="field"><label>Post on</label>
     <div style="display:flex;gap:16px;flex-wrap:wrap">${Object.entries(SOC_NETS).map(([k,l]) =>
       `<label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:400">
-        <input type="checkbox" ${attr}="${k}" ${nets.includes(k)?'checked':''} /> ${esc(l)}</label>`).join('')}</div></div>`;
+        <input type="checkbox" ${attr}="${k}" ${nets.includes(k)?'checked':''} /> ${esc(l)}</label>`).join('')}</div>
+    <span class="hint" style="display:block;margin:4px 0 0">Google Business gets the caption without hashtags (first 1,500 characters) and the first photo. A video-only post goes to Google as text.</span></div>`;
 }
 function socNetsLine(p){
   const n = socNetsOf(p);
-  return n.length === Object.keys(SOC_NETS).length ? '' : n.map(k => SOC_NET_SHORT[k]).join(', ') + ' only';
+  if(SOC_NETS_USUAL.every(k => n.includes(k))) return n.includes('google') ? '+ Google' : '';
+  return n.map(k => SOC_NET_SHORT[k]).join(', ') + ' only';
 }
 function socMonthLabel(m){
   const [y,mo] = String(m).split('-').map(Number);
@@ -9869,7 +9875,7 @@ function socPast(p){ return String(p.post_date).slice(0,10) < socTodayISO(); }
    send records old_post on the Metricool half it moved. */
 function socOld(p){
   const mc = p.metricool || {};
-  return !!((mc.ig_fb && mc.ig_fb.old_post) || (mc.linkedin && mc.linkedin.old_post)
+  return !!((mc.ig_fb && mc.ig_fb.old_post) || (mc.linkedin && mc.linkedin.old_post) || (mc.gmb && mc.gmb.old_post)
     || (['approved','queued'].includes(p.status) && !p.metricool && socPast(p)));
 }
 function socTodayISO(){ return new Date().toLocaleDateString('en-CA', { timeZone:'America/Los_Angeles' }); }
@@ -10010,7 +10016,7 @@ function socCalTop(min){
 }
 function socCalBlock(it){
   const p = it.p, media = socMedia(p), lock = socCalLock(p);
-  const nets = socNetsOf(p).map(n => SOC_NET_SHORT[n] === 'LinkedIn' ? 'in' : SOC_NET_SHORT[n]);
+  const nets = socNetsOf(p).map(n => n === 'linkedin' ? 'in' : n === 'google' ? 'G' : SOC_NET_SHORT[n]);
   const t = socTimeOf(p);
   const time = socTimeLabel(t || socCalStart(p));
   const split = !t && socNetsOf(p).includes('linkedin') && socNetsOf(p).length > 1;
@@ -11136,7 +11142,7 @@ function socUploadSheet(){
         ${dates.length || u.when === 'other' ? '' : `<span class="hint" style="margin:6px 0 0">No open weekdays left in ${esc(socMonthLabel(S.socMonth))}. Pick another day, or it goes in as an extra option.</span>`}</div>
       ${u.when === 'extra' ? '' : `<div class="field"><label for="socUpTime">Time</label>
         <input type="time" id="socUpTime" value="${esc(u.time || '')}" step="300" />
-        <span class="hint" style="display:block;margin:4px 0 0">Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific. Set, every network goes at this time.</span></div>`}
+        <span class="hint" style="display:block;margin:4px 0 0">Blank uses the usual times: Instagram, Facebook and Google 10:00 AM, LinkedIn 11:00 AM, Pacific. Set, every network goes at this time.</span></div>`}
       ${socNetsField(u.nets, 'data-soc-upnet')}
       ${S.socProg?`<p class="hint" style="margin-top:10px">${esc(S.socProg)}</p>`:''}
       ${S.socErr?`<p class="hint err" style="margin-top:10px">${esc(S.socErr)}</p>`:''}
@@ -11150,7 +11156,7 @@ function socUploadSheet(){
 function socUploadOpen(){
   socUpFiles = [];
   const dates = socUpDates();
-  S.socUp = { notes:'', focus:'', when: dates[0] || 'extra', date:'', time:'', nets: Object.keys(SOC_NETS) };
+  S.socUp = { notes:'', focus:'', when: dates[0] || 'extra', date:'', time:'', nets: SOC_NETS_USUAL.slice() };
   S.socUpOpen = true; S.socErr = ''; S.socNote = ''; S.socProg = '';
   render();
 }
