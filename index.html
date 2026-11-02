@@ -14414,7 +14414,7 @@ function exvTopicsView(){
       Each comes with questions, the voice to answer in, and what you are hoping to get.</p>
     <div class="actions" style="margin:0 0 18px">
       <button class="btn small" id="exvScan" ${E.busy || E.topicsErr ? 'disabled' : ''}>${E.busy === 'scan' ? 'Reading the news&hellip; about a minute' : 'Scan now'}</button>
-      <span class="hint">${last ? 'Last scan ' + esc(shortDate(last)) + '. ' : ''}Costs about a cent a scan.</span>
+      <span class="hint">${last ? 'Last scan ' + esc(shortDate(last)) + '. ' : ''}Costs about two cents a scan.</span>
       <span class="spacer"></span>
       ${all.some(t => t.status !== 'new') ? `<button class="linkbtn" id="exvShowOld">${E.showOld ? 'Hide used and hidden' : 'Show used and hidden'}</button>` : ''}
     </div>
