@@ -1320,6 +1320,9 @@ const APPROVE_CHUNK = 8;
    Needs changes for the reviewer. The database saves it as the reviewer's
    review and records Liam in review_entered_by (sql/social_review_proxy.sql). */
 const PREVIEW_KEY = 'hg-preview-as';
+/* Instant push to Metricool (n8n "Haggerty Social Push To Metricool"). It
+   only sends posts the database already queued, so it may run in preview. */
+const SOC_PUSH_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-social-push';
 let PREVIEW_ON = false;
 let PREVIEW_ACT = 0;
 async function previewAct(fn){ PREVIEW_ACT++; try{ return await fn(); } finally{ PREVIEW_ACT--; } }
@@ -1330,7 +1333,8 @@ window.fetch = (input, init) => {
     const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
     const read = method === 'GET' || method === 'HEAD' || url.includes('/auth/v1/') || url.includes('/storage/v1/object/sign/');
     const review = PREVIEW_ACT > 0 && method === 'PATCH' && url.includes('/rest/v1/social_posts?');
-    if(!read && !review) return Promise.resolve(new Response(JSON.stringify({
+    const push = url === SOC_PUSH_URL;
+    if(!read && !review && !push) return Promise.resolve(new Response(JSON.stringify({
       message: 'Preview only: nothing is saved while you view as ' + ((S && S.revName) || 'the reviewer') + '.' }),
       { status:403, headers:{ 'Content-Type':'application/json' } }));
   }
@@ -9484,7 +9488,7 @@ function socTimeField(f){
     <span class="hint" style="margin:4px 0 0">${f.post_time
       ? 'Every network goes at this time, Pacific. Clear it to go back to the usual times.'
       : 'Blank uses the usual times: Instagram and Facebook 10:00 AM, LinkedIn 11:00 AM, Pacific.'}
-      Drafts reach Metricool at 8:17 AM, 12:17 PM or 4:17 PM, so a time later today needs to be after the next of those.</span></div>`;
+      The draft reaches Metricool about a minute after approval, so any time later today works.</span></div>`;
 }
 /* Where a post goes (social_posts.networks, sql/social_networks.sql). Null
    means all three; the send routine skips any network left out. */
@@ -9580,7 +9584,22 @@ async function loadSocial(){
   S.socReviewers = rv.error ? [] : (rv.data || []);
   S.loaded.social = true;
 }
-async function reloadSocial(){ S.loaded.social = false; await loadSocial(); }
+async function reloadSocial(){ S.loaded.social = false; await loadSocial(); socPushNow(); }
+
+/* Approving a post (or the reviewer's OK) makes the database queue it and
+   add a send_cloud job (sql/social_auto_send.sql). As soon as this page
+   sees a queued post it has not pushed yet, it asks n8n to send it to
+   Metricool now instead of waiting for the 8:17 / 12:17 / 4:17 cloud send,
+   which stays on as the backup. Fire and forget: n8n claims the jobs, so
+   two pages asking at once can't send a post twice. */
+const SOC_PUSHED = new Set();
+function socPushNow(){
+  const fresh = (S.social || []).filter(p => socUnsent(p) && !SOC_PUSHED.has(p.id));
+  if(!fresh.length) return;
+  fresh.forEach(p => SOC_PUSHED.add(p.id));
+  authHeaders().then(h => fetch(SOC_PUSH_URL, { method:'POST', headers: h, body: JSON.stringify({ brand: SOC_BRAND }) }))
+    .catch(() => {});   /* Realtime shows the result when n8n saves it. */
+}
 
 function socMediaTag(m, controls){
   const u = esc(socUrl(m.storage_path));
@@ -9964,11 +9983,11 @@ function socJobNote(){
   if(s && (s.status !== 'done' || fresh)){
     out.push(s.status === 'pending'
         ? (s.kind === 'send_cloud'
-            ? 'Send requested. Approved posts go to Metricool as drafts within the hour, between 7 AM and 7 PM.'
+            ? 'Sending to Metricool as drafts now. If it is still here in a few minutes, the 8:17 AM, 12:17 PM or 4:17 PM backup sends it.'
             : 'Send requested. Approved posts go to Metricool as drafts within the hour on weekdays while the laptop is on.')
       : s.status === 'running' ? 'Posts are going to Metricool now.'
       : s.status === 'failed' ? 'Sending did not finish' + (s.note ? ': ' + s.note : '.')
-      : s.status === 'done' && s.note ? 'Sent: ' + s.note
+      : s.status === 'done' && s.note ? (/^In Metricool/.test(s.note) ? s.note : 'Sent: ' + s.note)
       : '');
   }
   return out.filter(Boolean);
@@ -10115,7 +10134,7 @@ function pageSocial(){
               title="Approved posts go to Metricool as drafts on their own${socNeedsReview()?', once reviewed':''}.">Approve ${drafts} draft${drafts===1?'':'s'}</button>`:''}`}
     </div>
     ${rev ? socReviewerTodo(all)
-      : `<p class="hint" style="margin:0 0 14px">Approved posts go to Metricool as drafts on their own, within the hour between 7 AM and 7 PM${
+      : `<p class="hint" style="margin:0 0 14px">Approved posts go to Metricool as drafts on their own, about a minute after approval${
           socNeedsReview() ? ', once ' + esc(socReviewerName((S.socReviewers[0]||{}).email)) + ' marks them OK to post' : ''}.${
           waiting ? ` <b>${waiting} approved post${waiting===1?' is':'s are'} waiting on review.</b>` : ''}${
           pastDue ? ` <b>${pastDue} approved post${pastDue===1?' is':'s are'} dated before today and won't go. Give ${pastDue===1?'it':'them'} a new date or clear ${pastDue===1?'it':'them'}.</b>` : ''}</p>`}
@@ -10244,7 +10263,7 @@ async function saveSocial(status, review, reedit){
 function socAfterApprove(many){
   return socNeedsReview()
     ? (many ? 'Each one goes' : 'It goes') + ' to Metricool as a draft once it is marked OK to post.'
-    : (many ? 'They go to Metricool as drafts' : 'It goes to Metricool as a draft') + ' within the hour, between 7 AM and 7 PM.';
+    : (many ? 'They go to Metricool as drafts' : 'It goes to Metricool as a draft') + ' in about a minute.';
 }
 
 async function socReviewOk(id){
