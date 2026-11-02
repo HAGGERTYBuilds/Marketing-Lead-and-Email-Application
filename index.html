@@ -9589,13 +9589,12 @@ function socTimeField(f){
       The draft reaches Metricool about a minute after approval, so any time later today works.</span></div>`;
 }
 /* Where a post goes (social_posts.networks, sql/social_networks.sql and
-   sql/social_google.sql). Null means the usual three (Instagram, Facebook,
-   LinkedIn); Google Business Profile is opt-in per post. The send skips any
-   network left out. Google gets the caption without hashtags (1,500
+   sql/social_google.sql). Null means all four (Instagram, Facebook,
+   LinkedIn, Google Business). The send skips any network left out. Google gets the caption without hashtags (1,500
    characters at most) and the first photo. */
 const SOC_NETS = { instagram:'Instagram', facebook:'Facebook', linkedin:'LinkedIn', google:'Google Business' };
 const SOC_NET_SHORT = { instagram:'IG', facebook:'FB', linkedin:'LinkedIn', google:'Google' };
-const SOC_NETS_USUAL = ['instagram', 'facebook', 'linkedin'];
+const SOC_NETS_USUAL = ['instagram', 'facebook', 'linkedin', 'google'];
 function socNetsOf(p){
   const n = p && Array.isArray(p.networks) ? p.networks.filter(k => SOC_NETS[k]) : [];
   return n.length ? n : SOC_NETS_USUAL.slice();
@@ -9613,7 +9612,7 @@ function socNetsField(nets, attr){
 }
 function socNetsLine(p){
   const n = socNetsOf(p);
-  if(SOC_NETS_USUAL.every(k => n.includes(k))) return n.includes('google') ? '+ Google' : '';
+  if(SOC_NETS_USUAL.every(k => n.includes(k))) return '';
   return n.map(k => SOC_NET_SHORT[k]).join(', ') + ' only';
 }
 function socMonthLabel(m){
