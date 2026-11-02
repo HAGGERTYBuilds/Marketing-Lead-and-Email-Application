@@ -27,6 +27,14 @@ alter table public.social_jobs add constraint social_jobs_kind_check
 -- finds nothing to claim. Neither claims a job whose brand and month
 -- another run started sending in the last 10 minutes, so the two can
 -- never send the same post twice. No database change was needed.
+--
+-- Send waiting now (Social tab button, staff only): queues this brand's
+-- approved posts dated before today (reviewed ones only, for a brand with
+-- a reviewer), then calls the same webhook with release = true. In release
+-- mode n8n also starts a job for any queued post that has none, and a post
+-- whose time has passed goes to Metricool for tomorrow at its usual time,
+-- with old_post, original and sent_for saved on that half in
+-- social_posts.metricool. The card shows an Old post tag.
 
 -- What the routine does on each run
 -- ---------------------------------
