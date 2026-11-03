@@ -11783,7 +11783,9 @@ const EC_TEMPLATES = {
     { key:'team', name:'Team news and hiring', use:'A new hire, a promotion, or open roles.',
       subject:'Meet [Name], our new [Role]', preview:'Plus the roles we are hiring for right now.' },
     { key:'roundup', name:'News roundup', use:'Three things worth sharing, once a month or a quarter.',
-      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' }
+      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' },
+    { key:'update', name:'Project update video', use:'A new update video on a job in progress. One project per email.',
+      subject:'[Project type] in [City]: [what changed]', preview:'[Phase] is done. Watch the [length] update from the site.' }
   ],
   rhino: [
     { key:'season', name:'Seasonal push', use:'Storm, freeze, wildfire or mold season reminders.',
@@ -11795,9 +11797,15 @@ const EC_TEMPLATES = {
     { key:'news', name:'Company news', use:'New certification, equipment, location or team member.',
       subject:'[News headline]', preview:'What it means for your properties.' },
     { key:'ready', name:'Save our number', use:'A short 24/7 reminder to keep RHINO on the vendor list.',
-      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' }
+      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' },
+    { key:'update', name:'Project update video', use:'A new video on a restoration or rebuild in progress. One job per email.',
+      subject:'[Loss type] at a [property type]: [what changed]', preview:'Day [Number] on site. Watch the [length] update.' }
   ]
 };
+// Soft CTA in HAGGERTY project updates: opens the subscribe page with the
+// advisory session box ticked and the reader's details filled from Mailchimp.
+const EC_ADVISORY = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/subscribe.html?advisory=1&src=eblast&first_name=*|FNAME|*&last_name=*|LNAME|*&email=*|EMAIL|*';
+const EC_STORM = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/rhino-storm-checklist.html';
 function ecTemplateBlocks(brand, key){
   const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
   const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
@@ -11852,6 +11860,18 @@ function ecTemplateBlocks(brand, key){
       B('spotlight', { title:'[Story 3 headline]', text:'[Two sentences.]', link:'Read more' }),
       B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
     ],
+    'haggerty:update': [
+      B('hero', { eyebrow:'Project update', title:'[Project type] in [City]: [what changed]',
+        text:'[One line on where the job stands today.]', label:'Watch the update ([length])', href:'[YouTube link]',
+        imgHref:'[YouTube link]', alt:'Play the [Project type] project update video' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the crew finished since the last update and why that step matters to an owner.]\n\n**Last update:** [Title of the last update]([Link to the last update])' }),
+      B('card', { eyebrow:'Where it stands', title:'[Phase name], [percent or milestone]', text:'**Done:** [What finished.]\n\n**Next:** [What happens before the next update.]' }),
+      B('checklist', { title:'By the numbers', items:'[Size] square feet\n[Number] [panels, loads, days]\n[A schedule or safety stat]' }),
+      B('card', { eyebrow:'From the field', title:'"[A short line from the superintendent or PM.]"', text:'[Name], [Role]' }),
+      B('card', { eyebrow:'Planning a project?', title:'Talk it through with Pat Dobson',
+        text:'Each month we hold a few 30-minute Construction Advisory Sessions. Bring a site, a budget or a schedule question and leave with a cost outlook. No cost, no pitch.' }),
+      B('buttons', { label:'Watch the update', href:'[YouTube link]', label2:'Book an advisory session', href2:EC_ADVISORY })
+    ],
     'rhino:season': [
       B('hero', { eyebrow:'[Storm] season', title:'Is your property ready for [storm season]?',
         text:'Three things to check before the first [big rain], and who to call if it gets in.', ...call }),
@@ -11887,6 +11907,16 @@ function ecTemplateBlocks(brand, key){
       B('spotlight', { title:'[Who or what]', text:'[Two sentences: a new certification, truck, location or team member.]', link:'Learn more' }),
       B('card', { eyebrow:'What it means for you', title:'[A short, plain headline]', text:'[Two sentences on the benefit to a property manager.]' }),
       B('buttons', { ...call, label2:'See our work', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:update': [
+      B('hero', { eyebrow:'Job update', title:'[Loss type] at a [property type]: [what changed]',
+        text:'[One line on where the job stands today.]', label:'Watch the update ([length])', href:'[YouTube link]',
+        imgHref:'[YouTube link]', alt:'Play the RHINO job update video' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the crew did since the last update, in plain terms a property manager would care about.]\n\n**Last update:** [Title of the last update]([Link to the last update])' }),
+      B('card', { eyebrow:'Where it stands', title:'[Drying, demo or rebuild], day [Number]', text:'**Done:** [What finished.]\n\n**Next:** [What happens next and when tenants are back.]' }),
+      B('card', { eyebrow:'Worth knowing', title:'[One lesson for a property manager]', text:'[Two sentences: what caught it early, what would have made it worse.]' }),
+      B('checklist', { title:'Before the next big storm', items:'Save our 24/7 number to your phone.\nWalk your roof drains and gutters.\nKeep our [storm prep checklist](' + EC_STORM + ') with your vendor list.' }),
+      B('buttons', { ...call, label2:'Get the storm checklist', href2:EC_STORM })
     ],
     'rhino:ready': [
       B('hero', { eyebrow:'24/7 emergency response', title:'Save this number before you need it',
@@ -12013,7 +12043,10 @@ function ecRow(b, c, accent){
     return `<tr><td class="ec-px" style="padding:14px 40px;background:#000000;text-align:center"><a href="${tel(b.phone)}" style="${F}text-decoration:none">${b.label ? `<span style="display:block;font-size:12px;font-weight:bold;letter-spacing:2px;color:${accent};line-height:1.4;text-transform:uppercase">${esc(b.label)}</span>` : ''}<span style="display:block;font-size:26px;font-weight:800;color:#FFFFFF;line-height:1.2;white-space:nowrap">${esc(b.phone)}</span></a></td></tr>`;
   }
   if(b.type === 'hero'){
-    const img = b.src ? `<tr><td style="padding:0;background:#000000"><img src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>` : '';
+    let pic = b.src ? `<img src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0">` : '';
+    const picUrl = ecUrl(b.imgHref);
+    if(pic && picUrl) pic = `<a href="${esc(picUrl)}">${pic}</a>`;
+    const img = pic ? `<tr><td style="padding:0;background:#000000">${pic}</td></tr>` : '';
     return `${img}<tr><td class="ec-px" style="padding:32px 40px 30px;background:#000000">${eyebrow(b.eyebrow, accent, 10)}
       <h1 class="ec-h1" style="margin:0 0 12px;${F}font-size:32px;line-height:1.15;color:#FFFFFF;font-weight:800">${esc(b.title || '')}</h1>
       ${b.text ? `<p style="margin:0 0 20px;${F}font-size:17px;line-height:1.5;color:#D9D9D9">${ecInline(b.text, '#FFFFFF')}</p>` : ''}
@@ -12477,6 +12510,7 @@ function ecBlockForm(b, i){
   if(b.type === 'callbar') return ecBField(i, 'Small label', 'label', b.label) + ecBField(i, 'Phone number', 'phone', b.phone, { ph:'(209) 555-0100' })
     + `<p class="hint">A black bar across the top. Tapping it calls the number.</p>`;
   if(b.type === 'hero') return ecImageField(i, 'src', b.src, 'Photo') + ecBField(i, 'Photo description for screen readers', 'alt', b.alt)
+    + ecBField(i, 'Photo link (for a video thumbnail, the YouTube link)', 'imgHref', b.imgHref, { ph:'https://youtu.be/...' })
     + ecBField(i, 'Small line above the headline', 'eyebrow', b.eyebrow) + ecBField(i, 'Headline', 'title', b.title)
     + ecBField(i, 'Line under the headline', 'text', b.text, { area:true, rows:2 })
     + `<div class="ec-two">${ecBField(i, 'Button text', 'label', b.label)}${ecBField(i, 'Button link', 'href', b.href, { ph:'https:// or tel:' })}</div>`;

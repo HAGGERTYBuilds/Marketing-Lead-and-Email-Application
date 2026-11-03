@@ -263,6 +263,16 @@
   }).catch(function () {});
 
   var qs = new URLSearchParams(location.search);
+  // Links from project update e-blasts carry the reader's details as Mailchimp
+  // merge tags, so a subscriber asking for a session does not retype them.
+  ['first_name', 'last_name', 'email', 'company'].forEach(function (k) {
+    var v = (qs.get(k) || '').trim();
+    if (v && v.indexOf('*|') < 0 && form.elements[k] && !form.elements[k].value) form.elements[k].value = v;
+  });
+  if (qs.get('advisory') === '1') {
+    document.getElementById('wants_advisory').checked = true;
+    setTimeout(function () { document.getElementById('advisoryOffer').scrollIntoView({ block: 'center' }); }, 300);
+  }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
