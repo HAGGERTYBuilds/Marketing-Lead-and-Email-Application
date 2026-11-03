@@ -15682,7 +15682,8 @@ const HOME_NAMES = { liam:'Liam', pat:'Pat' };
 /* Hot leads are the last 30 days of replies, sheet clicks and accepted
    event invites (sql/hot_leads.sql). Marking one done hides that signal;
    a new reply or click from the same person brings them back. */
-const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
+const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted',
+  hot_lead:'Signed up', advisory_request:'Asked', signup:'Subscribed' };
 /* Social drafts dated within this many days are close enough to need a look. */
 const HOME_SOCIAL_DAYS = 14;
 
@@ -15762,13 +15763,21 @@ async function loadHotLeads(){
 function hotWhat(r){
   if(r.kind === 'reply') return `Replied to <i>${esc(r.detail || 'an outreach email')}</i>`;
   if(r.kind === 'click') return `Opened <i>${esc(r.detail || 'a sheet')}</i> from an email`;
-  return `Accepted the invite to <i>${esc(r.detail || 'an event')}</i>`;
+  if(r.kind === 'accepted') return `Accepted the invite to <i>${esc(r.detail || 'an event')}</i>`;
+  /* Newsletter signups (bd_notifications): pull the useful lines out of the alert body. */
+  const line = k => ((String(r.detail || '').match(new RegExp('^' + k + ':\\s*(.+)$', 'mi')) || [])[1] || '').trim();
+  const when = line('Project timeline'), where = line('Location');
+  const extra = [when && when !== 'No project planned' ? 'project ' + when.toLowerCase() : '', where].filter(Boolean).join(' · ');
+  const what = r.kind === 'advisory_request' ? 'Asked for a 30-minute <b>Construction Advisory Session</b>'
+    : r.kind === 'hot_lead' ? 'Signed up for the newsletter with a <b>project in the next 6 months</b>'
+    : 'Subscribed to the newsletter';
+  return what + (extra ? ` <span class="hint">(${esc(extra)})</span>` : '');
 }
 
 function homeHotLeads(){
   if(S.home.hot === null) return `<p class="hint err">${esc(S.home.hotErr || 'Hot leads could not load.')}</p>`;
   const rows = S.home.hot;
-  if(!rows.length) return `<p class="hint">Nobody new in the last 30 days. Replies, sheet clicks and accepted invites land here.</p>`;
+  if(!rows.length) return `<p class="hint">Nobody new in the last 30 days. Replies, sheet clicks, accepted invites and newsletter leads land here.</p>`;
   const shown = S.home.hotAll ? rows : rows.slice(0, 6);
   const can = HOME_USERS.includes(S.me);
   return `<div class="hlist">${shown.map(r => `
