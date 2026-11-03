@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Video review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Same look as photos.html, the photo approval page. */
+  :root{
+    --ink:#1C1B1A; --paper:#FAF9F7; --card:#FFFFFF;
+    --rule:#DFDBD4; --rule-soft:#EDEAE5; --wash:#F6F4F1;
+    --grey:#4D4D4D; --slate:#6E7477;
+    --orange:#F68922; --orange-tint:#FEF3E7;
+    --green:#3F7D5C; --green-tint:#EAF3EE; --red:#A6402C; --red-tint:#F8ECE9;
+    --display:"Barlow Condensed",system-ui,sans-serif;
+    --body:"IBM Plex Sans",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);
+       font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+       padding-bottom:env(safe-area-inset-bottom)}
+  .top{background:var(--card);border-bottom:1px solid var(--rule);padding:16px 20px;
+       position:sticky;top:0;z-index:10}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:.14em;text-transform:uppercase}
+  .wordmark span{color:var(--orange)}
+  .sub{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;
+       font-weight:600;font-size:13px;color:var(--slate);display:block;margin-top:2px}
+  .wrap{max-width:820px;margin:0 auto;padding:20px 18px 60px}
+  h1{font-family:var(--display);font-size:30px;line-height:1.1;margin:0 0 4px;font-weight:700}
+  .meta{color:var(--slate);font-size:14px;margin:0 0 14px}
+  .lead{color:var(--grey);font-size:15px;margin:0 0 14px}
+  .note{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--orange);
+        padding:13px 15px;margin:0 0 18px;font-size:15px;color:var(--grey);white-space:pre-wrap}
+  .player{background:#000;aspect-ratio:16/9;width:100%;margin:0 0 14px}
+  .player.tall{aspect-ratio:9/16;max-height:78vh;margin-left:auto;margin-right:auto}
+  .player iframe,.player video{width:100%;height:100%;border:0;display:block}
+  .card{background:var(--card);border:1px solid var(--rule);padding:16px;margin:0 0 16px}
+  label.k{display:block;font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+          font-size:13px;color:var(--slate);font-weight:600;margin-bottom:6px}
+  textarea,input[type=text]{width:100%;font-family:var(--body);font-size:16px;line-height:1.5;color:var(--ink);
+    background:var(--card);border:1px solid var(--rule);border-radius:0;padding:11px 12px;
+    -webkit-appearance:none;appearance:none}
+  textarea{min-height:70px;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--orange);outline-offset:-1px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .btn{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;font-weight:600;font-size:16px;
+       background:var(--ink);color:#fff;border:0;padding:13px 18px;cursor:pointer}
+  .btn.ok{background:var(--green)} .btn.no{background:var(--red)}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--rule)}
+  .btn[disabled]{opacity:.45}
+  .pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .pick .btn{width:100%;padding:15px 10px}
+  .chk{font-size:14px;color:var(--grey);display:flex;gap:6px;align-items:center}
+  .notes{list-style:none;margin:12px 0 0;padding:0}
+  .notes li{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:start;
+            padding:10px 0;border-top:1px solid var(--rule-soft);font-size:15px}
+  .tc{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.04em;background:var(--orange-tint);
+      color:var(--ink);border:0;padding:3px 8px;cursor:pointer;text-align:center}
+  .tc.gen{background:var(--wash);color:var(--slate);cursor:default;font-size:13px}
+  .linkbtn{background:none;border:0;color:var(--slate);font-size:14px;cursor:pointer;text-decoration:underline;padding:0;font-family:var(--body)}
+  .hint{font-size:13.5px;color:var(--slate);margin:8px 0 0}
+  .hint.err{color:var(--red)}
+  .done{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--green);padding:20px 18px;margin-bottom:22px}
+  .done.no{border-left-color:var(--red)}
+  .done h2{font-family:var(--display);font-size:26px;margin:0 0 6px;font-weight:700}
+  .done p{margin:0;color:var(--grey);font-size:15px}
+  .empty{padding:40px 0}
+  .empty h2{font-family:var(--display);font-size:26px;margin:0 0 8px}
+  .empty p{color:var(--grey)}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="wordmark" id="mark">HAGGERT<span>Y</span></span>
+  <span class="sub">Video review</span>
+</header>
+<div class="wrap" id="app"><div id="head"><div class="empty"><h2>Loading the video</h2></div></div><div id="playerBox"></div><div id="rest"></div></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+
+/* A project update video for one reviewer: the PM and superintendent first,
+   then the client. The link's token is the only key; the page reads and
+   writes through the video_review_* functions (sql/video_review.sql). */
+const SUPABASE_URL = 'https://ekatzukprjpisdiwubjq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_bdyRB7Mx0BKzNj1EcYlRCg_8JLDXEIL';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:false } });
+const token = new URLSearchParams(location.search).get('t') || '';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const mmss = s => { s = Math.max(0, Math.round(Number(s) || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+let R = null, player = null, busy = false, err = '';
+
+function ytId(u){
+  const m = String(u || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
+  return m ? m[1] : '';
+}
+function now(){
+  try{
+    if(player && player.getCurrentTime) return player.getCurrentTime();
+    const v = document.getElementById('vid');
+    return v ? v.currentTime : 0;
+  }catch(e){ return 0; }
+}
+function seek(t){
+  try{
+    if(player && player.seekTo){ player.seekTo(t, true); player.playVideo && player.playVideo(); return; }
+    const v = document.getElementById('vid');
+    if(v){ v.currentTime = t; v.play(); }
+  }catch(e){}
+}
+
+async function load(){
+  if(!token){ return empty('This link is missing its code', 'Open the link from your email again, the whole thing.'); }
+  const { data, error } = await sb.rpc('video_review_get', { p_token: token });
+  if(error) return empty('This page could not load', error.message);
+  if(!data) return empty('This link has expired or is not valid', 'Ask the person who sent it for a new link.');
+  R = data;
+  if(R.brand === 'RHINO') document.getElementById('mark').innerHTML = 'RHINO <span>RESTORES</span>';
+  document.title = 'Video review: ' + (R.title || R.project || '');
+  draw(true);
+}
+function empty(h, p){ document.getElementById('head').innerHTML = `<div class="empty"><h2>${esc(h)}</h2><p>${esc(p)}</p></div>`; }
+
+function intro(){
+  if(R.stage === 'client') return `Here is the next update video on your project before it goes out. Watch it through,
+    add a note at any moment you'd like changed, then approve it or send it back with your notes.`;
+  return `Check this cut before the client sees it. Flag anything that shouldn't be public: client or budget details,
+    documents someone could read, safety issues (PPE, housekeeping), people who no longer work here, or a sub's
+    branding. Add a note at the moment you see it.`;
+}
+
+function draw(first){
+  const open = R.status === 'open';
+  const yt = ytId(R.video);
+  const tall = !yt && /916|vertical|9x16/i.test(R.video || '');
+  const videoHtml = yt ? `<div class="player"><div id="yt"></div></div>`
+    : `<div class="player${tall ? ' tall' : ''}"><video id="vid" src="${esc(R.video)}" controls playsinline preload="metadata"></video></div>`;
+  const notes = R.notes || [];
+  const decided = !open ? `<div class="done${R.status === 'changes' ? ' no' : ''}">
+      <h2>${R.status === 'approved' ? 'Approved' : 'Sent back with changes'}</h2>
+      <p>${esc(R.reviewed_by || '')}${R.decided_at ? ', ' + esc(new Date(R.decided_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })) : ''}.
+      ${R.note ? '<br>' + esc(R.note) : ''} Thanks. Nothing else to do here.</p></div>` : '';
+  const head = `
+    ${decided}
+    <h1>${esc(R.title || 'Project update')}</h1>
+    <p class="meta">${esc(R.project || '')}${R.city ? ', ' + esc(R.city) : ''} &middot; Update ${esc(R.seq || 1)}${R.phase ? ' &middot; ' + esc(R.phase) : ''}${R.length_sec ? ' &middot; ' + mmss(R.length_sec) : ''}</p>
+    ${open ? `<p class="lead">${intro()}</p>` : ''}
+    ${R.message ? `<div class="note">${esc(R.message)}</div>` : ''}`;
+  const rest = `
+    ${open ? `<div class="card">
+      <label class="k" for="nb">Note</label>
+      <textarea id="nb" placeholder="What should change at this moment?"></textarea>
+      <div class="row">
+        <button class="btn" id="addAt" ${busy ? 'disabled' : ''}>Add note at <span id="tnow">0:00</span></button>
+        <button class="btn ghost" id="addGen" ${busy ? 'disabled' : ''}>Add general note</button>
+      </div>
+      <p class="hint">Pause where you see it, then add the note. Tap a time below to jump back to it.</p>
+    </div>` : ''}
+    <div class="card"><label class="k">Notes (${notes.length})</label>
+      ${notes.length ? `<ul class="notes">${notes.map(n => `<li>
+        ${n.at == null ? `<span class="tc gen">General</span>` : `<button class="tc" data-seek="${n.at}">${mmss(n.at)}</button>`}
+        <span>${esc(n.body)}</span>
+        ${open ? `<button class="linkbtn" data-rm="${esc(n.id)}">Remove</button>` : '<span></span>'}</li>`).join('')}</ul>`
+        : `<p class="hint">No notes yet.</p>`}
+    </div>
+    ${open ? `<div class="card">
+      <label class="k" for="nm">Your name</label>
+      <input type="text" id="nm" value="${esc(R.reviewer_name || '')}" autocomplete="name" />
+      <label class="k" for="fn" style="margin-top:12px">Anything else (optional)</label>
+      <textarea id="fn" placeholder="A last word for the editor"></textarea>
+      <div class="pick">
+        <button class="btn ok" id="approve" ${busy ? 'disabled' : ''}>Approve</button>
+        <button class="btn no" id="changes" ${busy ? 'disabled' : ''}>Request changes</button>
+      </div>
+    </div>` : ''}
+    ${err ? `<p class="hint err">${esc(err)}</p>` : ''}`;
+  // The player is mounted once and never redrawn, so adding a note does not restart the video.
+  document.getElementById('head').innerHTML = head;
+  document.getElementById('rest').innerHTML = rest;
+  if(first){ document.getElementById('playerBox').innerHTML = videoHtml; if(yt) mountYouTube(yt); }
+  wire();
+}
+
+function mountYouTube(id){
+  const make = () => { player = new YT.Player('yt', { videoId: id, playerVars: { rel: 0, modestbranding: 1, playsinline: 1 } }); };
+  if(window.YT && window.YT.Player) return make();
+  window.onYouTubeIframeAPIReady = make;
+  const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+}
+
+function wire(){
+  document.querySelectorAll('[data-seek]').forEach(b => b.addEventListener('click', () => { seek(Number(b.dataset.seek)); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+  document.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => removeNote(b.dataset.rm)));
+  const at = document.getElementById('addAt'), gen = document.getElementById('addGen');
+  if(at) at.addEventListener('click', () => addNote(true));
+  if(gen) gen.addEventListener('click', () => addNote(false));
+  const ap = document.getElementById('approve'), ch = document.getElementById('changes');
+  if(ap) ap.addEventListener('click', () => finish('approved'));
+  if(ch) ch.addEventListener('click', () => finish('changes'));
+}
+setInterval(() => { const t = document.getElementById('tnow'); if(t) t.textContent = mmss(now()); }, 500);
+
+async function addNote(timed){
+  const box = document.getElementById('nb');
+  const body = (box.value || '').trim();
+  if(!body){ err = 'Write the note first.'; return draw(); }
+  busy = true; err = '';
+  const at = timed ? now() : -1;
+  const { data, error } = await sb.rpc('video_review_note', { p_token: token, p_at: at, p_body: body });
+  busy = false;
+  if(error){ err = error.message; return draw(); }
+  R.notes = (R.notes || []).concat([{ id: data, at: timed ? Math.round(at * 10) / 10 : null, body }])
+    .sort((a, b) => (a.at == null) - (b.at == null) || (a.at || 0) - (b.at || 0));
+  draw();
+}
+async function removeNote(id){
+  busy = true; err = '';
+  const { error } = await sb.rpc('video_review_unnote', { p_token: token, p_note: id });
+  busy = false;
+  if(error){ err = error.message; return draw(); }
+  R.notes = (R.notes || []).filter(n => n.id !== id);
+  draw();
+}
+async function finish(decision){
+  const name = (document.getElementById('nm').value || '').trim();
+  const note = (document.getElementById('fn').value || '').trim();
+  if(!name){ err = 'Please add your name.'; return draw(); }
+  busy = true; err = '';
+  const { error } = await sb.rpc('video_review_finish', { p_token: token, p_name: name, p_decision: decision, p_note: note });
+  busy = false;
+  if(error){ err = error.message; return draw(); }
+  R.status = decision; R.reviewed_by = name; R.note = note; R.decided_at = new Date().toISOString();
+  draw(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+load();
+</script>
+</body>
+</html>

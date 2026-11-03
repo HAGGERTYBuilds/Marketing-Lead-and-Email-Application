@@ -1453,7 +1453,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
   ['sales','RHINO Sales'], ['api','API Usage']
 ];
@@ -14060,6 +14060,11 @@ const PHO_MAX_MB = 50;
 const PHO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 S.pho = { batches:[], items:[], open:null, form:null, busy:false, prog:0, err:'', note:'', loadErr:'' };
+/* Video approvals (sql/video_review.sql): project update cuts go to the PM
+   and super, then the client, on review.html. Shown under the photo batches. */
+S.vid = { updates:[], reviews:[], notes:[], form:null, busy:false, err:'', note:'', loadErr:'', last:null };
+const vidLink = r => new URL('review.html?t=' + encodeURIComponent(r.token), location.href).href;
+const VID_STAGE = { team:'PM and super', client:'Client' };
 
 /* Windows will not take these in a folder name. */
 const phoFolder = s => String(s || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
@@ -14100,7 +14105,19 @@ async function loadPhotos(){
     P.batches = b.data || [];
     P.items = i.data || [];
   }
+  await loadVideoReviews();
   S.loaded.photos = true;
+}
+async function loadVideoReviews(){
+  const V = S.vid;
+  const [u, r, n] = await Promise.all([
+    sb.from('v_project_updates').select('*').neq('status', 'shelved').order('created_at', { ascending:false }).limit(40),
+    sb.from('video_reviews').select('*').order('created_at').limit(500),
+    sb.from('video_review_notes').select('id,review_id,at_sec,body').order('at_sec').limit(5000)
+  ]);
+  const e = u.error || r.error || n.error;
+  V.loadErr = e ? 'Video approvals could not load. ' + (e.message || e) : '';
+  if(!e){ V.updates = u.data || []; V.reviews = r.data || []; V.notes = n.data || []; }
 }
 
 function pagePhotos(){
@@ -14147,7 +14164,93 @@ function phoList(){
       </button>`;
     }).join('')}</div>`
     : `<div class="empty" style="padding:30px 0"><h2>No batches yet</h2>
-       <p>Use Send photos for approval to upload a job's photos and get a link for the PM or super.</p></div>`}`;
+       <p>Use Send photos for approval to upload a job's photos and get a link for the PM or super.</p></div>`}
+    ${vidSection()}`;
+}
+
+function vidMmss(s){ s = Math.round(Number(s) || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function vidSection(){
+  const V = S.vid;
+  if(V.loadErr) return `<h2 class="sec" style="margin:34px 0 8px">Video approvals</h2><p class="hint err">${esc(V.loadErr)}</p>`;
+  const st = { editing:['Editing',''], in_review:['In review','warn'], approved:['Approved','good'], published:['Published','good'] };
+  return `<div class="bud-head" style="margin-top:34px"><h2 class="sec" style="margin:0">Video approvals</h2></div>
+    <p class="hint" style="margin:0 0 14px">Project update videos go to the PM and super first, then the client. Paste the
+      review link for the cut (an Unlisted YouTube link works best), then send it. Each person leaves notes at the
+      moment they see something and approves or sends it back. When every client link approves, the update is ready to publish.</p>
+    ${V.note ? `<div class="done-banner"><p style="margin:0">${esc(V.note)}</p></div>` : ''}
+    ${V.err ? `<p class="hint err">${esc(V.err)}</p>` : ''}
+    ${V.updates.length ? V.updates.map(u => {
+      const rs = V.reviews.filter(r => r.update_id === u.id);
+      const s = st[u.status] || [u.status, ''];
+      const teamOk = rs.some(r => r.stage === 'team' && r.status === 'approved');
+      return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+          <b>${esc(u.internal_name)} #${u.seq}: ${esc(u.title)}</b>
+          <span class="hint">${esc(u.public_title)}${u.city ? ', ' + esc(u.city) : ''}${u.length_sec ? ' &middot; ' + vidMmss(u.length_sec) : ''}</span>
+          <span class="spacer"></span><span class="chip ${s[1]}">${esc(s[0])}</span></div>
+        <div class="field" style="margin-top:10px"><label for="vidUrl-${esc(u.id)}">Review link for this cut</label>
+          <div style="display:flex;gap:8px"><input type="text" id="vidUrl-${esc(u.id)}" value="${esc(u.review_url || '')}" placeholder="https://youtu.be/... (Unlisted) or a link to the .mp4" />
+          <button class="btn small ghost" data-vid-url="${esc(u.id)}" ${V.busy ? 'disabled' : ''}>Save</button></div></div>
+        ${rs.length ? `<div class="hlist" style="margin-top:8px">${rs.map(r => {
+          const ns = V.notes.filter(n => n.review_id === r.id);
+          const rst = r.status === 'approved' ? ['Approved','good'] : r.status === 'changes' ? ['Changes asked','bad']
+            : new Date(r.expires_at) < new Date() ? ['Link expired',''] : r.opened_at ? ['Opened','warn'] : ['Sent',''];
+          const first = (r.reviewer_name || '').split(' ')[0];
+          const mail = 'mailto:' + encodeURIComponent(r.reviewer_email || '') + '?subject=' + encodeURIComponent((r.stage === 'client' ? 'Your project update video: ' : 'Video for your OK: ') + u.title)
+            + '&body=' + encodeURIComponent(`Hi ${first || 'there'},\n\n` + (r.stage === 'client'
+              ? `Here's the next update video on your project before it goes out. Could you watch it and approve it, or leave a note on anything you'd like changed?`
+              : `Here's the next ${u.internal_name} update video before the client sees it. Could you check it for anything that shouldn't be public and approve it or leave notes?`)
+              + `\n\n${vidLink(r)}\n\nIt works on your phone. Thanks!`);
+          return `<div class="hotlead">
+            <div class="hotlead-top"><span class="n">${esc(r.reviewer_name)}${r.reviewer_role ? ` <em>${esc(r.reviewer_role)}</em>` : ''}</span>
+              <span class="w">${esc(VID_STAGE[r.stage] || r.stage)} &middot; <span class="chip ${rst[1]}">${esc(rst[0])}</span></span></div>
+            ${ns.length ? `<div class="hotlead-what">${ns.map(n => `<div><b class="mono">${n.at_sec == null ? 'General' : vidMmss(n.at_sec)}</b> ${esc(n.body)}</div>`).join('')}</div>` : ''}
+            ${r.note ? `<div class="hotlead-what"><i>${esc(r.note)}</i></div>` : ''}
+            <div class="hotlead-act"><span class="spacer"></span>
+              <button class="linkbtn" data-vid-copy="${esc(vidLink(r))}">Copy link</button>
+              ${r.status === 'open' ? `<a class="linkbtn" href="${esc(mail)}">Email it</a>` : ''}</div>
+          </div>`; }).join('')}</div>` : ''}
+        ${V.form && V.form.update_id === u.id ? `<div class="card" style="margin-top:10px;padding:12px 14px">
+            <b>Send to ${esc(VID_STAGE[V.form.stage])}</b>
+            <div class="ec-two" style="margin-top:8px">
+              <div class="field"><label for="vfName">Name</label><input type="text" id="vfName" value="${esc(V.form.reviewer_name)}" /></div>
+              <div class="field"><label for="vfRole">Role</label><input type="text" id="vfRole" value="${esc(V.form.reviewer_role)}" placeholder="${V.form.stage === 'client' ? 'Owner' : 'Superintendent'}" /></div></div>
+            <div class="field"><label for="vfEmail">Email</label><input type="email" id="vfEmail" value="${esc(V.form.reviewer_email)}" /></div>
+            <div class="field"><label for="vfMsg">Note on the page (optional)</label><textarea id="vfMsg" rows="2">${esc(V.form.message)}</textarea></div>
+            <div class="actions"><button class="btn small accent" id="vfSend" ${V.busy ? 'disabled' : ''}>${V.busy ? 'Making the link&hellip;' : 'Make the link'}</button>
+              <button class="linkbtn" id="vfCancel">Cancel</button></div></div>`
+        : `<div class="actions" style="margin-top:10px">
+            <button class="btn small" data-vid-send="${esc(u.id)}" data-stage="team" ${u.review_url ? '' : 'disabled title="Save a review link first"'}>Send to PM and super</button>
+            <button class="btn small ${teamOk ? 'accent' : 'ghost'}" data-vid-send="${esc(u.id)}" data-stage="client" ${u.review_url ? '' : 'disabled'}>Send to client</button>
+          </div>`}
+      </div>`; }).join('')
+    : `<p class="hint">No project update videos yet. The video agent adds one here when it renders a cut.</p>`}`;
+}
+async function vidSaveUrl(id){
+  const V = S.vid, v = (document.getElementById('vidUrl-' + id).value || '').trim();
+  if(v && !/^https?:\/\//i.test(v)){ V.err = 'The review link has to start with https://'; return render(); }
+  V.busy = true; V.err = ''; render();
+  const { error } = await sb.from('project_updates').update({ review_url: v || null, updated_at: new Date().toISOString() }).eq('id', id);
+  V.busy = false;
+  if(error) V.err = 'Could not save the link. ' + error.message;
+  else { const u = V.updates.find(x => x.id === id); if(u) u.review_url = v || null; V.note = 'Review link saved.'; }
+  render();
+}
+async function vidSend(){
+  const V = S.vid, f = V.form;
+  f.reviewer_name = document.getElementById('vfName').value.trim();
+  f.reviewer_role = document.getElementById('vfRole').value.trim();
+  f.reviewer_email = document.getElementById('vfEmail').value.trim();
+  f.message = document.getElementById('vfMsg').value.trim();
+  if(!f.reviewer_name){ V.err = 'Add the reviewer\'s name.'; return render(); }
+  const u = V.updates.find(x => x.id === f.update_id);
+  V.busy = true; V.err = ''; render();
+  const { error } = await sb.from('video_reviews').insert({ update_id: f.update_id, stage: f.stage, reviewer_name: f.reviewer_name,
+    reviewer_role: f.reviewer_role, reviewer_email: f.reviewer_email, message: f.message, review_url: u.review_url });
+  V.busy = false;
+  if(error){ V.err = 'Could not make the link. ' + error.message; return render(); }
+  V.form = null; V.note = 'Link made for ' + f.reviewer_name + '. Copy it or use Email it.';
+  await loadVideoReviews(); render();
 }
 
 function phoDetail(b){
@@ -14301,9 +14404,24 @@ async function phoDelete(b){
   P.open = null; P.note = 'Batch deleted.'; render();
 }
 
+function wireVideoReviews(){
+  const V = S.vid;
+  document.querySelectorAll('[data-vid-url]').forEach(b => b.addEventListener('click', () => vidSaveUrl(b.dataset.vidUrl)));
+  document.querySelectorAll('[data-vid-send]').forEach(b => b.addEventListener('click', () => {
+    V.form = { update_id: b.dataset.vidSend, stage: b.dataset.stage, reviewer_name:'', reviewer_role:'', reviewer_email:'', message:'' };
+    V.note = ''; V.err = ''; render(); }));
+  document.querySelectorAll('[data-vid-copy]').forEach(b => b.addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(b.dataset.vidCopy); b.textContent = 'Copied'; }
+    catch(e){ b.textContent = b.dataset.vidCopy; }
+    setTimeout(() => { b.textContent = 'Copy link'; }, 1600); }));
+  const send = document.getElementById('vfSend'), cancel = document.getElementById('vfCancel');
+  if(send) send.addEventListener('click', vidSend);
+  if(cancel) cancel.addEventListener('click', () => { V.form = null; render(); });
+}
 function wirePhotos(){
   if(S.page !== 'photos') return;
   const P = S.pho;
+  wireVideoReviews();
   const on = (id, fn, ev = 'click') => { const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
   on('phoNew', () => {
     P.err = ''; P.note = '';
