@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscribe | HAGGERTY HAPPENINGS</title>
+<meta name="description" content="Quarterly newsletter and project update videos from HAGGERTY Construction, matched to the project types you follow.">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+  :root {
+    --orange: #f68922;
+    --ink: #141414;
+    --ink-2: #3a3a3a;
+    --muted: #6b6b6b;
+    --line: #dcdcdc;
+    --paper: #ffffff;
+    --wash: #f4f2ef;
+    --error: #b42318;
+    --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font); color: var(--ink); background: var(--wash); -webkit-font-smoothing: antialiased; }
+
+  .hero { background: var(--ink); color: #f5f3ef; padding: 28px 20px 40px; }
+  .hero-inner, .wrap { max-width: 880px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand img { height: 28px; display: block; }
+  .brand .mark { display: inline-flex; align-items: flex-end; gap: 3px; height: 22px; }
+  .brand .mark i { display: block; width: 6px; background: var(--orange); }
+  .brand .word { font-weight: 700; letter-spacing: .14em; font-size: 15px; }
+  .eyebrow { margin: 40px 0 10px; color: var(--orange); font-weight: 700; letter-spacing: .16em; font-size: 12px; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(32px, 6vw, 54px); line-height: 1.02; font-weight: 700; letter-spacing: -.01em; }
+  .lede { margin: 16px 0 0; max-width: 560px; font-size: 18px; line-height: 1.5; color: #cfcbc4; font-weight: 300; }
+  .perks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 32px; background: #2b2b2b; border: 1px solid #2b2b2b; }
+  .perk { background: var(--ink); padding: 16px; }
+  .perk b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .perk span { font-size: 13px; color: #a9a49c; line-height: 1.45; }
+
+  form { background: var(--paper); margin: -16px auto 48px; max-width: 880px; padding: 32px 28px; border-top: 4px solid var(--orange); }
+  fieldset { border: 0; padding: 0; margin: 0 0 28px; }
+  legend { font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; padding: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .full { grid-column: 1 / -1; }
+  label.f { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+  label.f em { color: var(--orange); font-style: normal; }
+  input[type=text], input[type=email], input[type=tel], select, textarea {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: #fff;
+    border: 1px solid var(--line); border-radius: 2px; padding: 11px 12px;
+  }
+  textarea { min-height: 88px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--orange); outline-offset: -1px; border-color: var(--orange); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip input, .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip span { display: inline-block; padding: 9px 14px; border: 1px solid var(--line); font-size: 14px; cursor: pointer; user-select: none; border-radius: 2px; }
+  .chip input:checked + span { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip input:focus-visible + span, .seg input:focus-visible + span { outline: 2px solid var(--orange); }
+
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); }
+  .seg label { position: relative; }
+  .seg span { display: block; text-align: center; padding: 12px 8px; font-size: 14px; cursor: pointer; border-left: 1px solid var(--line); height: 100%; }
+  .seg label:first-child span { border-left: 0; }
+  .seg input:checked + span { background: var(--orange); color: #fff; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .offer { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 1px solid var(--line); margin-bottom: 10px; cursor: pointer; }
+  .offer input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--orange); flex: none; }
+  .offer b { display: block; font-size: 15px; }
+  .offer small { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+  .spots { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+  .offer.full-up { opacity: .7; }
+
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .submit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 8px; }
+  button { font: inherit; font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; background: var(--orange); color: #fff; border: 0; padding: 15px 28px; cursor: pointer; border-radius: 2px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 18px; }
+  .err { color: var(--error); font-size: 14px; min-height: 20px; }
+
+  .done { display: none; text-align: left; }
+  .done h2 { font-size: 30px; margin: 0 0 10px; }
+  .done p { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 560px; }
+  form.sent .step { display: none; }
+  form.sent .done { display: block; }
+
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16px 40px; }
+  footer a { color: inherit; }
+
+  @media (max-width: 640px) {
+    .hero { padding: 22px 16px 36px; }
+    .perks { grid-template-columns: 1fr; }
+    form { padding: 24px 16px; margin: -12px 0 36px; }
+    .grid { grid-template-columns: 1fr; }
+    .seg { grid-template-columns: 1fr 1fr; }
+    .seg label:nth-child(3) span { border-left: 0; }
+    .seg label:nth-child(n+3) span { border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand" aria-label="HAGGERTY">
+      <span class="mark" aria-hidden="true"><i style="height:30%"></i><i style="height:55%"></i><i style="height:100%"></i></span>
+      <span class="word">HAGGERTY</span>
+    </div>
+    <p class="eyebrow">HAGGERTY HAPPENINGS</p>
+    <h1>Follow the build from the field.</h1>
+    <p class="lede">A quarterly newsletter plus short project update videos from our superintendents. Pick the project types you care about and we send the ones that fit.</p>
+    <div class="perks">
+      <div class="perk"><b>Project updates</b><span>Two short videos a month, filmed on site and told by the people running the job.</span></div>
+      <div class="perk"><b>Matched to you</b><span>Auto dealers see dealerships. Hotel owners see hospitality. No filler.</span></div>
+      <div class="perk"><b>Advisory access</b><span>A limited number of 30-minute Construction Advisory Sessions each month.</span></div>
+    </div>
+  </div>
+</header>
+
+<form id="signup" novalidate>
+  <div class="step">
+    <fieldset>
+      <legend>About you</legend>
+      <div class="grid">
+        <div><label class="f" for="first_name">First name <em>*</em></label><input id="first_name" name="first_name" type="text" autocomplete="given-name" required></div>
+        <div><label class="f" for="last_name">Last name <em>*</em></label><input id="last_name" name="last_name" type="text" autocomplete="family-name" required></div>
+        <div><label class="f" for="email">Work email <em>*</em></label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <div><label class="f" for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel"></div>
+        <div><label class="f" for="company">Company</label><input id="company" name="company" type="text" autocomplete="organization"></div>
+        <div><label class="f" for="title">Title</label><input id="title" name="title" type="text" autocomplete="organization-title"></div>
+        <div class="full">
+          <label class="f" for="role">Which best describes you?</label>
+          <select id="role" name="role">
+            <option value="">Choose one</option>
+            <option value="owner">Business or property owner</option>
+            <option value="developer">Developer</option>
+            <option value="broker">Commercial real estate broker</option>
+            <option value="property_manager">Property or facilities manager</option>
+            <option value="architect">Architect</option>
+            <option value="engineer">Engineer</option>
+            <option value="lender">Lender</option>
+            <option value="construction_manager">Construction or project manager</option>
+            <option value="public_agency">Public agency or municipality</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Project types to follow</legend>
+      <div class="chips" id="types">
+        <label class="chip"><input type="checkbox" name="project_types" value="auto"><span>Automotive dealerships</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="hospitality"><span>Hotels and hospitality</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="medical"><span>Healthcare and veterinary</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="multifamily"><span>Multifamily and affordable housing</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="senior"><span>Senior living</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="industrial"><span>Industrial and tilt-up</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="retail"><span>Retail</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="qsr"><span>Restaurants and QSR</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="office"><span>Office</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="mixed"><span>Mixed-use commercial</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="education"><span>Education</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="municipal"><span>Public and municipal</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="recreation"><span>Parks and recreation</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="nonprofit"><span>Non-profit</span></label>
+      </div>
+      <p class="hint">Choose as many as you like.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Where you build</legend>
+      <div class="grid">
+        <div><label class="f" for="city">City <em>*</em></label><input id="city" name="city" type="text" autocomplete="address-level2" required></div>
+        <div><label class="f" for="zip">ZIP <em>*</em></label><input id="zip" name="zip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" required></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Planning a project?</legend>
+      <div class="seg" role="radiogroup" aria-label="Project timeline">
+        <label><input type="radio" name="timeline" value="lt6"><span>Within 6 months</span></label>
+        <label><input type="radio" name="timeline" value="6to12"><span>6 to 12 months</span></label>
+        <label><input type="radio" name="timeline" value="12plus"><span>12+ months</span></label>
+        <label><input type="radio" name="timeline" value="none" checked><span>Not right now</span></label>
+      </div>
+      <div class="grid" id="budgetRow" style="margin-top:14px" hidden>
+        <div class="full">
+          <label class="f" for="budget">Rough budget</label>
+          <select id="budget" name="budget">
+            <option value="">Not sure yet</option>
+            <option>Under $1M</option>
+            <option>$1M to $5M</option>
+            <option>$5M to $10M</option>
+            <option>$10M to $25M</option>
+            <option>$25M+</option>
+          </select>
+        </div>
+        <div class="full">
+          <label class="f" for="message">Anything we should know about it?</label>
+          <textarea id="message" name="message" maxlength="2000"></textarea>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Subscriber extras</legend>
+      <label class="offer" id="advisoryOffer">
+        <input type="checkbox" name="wants_advisory" id="wants_advisory">
+        <span>
+          <b>Book a 30-minute Construction Advisory Session</b>
+          <small>Talk through site, budget, schedule or permitting with Pat Dobson and our Construction Advisory Services team. No cost, no pitch.</small>
+          <span class="spots" id="spots">Limited sessions each month</span>
+        </span>
+      </label>
+      <label class="offer">
+        <input type="checkbox" name="wants_outlook">
+        <span>
+          <b>Send me the construction cost outlook</b>
+          <small>Current cost trends for Northern California and the Central Valley, plus a rough order of magnitude (ROM) for your project type when you share one.</small>
+        </span>
+      </label>
+    </fieldset>
+
+    <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-theme="light"></div>
+
+    <div class="submit-row">
+      <button type="submit" id="go">Subscribe</button>
+      <div class="err" id="err" role="alert"></div>
+    </div>
+    <p class="fine">We send the quarterly issue and up to a few project updates a month. Every email has a one-click unsubscribe link.</p>
+  </div>
+
+  <div class="done" aria-live="polite">
+    <p class="eyebrow" style="margin-top:0">You're in</p>
+    <h2>Welcome to HAGGERTY HAPPENINGS.</h2>
+    <p id="doneMsg">Watch your inbox for the next project update. Add marketing@haggertybuilds.com to your contacts so it lands where you'll see it.</p>
+  </div>
+</form>
+
+<footer>HAGGERTY Construction · Stockton, CA · <a href="https://haggertybuilds.com">haggertybuilds.com</a></footer>
+
+<script>
+(function () {
+  var ENDPOINT = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-newsletter-signup';
+  var SPOTS = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-advisory-spots';
+  var form = document.getElementById('signup');
+  var err = document.getElementById('err');
+  var go = document.getElementById('go');
+  var budgetRow = document.getElementById('budgetRow');
+
+  form.addEventListener('change', function (e) {
+    if (e.target.name === 'timeline') budgetRow.hidden = e.target.value === 'none';
+  });
+
+  fetch(SPOTS).then(function (r) { return r.json(); }).then(function (d) {
+    var n = Number(d && d.spots);
+    if (!isFinite(n)) return;
+    var el = document.getElementById('spots');
+    if (n > 0) { el.textContent = n + (n === 1 ? ' session' : ' sessions') + ' left this month'; }
+    else { el.textContent = 'This month is full. Check the box to join the waitlist.'; document.getElementById('advisoryOffer').classList.add('full-up'); }
+  }).catch(function () {});
+
+  var qs = new URLSearchParams(location.search);
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = '';
+    var fd = new FormData(form);
+    var need = ['first_name', 'last_name', 'email', 'city', 'zip'];
+    for (var i = 0; i < need.length; i++) {
+      if (!String(fd.get(need[i]) || '').trim()) { err.textContent = 'Please fill in the required fields.'; form.elements[need[i]].focus(); return; }
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(fd.get('email')).trim())) { err.textContent = 'That email does not look right.'; form.elements.email.focus(); return; }
+    var token = String(fd.get('cf-turnstile-response') || '');
+    if (!token) { err.textContent = 'One moment, we are confirming you are a person. Try again in a second.'; return; }
+
+    var body = {
+      brand: 'HAGGERTY',
+      first_name: fd.get('first_name'), last_name: fd.get('last_name'), email: fd.get('email'),
+      phone: fd.get('phone'), company: fd.get('company'), title: fd.get('title'), role: fd.get('role'),
+      project_types: fd.getAll('project_types'), city: fd.get('city'), zip: fd.get('zip'),
+      timeline: fd.get('timeline'), budget: fd.get('timeline') === 'none' ? '' : fd.get('budget'),
+      message: fd.get('timeline') === 'none' ? '' : fd.get('message'),
+      wants_advisory: !!fd.get('wants_advisory'), wants_outlook: !!fd.get('wants_outlook'),
+      website: fd.get('website'), 'cf-turnstile-response': token,
+      source: qs.get('src') || 'subscribe-page',
+      utm_source: qs.get('utm_source') || '', utm_medium: qs.get('utm_medium') || '',
+      utm_campaign: qs.get('utm_campaign') || '', utm_content: qs.get('utm_content') || ''
+    };
+
+    go.disabled = true; go.textContent = 'Sending';
+    fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || 'Something went wrong. Please try again.');
+        if (body.wants_advisory) document.getElementById('doneMsg').textContent = 'Watch your inbox for the next project update. Pat Dobson will reach out to set up a time for your Construction Advisory Session.';
+        form.classList.add('sent');
+        window.scrollTo({ top: form.offsetTop - 20, behavior: 'smooth' });
+      })
+      .catch(function (x) {
+        err.textContent = x.message || 'Something went wrong. Please try again.';
+        if (window.turnstile) window.turnstile.reset();
+      })
+      .finally(function () { go.disabled = false; go.textContent = 'Subscribe'; });
+  });
+})();
+</script>
+</body>
+</html>
