@@ -12565,6 +12565,7 @@ function ecEditPage(){
           ${ecField('Subject line', 'subject', c.subject)}
           ${ecField('Preview text', 'preview_text', c.preview_text)}
           <p class="hint" style="margin:6px 0 0">From ${esc(c.from_name || '')}${c.tag_name ? ' to ' + esc(c.tag_name) : ''}${c.send_at ? ', going out ' + esc(ecWhen(c.send_at)) : ''}.</p>` : `
+          ${ecUpdatePicker(c)}
           ${ecField('Campaign name (only you see this)', 'title', c.title)}
           ${ecField('Subject line', 'subject', c.subject, { ph:'What the inbox shows first' })}
           ${ecField('Preview text', 'preview_text', c.preview_text, { ph:'The grey line after the subject' })}
@@ -12687,6 +12688,58 @@ function ecPreview(){
   if(f && E.cur) f.srcdoc = ecHtml(E.cur, true);
 }
 
+/* Project update emails fill themselves from the update record
+   (sql/project_updates.sql): thumbnail, YouTube link, running time, and the
+   "Last update" line pointing at the previous published update. */
+function ecIsUpdate(c){ return (c.blocks || []).some(b => b.type === 'hero' && 'imgHref' in b); }
+async function ecLoadUpdates(){
+  const E = ecState();
+  if(E.updLoading) return;
+  E.updLoading = true;
+  const { data, error } = await sb.from('v_project_updates').select('*').order('created_at', { ascending:false }).limit(60);
+  E.updates = error ? [] : (data || []);
+  E.updErr = error ? error.message : '';
+  E.updLoading = false;
+  render();
+}
+function ecUpdatePicker(c){
+  const E = ecState();
+  if(!ecIsUpdate(c)) return '';
+  if(!E.updates){ ecLoadUpdates(); return `<p class="hint">Loading project updates&hellip;</p>`; }
+  const mine = E.updates.filter(u => (u.brand === 'RHINO') === (c.brand === 'rhino'));
+  const cur = mine.find(u => u.email_campaign_id === c.id);
+  return `<div class="field"><label for="ecUpd">Project update video</label>
+    <select id="ecUpd"><option value="">Pick the update this email carries</option>${mine.map(u =>
+      `<option value="${esc(u.id)}" ${cur && cur.id === u.id ? 'selected' : ''}>${esc(u.internal_name)} #${u.seq}: ${esc(u.title)} (${esc(u.status)})</option>`).join('')}</select>
+    <div class="hint" style="margin-top:3px">${E.updErr ? esc(E.updErr) : cur ? 'Filled from this update. Pick it again to refill after the video or thumbnail changes.'
+      : 'Fills the thumbnail, YouTube link, running time and the "Last update" line.'}</div></div>`;
+}
+async function ecFillFromUpdate(id){
+  const E = ecState(), c = E.cur;
+  const u = (E.updates || []).find(x => x.id === id);
+  if(!c || !u) return;
+  const mmss = u.length_sec ? Math.floor(u.length_sec / 60) + ':' + String(u.length_sec % 60).padStart(2, '0') : '';
+  const yt = u.youtube_url || '';
+  c.blocks.forEach(b => {
+    if(b.type === 'hero' && 'imgHref' in b){
+      if(u.thumbnail_url) b.src = u.thumbnail_url;
+      if(yt){ b.imgHref = yt; b.href = yt; }
+      b.label = mmss ? 'Watch the update (' + mmss + ')' : 'Watch the update';
+      b.alt = 'Play the ' + (u.public_title || 'project') + ' update video';
+    }
+    if(b.type === 'buttons' && yt && /^\[YouTube link\]$|youtu/.test(b.href || '')) b.href = yt;
+    if(b.type === 'text' && /\*\*Last update:\*\*/.test(b.text || '')){
+      b.text = b.text.replace(/\n*\*\*Last update:\*\*[^\n]*/, u.prev_title && u.prev_url
+        ? '\n\n**Last update:** [' + u.prev_title + '](' + u.prev_url + ')' : '');
+    }
+  });
+  if(u.summary && !c.preview_text) c.preview_text = u.summary.slice(0, 140);
+  ecTouch();
+  const { error } = await sb.from('project_updates').update({ email_campaign_id:c.id, updated_at:new Date().toISOString() }).eq('id', u.id);
+  if(error) E.err = 'Filled the email, but could not link the update: ' + error.message;
+  E.updates = null;
+  render();
+}
 function wireCampaigns(){
   if(S.page !== 'campaigns') return;
   const E = ecState();
@@ -12698,6 +12751,8 @@ function wireCampaigns(){
   const c = E.cur;
   ecPreview(); ecStatusLine();
   document.querySelectorAll('[data-ec-back]').forEach(b => b.addEventListener('click', ecClose));
+  const upd = document.getElementById('ecUpd');
+  if(upd) upd.addEventListener('change', () => { if(upd.value) ecFillFromUpdate(upd.value); });
   document.querySelectorAll('[data-ec-copy]').forEach(b => b.addEventListener('click', ecCopy));
   document.querySelectorAll('[data-ec-remove]').forEach(b => b.addEventListener('click', ecRemove));
   document.querySelectorAll('[data-ec-push]').forEach(b => b.addEventListener('click', () => ecPush('push')));
