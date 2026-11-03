@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscribe | RHINO Restores</title>
+<meta name="description" content="Storm prep, restoration insights and project stories from RHINO Restores. Get the Storm Prep and Emergency Loss Checklist when you sign up.">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+  :root {
+    --orange: #f68922;
+    --black: #000000;
+    --ink: #141414;
+    --ink-2: #3a3a3a;
+    --muted: #6b6b6b;
+    --line: #dcdcdc;
+    --paper: #ffffff;
+    --wash: #f3f3f3;
+    --error: #b42318;
+    --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font); color: var(--ink); background: var(--wash); -webkit-font-smoothing: antialiased; }
+
+  .call { background: var(--orange); color: #fff; text-align: center; font-size: 14px; padding: 9px 16px; font-weight: 700; letter-spacing: .02em; }
+  .call a { color: #fff; }
+
+  .hero { background: var(--black); color: #f5f5f5; padding: 28px 20px 40px; }
+  .hero-inner { max-width: 880px; margin: 0 auto; }
+  .brand { font-weight: 800; letter-spacing: .1em; font-size: 20px; }
+  .brand span { color: var(--orange); }
+  .eyebrow { margin: 40px 0 10px; color: var(--orange); font-weight: 700; letter-spacing: .16em; font-size: 12px; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(32px, 6vw, 54px); line-height: 1.02; font-weight: 700; letter-spacing: -.01em; }
+  .lede { margin: 16px 0 0; max-width: 580px; font-size: 18px; line-height: 1.5; color: #cfcfcf; font-weight: 300; }
+  .perks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 32px; background: #262626; border: 1px solid #262626; }
+  .perk { background: var(--black); padding: 16px; }
+  .perk b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .perk span { font-size: 13px; color: #a8a8a8; line-height: 1.45; }
+
+  form { background: var(--paper); margin: -16px auto 48px; max-width: 880px; padding: 32px 28px; border-top: 4px solid var(--orange); }
+  fieldset { border: 0; padding: 0; margin: 0 0 28px; }
+  legend { font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; padding: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .full { grid-column: 1 / -1; }
+  label.f { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+  label.f em { color: var(--orange); font-style: normal; }
+  input[type=text], input[type=email], input[type=tel], select {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: #fff;
+    border: 1px solid var(--line); border-radius: 2px; padding: 11px 12px;
+  }
+  input:focus, select:focus { outline: 2px solid var(--orange); outline-offset: -1px; border-color: var(--orange); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip input, .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip span { display: inline-block; padding: 9px 14px; border: 1px solid var(--line); font-size: 14px; cursor: pointer; user-select: none; border-radius: 2px; }
+  .chip input:checked + span { background: var(--black); border-color: var(--black); color: #fff; }
+  .chip input:focus-visible + span, .seg input:focus-visible + span { outline: 2px solid var(--orange); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); max-width: 420px; }
+  .seg label { position: relative; }
+  .seg span { display: block; text-align: center; padding: 12px 8px; font-size: 14px; cursor: pointer; border-left: 1px solid var(--line); }
+  .seg label:first-child span { border-left: 0; }
+  .seg input:checked + span { background: var(--black); color: #fff; }
+  .urgent { display: none; margin-top: 14px; padding: 16px; background: #fff4ea; border-left: 4px solid var(--orange); }
+  .urgent.on { display: block; }
+  .urgent b { display: block; font-size: 16px; margin-bottom: 4px; }
+  .urgent a { font-size: 22px; font-weight: 800; color: var(--ink); text-decoration: none; }
+  .urgent small { display: block; color: var(--ink-2); font-size: 13px; margin-top: 6px; line-height: 1.45; }
+
+  .gift { display: flex; gap: 16px; align-items: center; padding: 16px; border: 1px solid var(--line); background: #fafafa; }
+  .gift .doc { flex: none; width: 54px; height: 70px; background: var(--black); color: var(--orange); font-weight: 800; font-size: 11px; letter-spacing: .08em; display: flex; align-items: flex-end; padding: 6px; border-bottom: 4px solid var(--orange); }
+  .gift b { display: block; font-size: 15px; }
+  .gift small { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .submit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 8px; }
+  button, .btn { font: inherit; font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; background: var(--orange); color: #fff; border: 0; padding: 15px 28px; cursor: pointer; border-radius: 2px; text-decoration: none; display: inline-block; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 18px; }
+  .err { color: var(--error); font-size: 14px; min-height: 20px; }
+
+  .done { display: none; }
+  .done h2 { font-size: 30px; margin: 0 0 10px; }
+  .done p { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 560px; }
+  form.sent .step { display: none; }
+  form.sent .done { display: block; }
+
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16px 40px; line-height: 1.6; }
+  footer a { color: inherit; }
+
+  @media (max-width: 640px) {
+    .hero { padding: 22px 16px 36px; }
+    .perks { grid-template-columns: 1fr; }
+    form { padding: 24px 16px; margin: -12px 0 36px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="call">Water, fire or mold damage right now? Call 24/7: <a href="tel:+12093236200">209-323-6200</a></div>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand">RHINO <span>RESTORES</span></div>
+    <p class="eyebrow">Storm season sign-up</p>
+    <h1>Know what to do before the water shows up.</h1>
+    <p class="lede">Storm prep, restoration insights and project stories from the RHINO Restores team, plus HAGGERTY HAPPENINGS each quarter. Sign up and get our Storm Prep and Emergency Loss Checklist.</p>
+    <div class="perks">
+      <div class="perk"><b>The checklist</b><span>What to do before a storm, the first hour after a loss, and the first 48 hours.</span></div>
+      <div class="perk"><b>Insights that fit you</b><span>Property managers, owners and adjusters each get what matters to their side of a claim.</span></div>
+      <div class="perk"><b>One team, one call</b><span>Mitigation through rebuild, IICRC certified, a division of HAGGERTY Construction.</span></div>
+    </div>
+  </div>
+</header>
+
+<form id="signup" novalidate>
+  <div class="step">
+    <fieldset>
+      <legend>About you</legend>
+      <div class="grid">
+        <div><label class="f" for="first_name">First name <em>*</em></label><input id="first_name" name="first_name" type="text" autocomplete="given-name" required></div>
+        <div><label class="f" for="last_name">Last name <em>*</em></label><input id="last_name" name="last_name" type="text" autocomplete="family-name" required></div>
+        <div><label class="f" for="email">Email <em>*</em></label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <div><label class="f" for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel"></div>
+        <div><label class="f" for="company">Company</label><input id="company" name="company" type="text" autocomplete="organization"></div>
+        <div><label class="f" for="title">Title</label><input id="title" name="title" type="text" autocomplete="organization-title"></div>
+        <div class="full">
+          <label class="f" for="role">Which best describes you?</label>
+          <select id="role" name="role">
+            <option value="">Choose one</option>
+            <option value="property_manager">Property or facilities manager</option>
+            <option value="property_owner">Commercial property owner</option>
+            <option value="business_owner">Business owner</option>
+            <option value="homeowner">Homeowner</option>
+            <option value="adjuster">Insurance adjuster or agent</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Properties you look after</legend>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="project_types" value="multifamily"><span>Apartments and multifamily</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="office"><span>Office</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="retail"><span>Retail</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="qsr"><span>Restaurants</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="medical"><span>Medical</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="hospitality"><span>Hotels</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="industrial"><span>Industrial and warehouse</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="auto"><span>Auto dealerships</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="senior"><span>Senior living</span></label>
+        <label class="chip"><input type="checkbox" name="project_types" value="education"><span>Schools</span></label>
+      </div>
+      <p class="hint">Optional. Choose any that apply.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Where</legend>
+      <div class="grid">
+        <div><label class="f" for="city">City <em>*</em></label><input id="city" name="city" type="text" autocomplete="address-level2" required></div>
+        <div><label class="f" for="zip">ZIP <em>*</em></label><input id="zip" name="zip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" required></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Is there damage at a property right now?</legend>
+      <div class="seg" role="radiogroup" aria-label="Damage right now">
+        <label><input type="radio" name="active_loss" value="no" checked><span>No</span></label>
+        <label><input type="radio" name="active_loss" value="yes"><span>Yes</span></label>
+      </div>
+      <div class="urgent" id="urgent" role="status">
+        <b>Don't wait on email. Call us now.</b>
+        <a href="tel:+12093236200">209-323-6200</a>
+        <small>A person answers 24/7. We can stop the water, tarp or board up, and start drying today. Finish signing up after the call if you like.</small>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your sign-up gift</legend>
+      <div class="gift">
+        <div class="doc" aria-hidden="true">STORM<br>PREP</div>
+        <div><b>Storm Prep and Emergency Loss Checklist</b><small>Opens right after you subscribe. Print it and keep it with your shutoff keys.</small></div>
+      </div>
+    </fieldset>
+
+    <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFyXCK3rLuHR3S5x" data-theme="light"></div>
+
+    <div class="submit-row">
+      <button type="submit" id="go">Subscribe</button>
+      <div class="err" id="err" role="alert"></div>
+    </div>
+    <p class="fine">You'll get RHINO Restores insights a few times a month and HAGGERTY HAPPENINGS each quarter. Every email has a one-click unsubscribe link.</p>
+  </div>
+
+  <div class="done" aria-live="polite">
+    <p class="eyebrow" style="margin-top:0">You're in</p>
+    <h2>Your checklist is ready.</h2>
+    <p>Print it, share it with your team, and save our number where you keep your shutoff keys.</p>
+    <p style="margin-top:20px"><a class="btn" href="rhino-storm-checklist.html" target="_blank" rel="noopener">Open the checklist</a></p>
+    <p style="margin-top:20px">Emergencies, 24/7: <a href="tel:+12093236200" style="color:var(--ink);font-weight:700">209-323-6200</a></p>
+  </div>
+</form>
+
+<footer>RHINO Restores, a division of HAGGERTY Construction · Stockton, CA · CSLB #1156046<br><a href="https://rhinorestores.com">rhinorestores.com</a></footer>
+
+<script>
+(function () {
+  var ENDPOINT = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-newsletter-signup';
+  var form = document.getElementById('signup');
+  var err = document.getElementById('err');
+  var go = document.getElementById('go');
+  var urgent = document.getElementById('urgent');
+  var qs = new URLSearchParams(location.search);
+
+  form.addEventListener('change', function (e) {
+    if (e.target.name === 'active_loss') urgent.classList.toggle('on', e.target.value === 'yes');
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = '';
+    var fd = new FormData(form);
+    var need = ['first_name', 'last_name', 'email', 'city', 'zip'];
+    for (var i = 0; i < need.length; i++) {
+      if (!String(fd.get(need[i]) || '').trim()) { err.textContent = 'Please fill in the required fields.'; form.elements[need[i]].focus(); return; }
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(fd.get('email')).trim())) { err.textContent = 'That email does not look right.'; form.elements.email.focus(); return; }
+    var token = String(fd.get('cf-turnstile-response') || '');
+    if (!token) { err.textContent = 'One moment, we are confirming you are a person. Try again in a second.'; return; }
+
+    var body = {
+      brand: 'RHINO',
+      first_name: fd.get('first_name'), last_name: fd.get('last_name'), email: fd.get('email'),
+      phone: fd.get('phone'), company: fd.get('company'), title: fd.get('title'), role: fd.get('role'),
+      project_types: fd.getAll('project_types'), city: fd.get('city'), zip: fd.get('zip'),
+      active_loss: fd.get('active_loss') === 'yes',
+      website: fd.get('website'), 'cf-turnstile-response': token,
+      source: qs.get('src') || 'rhino-subscribe-page',
+      utm_source: qs.get('utm_source') || '', utm_medium: qs.get('utm_medium') || '',
+      utm_campaign: qs.get('utm_campaign') || '', utm_content: qs.get('utm_content') || ''
+    };
+
+    go.disabled = true; go.textContent = 'Sending';
+    fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || 'Something went wrong. Please try again.');
+        form.classList.add('sent');
+        window.scrollTo({ top: form.offsetTop - 20, behavior: 'smooth' });
+      })
+      .catch(function (x) {
+        err.textContent = x.message || 'Something went wrong. Please try again.';
+        if (window.turnstile) window.turnstile.reset();
+      })
+      .finally(function () { go.disabled = false; go.textContent = 'Subscribe'; });
+  });
+})();
+</script>
+</body>
+</html>
