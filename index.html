@@ -1453,7 +1453,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
   ['sales','RHINO Sales'], ['api','API Usage']
 ];
@@ -3420,6 +3420,7 @@ async function ensureOnce(page){
   if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='mileage' && !S.loaded.mileage) await loadMileage();
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
+  if(page==='newsletter' && !S.loaded.newsletter) await loadNewsletter();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='api' && !S.loaded.api) await loadApi();
   if(page==='kpis'){
@@ -3464,13 +3465,13 @@ const NAV_GROUPS = [
   ['Today',   ['home','rjobs','today','approvals']],
   ['People',  ['myday','calendar','iyanna','sales']],
   ['Content', ['social','photos','voices','campaigns','reels']],
-  ['Growth',  ['kpis','leads','bulk','permits']],
+  ['Growth',  ['kpis','newsletter','leads','bulk','permits']],
   ['Money',   ['budget','mileage']],
   ['System',  ['api']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'george' ? ['sales']
@@ -3480,6 +3481,7 @@ const NAV_PHONE = me => me === 'george' ? ['sales']
                       : me === 'liam'   ? ['home','myday','approvals','kpis']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
+  newsletter:'<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
   today:'<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>',
   approvals:'<path d="M5 12l4 4 10-10"/>',
@@ -3874,6 +3876,7 @@ function pageHtml(){
   if(S.page==='budget')    return pageBudget();
   if(S.page==='mileage')   return pageMileage();
   if(S.page==='photos')    return pagePhotos();
+  if(S.page==='newsletter') return pageNewsletter();
   if(S.page==='voices')    return pageVoices();
   if(S.page==='reels')     return pageReels();
   if(S.page==='social')    return pageSocial();
@@ -11673,11 +11676,12 @@ const EC_BUCKET = 'email-images';
 // IICRC certification logo, shown at the bottom of every RHINO email.
 const IICRC_LOGO = 'data:image/png;base64,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';
 const EC_BRANDS = {
-  haggerty: { name:'HAGGERTY', accent:'#F68922', site:'https://haggertybuilds.com',
+  // email: the From address every new campaign starts with, one per brand.
+  haggerty: { name:'HAGGERTY', email:'marketing@haggertybuilds.com', accent:'#F68922', site:'https://haggertybuilds.com',
               footer:'HAGGERTY · Commercial construction in Northern California',
               bold:{ accent:'#F68922', name1:'HAGGERTY', name2:'', tagline:'Commercial construction',
                      area:'Commercial construction in Northern California.', phone:'', callLabel:'' } },
-  rhino:    { name:'RHINO Restores', accent:'#A6402C', site:'https://rhinorestores.com',
+  rhino:    { name:'RHINO Restores', email:'marketing@rhinorestores.com', accent:'#A6402C', site:'https://rhinorestores.com',
               footer:'RHINO Restores · Fire, water and mold restoration',
               bold:{ accent:'#F68922', name1:'RHINO', name2:'RESTORES', tagline:'We Own The Job',
                      area:'Serving Stockton, Sacramento, Elk Grove, Lodi, Manteca, Modesto, and Northern California.\nA division of Haggerty Construction | CSLB #1156046 | IICRC Certified',
@@ -11783,7 +11787,9 @@ const EC_TEMPLATES = {
     { key:'team', name:'Team news and hiring', use:'A new hire, a promotion, or open roles.',
       subject:'Meet [Name], our new [Role]', preview:'Plus the roles we are hiring for right now.' },
     { key:'roundup', name:'News roundup', use:'Three things worth sharing, once a month or a quarter.',
-      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' }
+      subject:"What we've been building: [Month]", preview:'[Project 1], [Project 2] and more from HAGGERTY.' },
+    { key:'update', name:'Project update video', use:'A new update video on a job in progress. One project per email.',
+      subject:'[Project type] in [City]: [what changed]', preview:'[Phase] is done. Watch the [length] update from the site.' }
   ],
   rhino: [
     { key:'season', name:'Seasonal push', use:'Storm, freeze, wildfire or mold season reminders.',
@@ -11795,9 +11801,15 @@ const EC_TEMPLATES = {
     { key:'news', name:'Company news', use:'New certification, equipment, location or team member.',
       subject:'[News headline]', preview:'What it means for your properties.' },
     { key:'ready', name:'Save our number', use:'A short 24/7 reminder to keep RHINO on the vendor list.',
-      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' }
+      subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' },
+    { key:'update', name:'Project update video', use:'A new video on a restoration or rebuild in progress. One job per email.',
+      subject:'[Loss type] at a [property type]: [what changed]', preview:'Day [Number] on site. Watch the [length] update.' }
   ]
 };
+// Soft CTA in HAGGERTY project updates: opens the subscribe page with the
+// advisory session box ticked and the reader's details filled from Mailchimp.
+const EC_ADVISORY = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/subscribe.html?advisory=1&src=eblast&first_name=*|FNAME|*&last_name=*|LNAME|*&email=*|EMAIL|*';
+const EC_STORM = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/rhino-storm-checklist.html';
 function ecTemplateBlocks(brand, key){
   const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
   const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
@@ -11852,6 +11864,18 @@ function ecTemplateBlocks(brand, key){
       B('spotlight', { title:'[Story 3 headline]', text:'[Two sentences.]', link:'Read more' }),
       B('buttons', { label:'See our work', href:EC_BRANDS.haggerty.site, label2:'Talk to our team', href2:EC_BRANDS.haggerty.site })
     ],
+    'haggerty:update': [
+      B('hero', { eyebrow:'Project update', title:'[Project type] in [City]: [what changed]',
+        text:'[One line on where the job stands today.]', label:'Watch the update ([length])', href:'[YouTube link]',
+        imgHref:'[YouTube link]', alt:'Play the [Project type] project update video' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the crew finished since the last update and why that step matters to an owner.]\n\n**Last update:** [Title of the last update]([Link to the last update])' }),
+      B('card', { eyebrow:'Where it stands', title:'[Phase name], [percent or milestone]', text:'**Done:** [What finished.]\n\n**Next:** [What happens before the next update.]' }),
+      B('checklist', { title:'By the numbers', items:'[Size] square feet\n[Number] [panels, loads, days]\n[A schedule or safety stat]' }),
+      B('card', { eyebrow:'From the field', title:'"[A short line from the superintendent or PM.]"', text:'[Name], [Role]' }),
+      B('card', { eyebrow:'Planning a project?', title:'Talk it through with Pat Dobson',
+        text:'Each month we hold a few 30-minute Construction Advisory Sessions. Bring a site, a budget or a schedule question and leave with a cost outlook. No cost, no pitch.' }),
+      B('buttons', { label:'Watch the update', href:'[YouTube link]', label2:'Book an advisory session', href2:EC_ADVISORY })
+    ],
     'rhino:season': [
       B('hero', { eyebrow:'[Storm] season', title:'Is your property ready for [storm season]?',
         text:'Three things to check before the first [big rain], and who to call if it gets in.', ...call }),
@@ -11887,6 +11911,16 @@ function ecTemplateBlocks(brand, key){
       B('spotlight', { title:'[Who or what]', text:'[Two sentences: a new certification, truck, location or team member.]', link:'Learn more' }),
       B('card', { eyebrow:'What it means for you', title:'[A short, plain headline]', text:'[Two sentences on the benefit to a property manager.]' }),
       B('buttons', { ...call, label2:'See our work', href2:EC_BRANDS.rhino.site })
+    ],
+    'rhino:update': [
+      B('hero', { eyebrow:'Job update', title:'[Loss type] at a [property type]: [what changed]',
+        text:'[One line on where the job stands today.]', label:'Watch the update ([length])', href:'[YouTube link]',
+        imgHref:'[YouTube link]', alt:'Play the RHINO job update video' }),
+      B('text', { text:'Hi *|FNAME|*,\n\n[Two or three sentences: what the crew did since the last update, in plain terms a property manager would care about.]\n\n**Last update:** [Title of the last update]([Link to the last update])' }),
+      B('card', { eyebrow:'Where it stands', title:'[Drying, demo or rebuild], day [Number]', text:'**Done:** [What finished.]\n\n**Next:** [What happens next and when tenants are back.]' }),
+      B('card', { eyebrow:'Worth knowing', title:'[One lesson for a property manager]', text:'[Two sentences: what caught it early, what would have made it worse.]' }),
+      B('checklist', { title:'Before the next big storm', items:'Save our 24/7 number to your phone.\nWalk your roof drains and gutters.\nKeep our [storm prep checklist](' + EC_STORM + ') with your vendor list.' }),
+      B('buttons', { ...call, label2:'Get the storm checklist', href2:EC_STORM })
     ],
     'rhino:ready': [
       B('hero', { eyebrow:'24/7 emergency response', title:'Save this number before you need it',
@@ -12013,7 +12047,10 @@ function ecRow(b, c, accent){
     return `<tr><td class="ec-px" style="padding:14px 40px;background:#000000;text-align:center"><a href="${tel(b.phone)}" style="${F}text-decoration:none">${b.label ? `<span style="display:block;font-size:12px;font-weight:bold;letter-spacing:2px;color:${accent};line-height:1.4;text-transform:uppercase">${esc(b.label)}</span>` : ''}<span style="display:block;font-size:26px;font-weight:800;color:#FFFFFF;line-height:1.2;white-space:nowrap">${esc(b.phone)}</span></a></td></tr>`;
   }
   if(b.type === 'hero'){
-    const img = b.src ? `<tr><td style="padding:0;background:#000000"><img src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>` : '';
+    let pic = b.src ? `<img src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0">` : '';
+    const picUrl = ecUrl(b.imgHref);
+    if(pic && picUrl) pic = `<a href="${esc(picUrl)}">${pic}</a>`;
+    const img = pic ? `<tr><td style="padding:0;background:#000000">${pic}</td></tr>` : '';
     return `${img}<tr><td class="ec-px" style="padding:32px 40px 30px;background:#000000">${eyebrow(b.eyebrow, accent, 10)}
       <h1 class="ec-h1" style="margin:0 0 12px;${F}font-size:32px;line-height:1.15;color:#FFFFFF;font-weight:800">${esc(b.title || '')}</h1>
       ${b.text ? `<p style="margin:0 0 20px;${F}font-size:17px;line-height:1.5;color:#D9D9D9">${ecInline(b.text, '#FFFFFF')}</p>` : ''}
@@ -12240,7 +12277,7 @@ async function ecNew(brand, layout, tpl){
   const a = (S.mc && S.mc.audiences || []).find(x => !String(x.list_id).startsWith('seed-')) || {};
   const row = {
     brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
-    subject:'', preview_text:'', from_name: a.from_name || EC_BRANDS[brand].name, reply_to: a.from_email || '',
+    subject:'', preview_text:'', from_name: EC_BRANDS[brand].name, reply_to: EC_BRANDS[brand].email,
     list_id: a.list_id || null, accent: layout === 'bold' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
     blocks: layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
   };
@@ -12477,6 +12514,7 @@ function ecBlockForm(b, i){
   if(b.type === 'callbar') return ecBField(i, 'Small label', 'label', b.label) + ecBField(i, 'Phone number', 'phone', b.phone, { ph:'(209) 555-0100' })
     + `<p class="hint">A black bar across the top. Tapping it calls the number.</p>`;
   if(b.type === 'hero') return ecImageField(i, 'src', b.src, 'Photo') + ecBField(i, 'Photo description for screen readers', 'alt', b.alt)
+    + ecBField(i, 'Photo link (for a video thumbnail, the YouTube link)', 'imgHref', b.imgHref, { ph:'https://youtu.be/...' })
     + ecBField(i, 'Small line above the headline', 'eyebrow', b.eyebrow) + ecBField(i, 'Headline', 'title', b.title)
     + ecBField(i, 'Line under the headline', 'text', b.text, { area:true, rows:2 })
     + `<div class="ec-two">${ecBField(i, 'Button text', 'label', b.label)}${ecBField(i, 'Button link', 'href', b.href, { ph:'https:// or tel:' })}</div>`;
@@ -12530,6 +12568,7 @@ function ecEditPage(){
           ${ecField('Subject line', 'subject', c.subject)}
           ${ecField('Preview text', 'preview_text', c.preview_text)}
           <p class="hint" style="margin:6px 0 0">From ${esc(c.from_name || '')}${c.tag_name ? ' to ' + esc(c.tag_name) : ''}${c.send_at ? ', going out ' + esc(ecWhen(c.send_at)) : ''}.</p>` : `
+          ${ecUpdatePicker(c)}
           ${ecField('Campaign name (only you see this)', 'title', c.title)}
           ${ecField('Subject line', 'subject', c.subject, { ph:'What the inbox shows first' })}
           ${ecField('Preview text', 'preview_text', c.preview_text, { ph:'The grey line after the subject' })}
@@ -12652,6 +12691,58 @@ function ecPreview(){
   if(f && E.cur) f.srcdoc = ecHtml(E.cur, true);
 }
 
+/* Project update emails fill themselves from the update record
+   (sql/project_updates.sql): thumbnail, YouTube link, running time, and the
+   "Last update" line pointing at the previous published update. */
+function ecIsUpdate(c){ return (c.blocks || []).some(b => b.type === 'hero' && 'imgHref' in b); }
+async function ecLoadUpdates(){
+  const E = ecState();
+  if(E.updLoading) return;
+  E.updLoading = true;
+  const { data, error } = await sb.from('v_project_updates').select('*').order('created_at', { ascending:false }).limit(60);
+  E.updates = error ? [] : (data || []);
+  E.updErr = error ? error.message : '';
+  E.updLoading = false;
+  render();
+}
+function ecUpdatePicker(c){
+  const E = ecState();
+  if(!ecIsUpdate(c)) return '';
+  if(!E.updates){ ecLoadUpdates(); return `<p class="hint">Loading project updates&hellip;</p>`; }
+  const mine = E.updates.filter(u => (u.brand === 'RHINO') === (c.brand === 'rhino'));
+  const cur = mine.find(u => u.email_campaign_id === c.id);
+  return `<div class="field"><label for="ecUpd">Project update video</label>
+    <select id="ecUpd"><option value="">Pick the update this email carries</option>${mine.map(u =>
+      `<option value="${esc(u.id)}" ${cur && cur.id === u.id ? 'selected' : ''}>${esc(u.internal_name)} #${u.seq}: ${esc(u.title)} (${esc(u.status)})</option>`).join('')}</select>
+    <div class="hint" style="margin-top:3px">${E.updErr ? esc(E.updErr) : cur ? 'Filled from this update. Pick it again to refill after the video or thumbnail changes.'
+      : 'Fills the thumbnail, YouTube link, running time and the "Last update" line.'}</div></div>`;
+}
+async function ecFillFromUpdate(id){
+  const E = ecState(), c = E.cur;
+  const u = (E.updates || []).find(x => x.id === id);
+  if(!c || !u) return;
+  const mmss = u.length_sec ? Math.floor(u.length_sec / 60) + ':' + String(u.length_sec % 60).padStart(2, '0') : '';
+  const yt = u.youtube_url || '';
+  c.blocks.forEach(b => {
+    if(b.type === 'hero' && 'imgHref' in b){
+      if(u.thumbnail_url) b.src = u.thumbnail_url;
+      if(yt){ b.imgHref = yt; b.href = yt; }
+      b.label = mmss ? 'Watch the update (' + mmss + ')' : 'Watch the update';
+      b.alt = 'Play the ' + (u.public_title || 'project') + ' update video';
+    }
+    if(b.type === 'buttons' && yt && /^\[YouTube link\]$|youtu/.test(b.href || '')) b.href = yt;
+    if(b.type === 'text' && /\*\*Last update:\*\*/.test(b.text || '')){
+      b.text = b.text.replace(/\n*\*\*Last update:\*\*[^\n]*/, u.prev_title && u.prev_url
+        ? '\n\n**Last update:** [' + u.prev_title + '](' + u.prev_url + ')' : '');
+    }
+  });
+  if(u.summary && !c.preview_text) c.preview_text = u.summary.slice(0, 140);
+  ecTouch();
+  const { error } = await sb.from('project_updates').update({ email_campaign_id:c.id, updated_at:new Date().toISOString() }).eq('id', u.id);
+  if(error) E.err = 'Filled the email, but could not link the update: ' + error.message;
+  E.updates = null;
+  render();
+}
 function wireCampaigns(){
   if(S.page !== 'campaigns') return;
   const E = ecState();
@@ -12663,6 +12754,8 @@ function wireCampaigns(){
   const c = E.cur;
   ecPreview(); ecStatusLine();
   document.querySelectorAll('[data-ec-back]').forEach(b => b.addEventListener('click', ecClose));
+  const upd = document.getElementById('ecUpd');
+  if(upd) upd.addEventListener('change', () => { if(upd.value) ecFillFromUpdate(upd.value); });
   document.querySelectorAll('[data-ec-copy]').forEach(b => b.addEventListener('click', ecCopy));
   document.querySelectorAll('[data-ec-remove]').forEach(b => b.addEventListener('click', ecRemove));
   document.querySelectorAll('[data-ec-push]').forEach(b => b.addEventListener('click', () => ecPush('push')));
@@ -13970,6 +14063,11 @@ const PHO_MAX_MB = 50;
 const PHO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 S.pho = { batches:[], items:[], open:null, form:null, busy:false, prog:0, err:'', note:'', loadErr:'' };
+/* Video approvals (sql/video_review.sql): project update cuts go to the PM
+   and super, then the client, on review.html. Shown under the photo batches. */
+S.vid = { updates:[], reviews:[], notes:[], form:null, busy:false, err:'', note:'', loadErr:'', last:null };
+const vidLink = r => new URL('review.html?t=' + encodeURIComponent(r.token), location.href).href;
+const VID_STAGE = { team:'PM and super', client:'Client' };
 
 /* Windows will not take these in a folder name. */
 const phoFolder = s => String(s || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
@@ -14010,7 +14108,19 @@ async function loadPhotos(){
     P.batches = b.data || [];
     P.items = i.data || [];
   }
+  await loadVideoReviews();
   S.loaded.photos = true;
+}
+async function loadVideoReviews(){
+  const V = S.vid;
+  const [u, r, n] = await Promise.all([
+    sb.from('v_project_updates').select('*').neq('status', 'shelved').order('created_at', { ascending:false }).limit(40),
+    sb.from('video_reviews').select('*').order('created_at').limit(500),
+    sb.from('video_review_notes').select('id,review_id,at_sec,body').order('at_sec').limit(5000)
+  ]);
+  const e = u.error || r.error || n.error;
+  V.loadErr = e ? 'Video approvals could not load. ' + (e.message || e) : '';
+  if(!e){ V.updates = u.data || []; V.reviews = r.data || []; V.notes = n.data || []; }
 }
 
 function pagePhotos(){
@@ -14057,7 +14167,93 @@ function phoList(){
       </button>`;
     }).join('')}</div>`
     : `<div class="empty" style="padding:30px 0"><h2>No batches yet</h2>
-       <p>Use Send photos for approval to upload a job's photos and get a link for the PM or super.</p></div>`}`;
+       <p>Use Send photos for approval to upload a job's photos and get a link for the PM or super.</p></div>`}
+    ${vidSection()}`;
+}
+
+function vidMmss(s){ s = Math.round(Number(s) || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function vidSection(){
+  const V = S.vid;
+  if(V.loadErr) return `<h2 class="sec" style="margin:34px 0 8px">Video approvals</h2><p class="hint err">${esc(V.loadErr)}</p>`;
+  const st = { editing:['Editing',''], in_review:['In review','warn'], approved:['Approved','good'], published:['Published','good'] };
+  return `<div class="bud-head" style="margin-top:34px"><h2 class="sec" style="margin:0">Video approvals</h2></div>
+    <p class="hint" style="margin:0 0 14px">Project update videos go to the PM and super first, then the client. Paste the
+      review link for the cut (an Unlisted YouTube link works best), then send it. Each person leaves notes at the
+      moment they see something and approves or sends it back. When every client link approves, the update is ready to publish.</p>
+    ${V.note ? `<div class="done-banner"><p style="margin:0">${esc(V.note)}</p></div>` : ''}
+    ${V.err ? `<p class="hint err">${esc(V.err)}</p>` : ''}
+    ${V.updates.length ? V.updates.map(u => {
+      const rs = V.reviews.filter(r => r.update_id === u.id);
+      const s = st[u.status] || [u.status, ''];
+      const teamOk = rs.some(r => r.stage === 'team' && r.status === 'approved');
+      return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+          <b>${esc(u.internal_name)} #${u.seq}: ${esc(u.title)}</b>
+          <span class="hint">${esc(u.public_title)}${u.city ? ', ' + esc(u.city) : ''}${u.length_sec ? ' &middot; ' + vidMmss(u.length_sec) : ''}</span>
+          <span class="spacer"></span><span class="chip ${s[1]}">${esc(s[0])}</span></div>
+        <div class="field" style="margin-top:10px"><label for="vidUrl-${esc(u.id)}">Review link for this cut</label>
+          <div style="display:flex;gap:8px"><input type="text" id="vidUrl-${esc(u.id)}" value="${esc(u.review_url || '')}" placeholder="https://youtu.be/... (Unlisted) or a link to the .mp4" />
+          <button class="btn small ghost" data-vid-url="${esc(u.id)}" ${V.busy ? 'disabled' : ''}>Save</button></div></div>
+        ${rs.length ? `<div class="hlist" style="margin-top:8px">${rs.map(r => {
+          const ns = V.notes.filter(n => n.review_id === r.id);
+          const rst = r.status === 'approved' ? ['Approved','good'] : r.status === 'changes' ? ['Changes asked','bad']
+            : new Date(r.expires_at) < new Date() ? ['Link expired',''] : r.opened_at ? ['Opened','warn'] : ['Sent',''];
+          const first = (r.reviewer_name || '').split(' ')[0];
+          const mail = 'mailto:' + encodeURIComponent(r.reviewer_email || '') + '?subject=' + encodeURIComponent((r.stage === 'client' ? 'Your project update video: ' : 'Video for your OK: ') + u.title)
+            + '&body=' + encodeURIComponent(`Hi ${first || 'there'},\n\n` + (r.stage === 'client'
+              ? `Here's the next update video on your project before it goes out. Could you watch it and approve it, or leave a note on anything you'd like changed?`
+              : `Here's the next ${u.internal_name} update video before the client sees it. Could you check it for anything that shouldn't be public and approve it or leave notes?`)
+              + `\n\n${vidLink(r)}\n\nIt works on your phone. Thanks!`);
+          return `<div class="hotlead">
+            <div class="hotlead-top"><span class="n">${esc(r.reviewer_name)}${r.reviewer_role ? ` <em>${esc(r.reviewer_role)}</em>` : ''}</span>
+              <span class="w">${esc(VID_STAGE[r.stage] || r.stage)} &middot; <span class="chip ${rst[1]}">${esc(rst[0])}</span></span></div>
+            ${ns.length ? `<div class="hotlead-what">${ns.map(n => `<div><b class="mono">${n.at_sec == null ? 'General' : vidMmss(n.at_sec)}</b> ${esc(n.body)}</div>`).join('')}</div>` : ''}
+            ${r.note ? `<div class="hotlead-what"><i>${esc(r.note)}</i></div>` : ''}
+            <div class="hotlead-act"><span class="spacer"></span>
+              <button class="linkbtn" data-vid-copy="${esc(vidLink(r))}">Copy link</button>
+              ${r.status === 'open' ? `<a class="linkbtn" href="${esc(mail)}">Email it</a>` : ''}</div>
+          </div>`; }).join('')}</div>` : ''}
+        ${V.form && V.form.update_id === u.id ? `<div class="card" style="margin-top:10px;padding:12px 14px">
+            <b>Send to ${esc(VID_STAGE[V.form.stage])}</b>
+            <div class="ec-two" style="margin-top:8px">
+              <div class="field"><label for="vfName">Name</label><input type="text" id="vfName" value="${esc(V.form.reviewer_name)}" /></div>
+              <div class="field"><label for="vfRole">Role</label><input type="text" id="vfRole" value="${esc(V.form.reviewer_role)}" placeholder="${V.form.stage === 'client' ? 'Owner' : 'Superintendent'}" /></div></div>
+            <div class="field"><label for="vfEmail">Email</label><input type="email" id="vfEmail" value="${esc(V.form.reviewer_email)}" /></div>
+            <div class="field"><label for="vfMsg">Note on the page (optional)</label><textarea id="vfMsg" rows="2">${esc(V.form.message)}</textarea></div>
+            <div class="actions"><button class="btn small accent" id="vfSend" ${V.busy ? 'disabled' : ''}>${V.busy ? 'Making the link&hellip;' : 'Make the link'}</button>
+              <button class="linkbtn" id="vfCancel">Cancel</button></div></div>`
+        : `<div class="actions" style="margin-top:10px">
+            <button class="btn small" data-vid-send="${esc(u.id)}" data-stage="team" ${u.review_url ? '' : 'disabled title="Save a review link first"'}>Send to PM and super</button>
+            <button class="btn small ${teamOk ? 'accent' : 'ghost'}" data-vid-send="${esc(u.id)}" data-stage="client" ${u.review_url ? '' : 'disabled'}>Send to client</button>
+          </div>`}
+      </div>`; }).join('')
+    : `<p class="hint">No project update videos yet. The video agent adds one here when it renders a cut.</p>`}`;
+}
+async function vidSaveUrl(id){
+  const V = S.vid, v = (document.getElementById('vidUrl-' + id).value || '').trim();
+  if(v && !/^https?:\/\//i.test(v)){ V.err = 'The review link has to start with https://'; return render(); }
+  V.busy = true; V.err = ''; render();
+  const { error } = await sb.from('project_updates').update({ review_url: v || null, updated_at: new Date().toISOString() }).eq('id', id);
+  V.busy = false;
+  if(error) V.err = 'Could not save the link. ' + error.message;
+  else { const u = V.updates.find(x => x.id === id); if(u) u.review_url = v || null; V.note = 'Review link saved.'; }
+  render();
+}
+async function vidSend(){
+  const V = S.vid, f = V.form;
+  f.reviewer_name = document.getElementById('vfName').value.trim();
+  f.reviewer_role = document.getElementById('vfRole').value.trim();
+  f.reviewer_email = document.getElementById('vfEmail').value.trim();
+  f.message = document.getElementById('vfMsg').value.trim();
+  if(!f.reviewer_name){ V.err = 'Add the reviewer\'s name.'; return render(); }
+  const u = V.updates.find(x => x.id === f.update_id);
+  V.busy = true; V.err = ''; render();
+  const { error } = await sb.from('video_reviews').insert({ update_id: f.update_id, stage: f.stage, reviewer_name: f.reviewer_name,
+    reviewer_role: f.reviewer_role, reviewer_email: f.reviewer_email, message: f.message, review_url: u.review_url });
+  V.busy = false;
+  if(error){ V.err = 'Could not make the link. ' + error.message; return render(); }
+  V.form = null; V.note = 'Link made for ' + f.reviewer_name + '. Copy it or use Email it.';
+  await loadVideoReviews(); render();
 }
 
 function phoDetail(b){
@@ -14211,9 +14407,24 @@ async function phoDelete(b){
   P.open = null; P.note = 'Batch deleted.'; render();
 }
 
+function wireVideoReviews(){
+  const V = S.vid;
+  document.querySelectorAll('[data-vid-url]').forEach(b => b.addEventListener('click', () => vidSaveUrl(b.dataset.vidUrl)));
+  document.querySelectorAll('[data-vid-send]').forEach(b => b.addEventListener('click', () => {
+    V.form = { update_id: b.dataset.vidSend, stage: b.dataset.stage, reviewer_name:'', reviewer_role:'', reviewer_email:'', message:'' };
+    V.note = ''; V.err = ''; render(); }));
+  document.querySelectorAll('[data-vid-copy]').forEach(b => b.addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(b.dataset.vidCopy); b.textContent = 'Copied'; }
+    catch(e){ b.textContent = b.dataset.vidCopy; }
+    setTimeout(() => { b.textContent = 'Copy link'; }, 1600); }));
+  const send = document.getElementById('vfSend'), cancel = document.getElementById('vfCancel');
+  if(send) send.addEventListener('click', vidSend);
+  if(cancel) cancel.addEventListener('click', () => { V.form = null; render(); });
+}
 function wirePhotos(){
   if(S.page !== 'photos') return;
   const P = S.pho;
+  wireVideoReviews();
   const on = (id, fn, ev = 'click') => { const el = document.getElementById(id); if(el) el.addEventListener(ev, fn); };
   on('phoNew', () => {
     P.err = ''; P.note = '';
@@ -14290,6 +14501,95 @@ S.api = { alerts:[], month:[], daily:[], fails:[], last:{}, loadErr:'', range:30
 const API_PROVIDER = { anthropic:'Claude', apollo:'Apollo', evaboot:'Evaboot', n8n:'n8n credits' };
 const API_KEY_LABEL = { outreach:'Outreach key', inbox:'Inbox key', content:'Content key',
                         apollo:'Apollo', evaboot:'Evaboot' };
+
+/* Newsletter tab: subscribers, where they came from, what they build, the
+   project update e-blasts and the leads they brought in, against the
+   year-one goals. One read, newsletter_stats() (sql/newsletter_stats.sql). */
+S.nl = { d:null, err:'' };
+const NL_GOALS = { subscribers:250, meetings:5, opportunities:5 };
+const NL_TYPES = { auto:'Auto dealerships', hospitality:'Hotels and hospitality', medical:'Healthcare and veterinary',
+  multifamily:'Multifamily and affordable housing', senior:'Senior living', industrial:'Industrial and tilt-up', retail:'Retail',
+  qsr:'Restaurants and QSR', office:'Office', mixed:'Mixed-use commercial', education:'Education', municipal:'Public agency',
+  nonprofit:'Non-profit', recreation:'Recreation', property:'Property management' };
+async function loadNewsletter(){
+  const { data, error } = await sb.rpc('newsletter_stats');
+  S.nl.d = error ? null : data;
+  S.nl.err = error ? 'The newsletter numbers could not load. ' + error.message : '';
+  S.loaded.newsletter = true;
+}
+function nlBars(obj, label){
+  const rows = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
+  if(!rows.length) return `<p class="hint">Nothing yet.</p>`;
+  const max = Math.max(...rows.map(r => r[1]), 1);
+  return rows.map(([k, n]) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:10px;align-items:center;margin:0 0 7px">
+      <div><div style="font-size:14px">${esc(label ? label(k) : k)}</div>
+        <div style="height:6px;background:var(--rule-soft);margin-top:3px"><div style="height:6px;width:${Math.round(100 * n / max)}%;background:var(--accent)"></div></div></div>
+      <b style="text-align:right">${num(n)}</b></div>`).join('');
+}
+function nlGoal(k, v, goal, sub){
+  const pct = Math.min(100, Math.round(100 * (v || 0) / goal));
+  return `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${num(v || 0)} <span class="hint" style="font-size:15px">/ ${num(goal)}</span></div>
+    <div style="height:6px;background:var(--rule-soft);margin-top:8px"><div style="height:6px;width:${pct}%;background:var(--accent)"></div></div>
+    ${sub ? `<div class="hint" style="margin-top:6px">${sub}</div>` : ''}</div>`;
+}
+function pageNewsletter(){
+  if(!S.loaded.newsletter) return loading();
+  const d = S.nl.d;
+  if(!d) return `<main class="page"><div class="empty"><h2>Newsletter</h2><p>${esc(S.nl.err)}</p></div></main>`;
+  const sub = d.subscribers || {}, L = d.leads || {};
+  const hagg = Math.max(sub.haggerty_forms || 0, sub.haggerty_pipedrive || 0);
+  const rhino = Math.max(sub.rhino_forms || 0, sub.rhino_pipedrive || 0);
+  const pct = v => v == null ? '&ndash;' : Math.round(Number(v) * 1000) / 10 + '%';
+  const weeks = d.weekly || [];
+  const wmax = Math.max(1, ...weeks.map(w => (w.haggerty || 0) + (w.rhino || 0)));
+  const tags = d.mailchimp_tags || {};
+  const tagGroup = pre => Object.fromEntries(Object.entries(tags).filter(([k]) => k.startsWith(pre)).map(([k, v]) => [k.slice(pre.length), v]));
+  return `<main class="page" style="max-width:1060px">
+    <div class="bud-head"><h2 class="sec" style="margin:0">Newsletter</h2><span class="spacer"></span>
+      <a class="linkbtn" href="subscribe.html" target="_blank" rel="noopener">HAGGERTY form</a>
+      <a class="linkbtn" href="rhino-subscribe.html" target="_blank" rel="noopener" style="margin-left:12px">RHINO form</a></div>
+    <p class="hint" style="margin:0 0 16px">Year one: 250 subscribers, 5 meetings, 5 opportunities in the pipeline with 1 or 2 closed, and 2 bid invites.
+      Bid invites and closed deals are tracked in Pipedrive.</p>
+    <div class="stat-grid" style="margin-bottom:22px">
+      ${nlGoal('HAGGERTY subscribers', hagg, NL_GOALS.subscribers, `${num(sub.haggerty_forms || 0)} from the form, ${num(sub.haggerty_pipedrive || 0)} with the Newsletter label`)}
+      ${nlGoal('Meetings (advisory sessions booked)', L.advisory_booked, NL_GOALS.meetings, `${num(L.advisory_requested || 0)} requested`)}
+      ${nlGoal('Opportunities from signups', L.deals, NL_GOALS.opportunities, `${num(L.hot || 0)} hot leads (project inside 6 months)`)}
+      <div class="stat"><div class="k">RHINO subscribers</div><div class="v">${num(rhino)}</div></div>
+      <div class="stat accent"><div class="k">Leads from e-blasts</div><div class="v">${num(L.from_eblasts || 0)}</div>
+        <div class="hint" style="margin-top:6px">${num(L.from_eblasts_advisory || 0)} asked for an advisory session</div></div>
+    </div>
+    <div class="cols">
+      <section><h3 class="sec">Signups by week</h3>
+        ${weeks.length ? `<div style="display:flex;gap:6px;align-items:flex-end;height:120px;border-bottom:1px solid var(--rule)">${weeks.map(w => {
+          const t = (w.haggerty || 0) + (w.rhino || 0);
+          return `<div title="Week of ${esc(w.week)}: ${t}" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+            <div style="height:${Math.round(100 * (w.rhino || 0) / wmax)}%;background:#A6402C"></div>
+            <div style="height:${Math.round(100 * (w.haggerty || 0) / wmax)}%;background:var(--accent)"></div></div>`; }).join('')}</div>
+          <p class="hint">Orange HAGGERTY, red RHINO. Last 12 weeks.</p>` : `<p class="hint">No signups yet. Staff addresses are left out.</p>`}
+        <h3 class="sec" style="margin-top:22px">Where they came from</h3>${nlBars(d.sources)}
+      </section>
+      <section><h3 class="sec">What they build</h3>${nlBars(d.interests, k => NL_TYPES[k] || k)}
+        <h3 class="sec" style="margin-top:22px">Role</h3>${nlBars(d.roles)}
+        <h3 class="sec" style="margin-top:22px">Region</h3>${nlBars(d.regions)}</section>
+    </div>
+    <h3 class="sec" style="margin-top:28px">Project update e-blasts</h3>
+    ${(d.updates || []).length ? `<div class="scroll-x"><table class="api-table">
+      <thead><tr><th style="text-align:left">Update</th><th>Status</th><th>Sent</th><th>Recipients</th><th>Opened</th><th>Clicked</th><th>Unsubscribed</th><th>Video</th></tr></thead>
+      <tbody>${d.updates.map(u => `<tr>
+        <td style="text-align:left"><b>${esc(u.project)} #${u.seq}</b> ${esc(u.title)}<div class="hint">${esc(u.public_title)}</div></td>
+        <td>${esc(u.status)}</td><td>${u.sent_at ? esc(shortDate(u.sent_at)) : '&ndash;'}</td>
+        <td>${u.recipients == null ? '&ndash;' : num(u.recipients)}</td><td>${pct(u.open_rate)}</td><td>${pct(u.click_rate)}</td>
+        <td>${u.unsubscribes == null ? '&ndash;' : num(u.unsubscribes)}</td>
+        <td>${u.youtube_id ? `<a href="https://youtu.be/${esc(u.youtube_id)}" target="_blank" rel="noopener">YouTube</a>` : '&ndash;'}</td></tr>`).join('')}</tbody></table></div>
+      <p class="hint">Opens and clicks come from the daily Mailchimp refresh. Watch time per video arrives once YouTube is connected.</p>`
+      : `<p class="hint">No update videos yet.</p>`}
+    <div class="cols" style="margin-top:28px">
+      <section><h3 class="sec">Mailchimp: industries</h3>${nlBars(tagGroup('Industry: '))}</section>
+      <section><h3 class="sec">Mailchimp: regions</h3>${nlBars(tagGroup('Region: '))}</section>
+    </div>
+    <p class="hint">Mailchimp tags fill in once the Pipedrive to Mailchimp tag sync is switched on.</p>
+  </main>`;
+}
 
 async function loadApi(){
   const A = S.api;
@@ -15592,7 +15892,8 @@ const HOME_NAMES = { liam:'Liam', pat:'Pat' };
 /* Hot leads are the last 30 days of replies, sheet clicks and accepted
    event invites (sql/hot_leads.sql). Marking one done hides that signal;
    a new reply or click from the same person brings them back. */
-const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted' };
+const HOT_KINDS = { reply:'Replied', click:'Opened', accepted:'Accepted',
+  hot_lead:'Signed up', advisory_request:'Asked', signup:'Subscribed' };
 /* Social drafts dated within this many days are close enough to need a look. */
 const HOME_SOCIAL_DAYS = 14;
 
@@ -15672,13 +15973,21 @@ async function loadHotLeads(){
 function hotWhat(r){
   if(r.kind === 'reply') return `Replied to <i>${esc(r.detail || 'an outreach email')}</i>`;
   if(r.kind === 'click') return `Opened <i>${esc(r.detail || 'a sheet')}</i> from an email`;
-  return `Accepted the invite to <i>${esc(r.detail || 'an event')}</i>`;
+  if(r.kind === 'accepted') return `Accepted the invite to <i>${esc(r.detail || 'an event')}</i>`;
+  /* Newsletter signups (bd_notifications): pull the useful lines out of the alert body. */
+  const line = k => ((String(r.detail || '').match(new RegExp('^' + k + ':\\s*(.+)$', 'mi')) || [])[1] || '').trim();
+  const when = line('Project timeline'), where = line('Location');
+  const extra = [when && when !== 'No project planned' ? 'project ' + when.toLowerCase() : '', where].filter(Boolean).join(' · ');
+  const what = r.kind === 'advisory_request' ? 'Asked for a 30-minute <b>Construction Advisory Session</b>'
+    : r.kind === 'hot_lead' ? 'Signed up for the newsletter with a <b>project in the next 6 months</b>'
+    : 'Subscribed to the newsletter';
+  return what + (extra ? ` <span class="hint">(${esc(extra)})</span>` : '');
 }
 
 function homeHotLeads(){
   if(S.home.hot === null) return `<p class="hint err">${esc(S.home.hotErr || 'Hot leads could not load.')}</p>`;
   const rows = S.home.hot;
-  if(!rows.length) return `<p class="hint">Nobody new in the last 30 days. Replies, sheet clicks and accepted invites land here.</p>`;
+  if(!rows.length) return `<p class="hint">Nobody new in the last 30 days. Replies, sheet clicks, accepted invites and newsletter leads land here.</p>`;
   const shown = S.home.hotAll ? rows : rows.slice(0, 6);
   const can = HOME_USERS.includes(S.me);
   return `<div class="hlist">${shown.map(r => `
@@ -15695,6 +16004,9 @@ function homeHotLeads(){
         ${r.email ? `<a href="mailto:${esc(r.email)}" class="mono">${esc(r.email)}</a>` : ''}
         <span class="spacer"></span>
         ${r.full_name ? `<button class="linkbtn" data-home-crm="${esc(r.full_name)}">Look up</button>` : ''}
+        ${can && r.kind === 'advisory_request' ? `<button class="btn small accent" data-hot-book="${esc(r.signal_key)}" ${S.home.hotBusy ? 'disabled' : ''}
+          title="The session is on the calendar. Counts toward the Newsletter tab's meetings goal.">${
+          S.home.hotBusy === 'book:' + r.signal_key ? 'Saving&hellip;' : 'Session booked'}</button>` : ''}
         ${can ? `<button class="btn small ghost" data-hot-done="${esc(r.signal_key)}" ${S.home.hotBusy ? 'disabled' : ''}>${
           S.home.hotBusy === r.signal_key ? 'Saving&hellip;' : 'Done'}</button>` : ''}
       </div>
@@ -15704,6 +16016,16 @@ function homeHotLeads(){
     <p class="hint">Mark one done once it's followed up. A new reply or click brings them back.</p>`;
 }
 
+/* An advisory session request turned into a meeting on the calendar
+   (advisory_mark_booked in sql/newsletter_stats.sql). Clears the lead too. */
+async function hotBook(key){
+  if(S.home.hotBusy) return;
+  S.home.hotBusy = 'book:' + key; S.home.hotErr = ''; render();
+  const { error } = await sb.rpc('advisory_mark_booked', { p_signal:key });
+  if(error) S.home.hotErr = 'Could not mark the session booked. ' + error.message;
+  else { S.home.hot = (S.home.hot || []).filter(r => r.signal_key !== key); S.loaded.newsletter = false; }
+  S.home.hotBusy = ''; render();
+}
 async function hotDone(key){
   if(S.home.hotBusy) return;
   S.home.hotBusy = key; S.home.hotErr = ''; render();
@@ -16188,6 +16510,8 @@ async function homeGo(target){
 function wireHome(){
   document.querySelectorAll('[data-hot-done]').forEach(el =>
     el.addEventListener('click', () => hotDone(el.dataset.hotDone)));
+  document.querySelectorAll('[data-hot-book]').forEach(el =>
+    el.addEventListener('click', () => hotBook(el.dataset.hotBook)));
   document.querySelectorAll('[data-ms]').forEach(el =>
     el.addEventListener('click', () => msMark(el.dataset.ms, el.dataset.val)));
   const ha = document.getElementById('hotAll');
