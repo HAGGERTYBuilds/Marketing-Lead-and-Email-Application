@@ -61,3 +61,26 @@ begin
 end $$;
 revoke execute on function public.newsletter_stats() from public, anon;
 grant execute on function public.newsletter_stats() to authenticated;
+
+-- Session booked, 2026-11-03. Liam or Pat clicks "Session booked" on an
+-- advisory request in Home's Hot leads; the Newsletter tab counts these as
+-- meetings.
+alter table public.newsletter_signups add column if not exists advisory_booked_at timestamptz;
+alter table public.newsletter_signups add column if not exists advisory_booked_by text;
+
+create or replace function public.advisory_mark_booked(p_signal text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare sid uuid; who text := lower(coalesce(auth.jwt() ->> 'email', ''));
+begin
+  if not public.is_budget_user() then raise exception 'Only Liam and Pat can book sessions.'; end if;
+  if p_signal not like 'bd:%' then raise exception 'That lead is not a newsletter signup.'; end if;
+  select signup_id into sid from bd_notifications where id::text = substr(p_signal, 4);
+  if sid is null then raise exception 'That signup could not be found.'; end if;
+  update newsletter_signups set advisory_status = 'booked', advisory_booked_at = now(), advisory_booked_by = who
+  where id = sid;
+  insert into hot_lead_done (signal_key, done_by) values (p_signal, who) on conflict (signal_key) do nothing;
+  update bd_notifications set read_at = coalesce(read_at, now()) where id::text = substr(p_signal, 4);
+  return jsonb_build_object('booked', true);
+end $$;
+revoke execute on function public.advisory_mark_booked(text) from public, anon;
+grant execute on function public.advisory_mark_booked(text) to authenticated;

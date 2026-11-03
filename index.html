@@ -16004,6 +16004,9 @@ function homeHotLeads(){
         ${r.email ? `<a href="mailto:${esc(r.email)}" class="mono">${esc(r.email)}</a>` : ''}
         <span class="spacer"></span>
         ${r.full_name ? `<button class="linkbtn" data-home-crm="${esc(r.full_name)}">Look up</button>` : ''}
+        ${can && r.kind === 'advisory_request' ? `<button class="btn small accent" data-hot-book="${esc(r.signal_key)}" ${S.home.hotBusy ? 'disabled' : ''}
+          title="The session is on the calendar. Counts toward the Newsletter tab's meetings goal.">${
+          S.home.hotBusy === 'book:' + r.signal_key ? 'Saving&hellip;' : 'Session booked'}</button>` : ''}
         ${can ? `<button class="btn small ghost" data-hot-done="${esc(r.signal_key)}" ${S.home.hotBusy ? 'disabled' : ''}>${
           S.home.hotBusy === r.signal_key ? 'Saving&hellip;' : 'Done'}</button>` : ''}
       </div>
@@ -16013,6 +16016,16 @@ function homeHotLeads(){
     <p class="hint">Mark one done once it's followed up. A new reply or click brings them back.</p>`;
 }
 
+/* An advisory session request turned into a meeting on the calendar
+   (advisory_mark_booked in sql/newsletter_stats.sql). Clears the lead too. */
+async function hotBook(key){
+  if(S.home.hotBusy) return;
+  S.home.hotBusy = 'book:' + key; S.home.hotErr = ''; render();
+  const { error } = await sb.rpc('advisory_mark_booked', { p_signal:key });
+  if(error) S.home.hotErr = 'Could not mark the session booked. ' + error.message;
+  else { S.home.hot = (S.home.hot || []).filter(r => r.signal_key !== key); S.loaded.newsletter = false; }
+  S.home.hotBusy = ''; render();
+}
 async function hotDone(key){
   if(S.home.hotBusy) return;
   S.home.hotBusy = key; S.home.hotErr = ''; render();
@@ -16497,6 +16510,8 @@ async function homeGo(target){
 function wireHome(){
   document.querySelectorAll('[data-hot-done]').forEach(el =>
     el.addEventListener('click', () => hotDone(el.dataset.hotDone)));
+  document.querySelectorAll('[data-hot-book]').forEach(el =>
+    el.addEventListener('click', () => hotBook(el.dataset.hotBook)));
   document.querySelectorAll('[data-ms]').forEach(el =>
     el.addEventListener('click', () => msMark(el.dataset.ms, el.dataset.val)));
   const ha = document.getElementById('hotAll');
