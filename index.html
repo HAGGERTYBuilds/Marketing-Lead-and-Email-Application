@@ -1453,7 +1453,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
   ['sales','RHINO Sales'], ['api','API Usage']
 ];
@@ -3420,6 +3420,7 @@ async function ensureOnce(page){
   if(page==='budget' && !S.loaded.budget) await loadBudget();
   if(page==='mileage' && !S.loaded.mileage) await loadMileage();
   if(page==='photos' && !S.loaded.photos) await loadPhotos();
+  if(page==='newsletter' && !S.loaded.newsletter) await loadNewsletter();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='api' && !S.loaded.api) await loadApi();
   if(page==='kpis'){
@@ -3464,13 +3465,13 @@ const NAV_GROUPS = [
   ['Today',   ['home','rjobs','today','approvals']],
   ['People',  ['myday','calendar','iyanna','sales']],
   ['Content', ['social','photos','voices','campaigns','reels']],
-  ['Growth',  ['kpis','leads','bulk','permits']],
+  ['Growth',  ['kpis','newsletter','leads','bulk','permits']],
   ['Money',   ['budget','mileage']],
   ['System',  ['api']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'george' ? ['sales']
@@ -3480,6 +3481,7 @@ const NAV_PHONE = me => me === 'george' ? ['sales']
                       : me === 'liam'   ? ['home','myday','approvals','kpis']
                                         : ['home','today','approvals','kpis'];
 const NAV_ICON = {
+  newsletter:'<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
   today:'<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>',
   approvals:'<path d="M5 12l4 4 10-10"/>',
@@ -3874,6 +3876,7 @@ function pageHtml(){
   if(S.page==='budget')    return pageBudget();
   if(S.page==='mileage')   return pageMileage();
   if(S.page==='photos')    return pagePhotos();
+  if(S.page==='newsletter') return pageNewsletter();
   if(S.page==='voices')    return pageVoices();
   if(S.page==='reels')     return pageReels();
   if(S.page==='social')    return pageSocial();
@@ -14498,6 +14501,95 @@ S.api = { alerts:[], month:[], daily:[], fails:[], last:{}, loadErr:'', range:30
 const API_PROVIDER = { anthropic:'Claude', apollo:'Apollo', evaboot:'Evaboot', n8n:'n8n credits' };
 const API_KEY_LABEL = { outreach:'Outreach key', inbox:'Inbox key', content:'Content key',
                         apollo:'Apollo', evaboot:'Evaboot' };
+
+/* Newsletter tab: subscribers, where they came from, what they build, the
+   project update e-blasts and the leads they brought in, against the
+   year-one goals. One read, newsletter_stats() (sql/newsletter_stats.sql). */
+S.nl = { d:null, err:'' };
+const NL_GOALS = { subscribers:250, meetings:5, opportunities:5 };
+const NL_TYPES = { auto:'Auto dealerships', hospitality:'Hotels and hospitality', medical:'Healthcare and veterinary',
+  multifamily:'Multifamily and affordable housing', senior:'Senior living', industrial:'Industrial and tilt-up', retail:'Retail',
+  qsr:'Restaurants and QSR', office:'Office', mixed:'Mixed-use commercial', education:'Education', municipal:'Public agency',
+  nonprofit:'Non-profit', recreation:'Recreation', property:'Property management' };
+async function loadNewsletter(){
+  const { data, error } = await sb.rpc('newsletter_stats');
+  S.nl.d = error ? null : data;
+  S.nl.err = error ? 'The newsletter numbers could not load. ' + error.message : '';
+  S.loaded.newsletter = true;
+}
+function nlBars(obj, label){
+  const rows = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
+  if(!rows.length) return `<p class="hint">Nothing yet.</p>`;
+  const max = Math.max(...rows.map(r => r[1]), 1);
+  return rows.map(([k, n]) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:10px;align-items:center;margin:0 0 7px">
+      <div><div style="font-size:14px">${esc(label ? label(k) : k)}</div>
+        <div style="height:6px;background:var(--rule-soft);margin-top:3px"><div style="height:6px;width:${Math.round(100 * n / max)}%;background:var(--accent)"></div></div></div>
+      <b style="text-align:right">${num(n)}</b></div>`).join('');
+}
+function nlGoal(k, v, goal, sub){
+  const pct = Math.min(100, Math.round(100 * (v || 0) / goal));
+  return `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${num(v || 0)} <span class="hint" style="font-size:15px">/ ${num(goal)}</span></div>
+    <div style="height:6px;background:var(--rule-soft);margin-top:8px"><div style="height:6px;width:${pct}%;background:var(--accent)"></div></div>
+    ${sub ? `<div class="hint" style="margin-top:6px">${sub}</div>` : ''}</div>`;
+}
+function pageNewsletter(){
+  if(!S.loaded.newsletter) return loading();
+  const d = S.nl.d;
+  if(!d) return `<main class="page"><div class="empty"><h2>Newsletter</h2><p>${esc(S.nl.err)}</p></div></main>`;
+  const sub = d.subscribers || {}, L = d.leads || {};
+  const hagg = Math.max(sub.haggerty_forms || 0, sub.haggerty_pipedrive || 0);
+  const rhino = Math.max(sub.rhino_forms || 0, sub.rhino_pipedrive || 0);
+  const pct = v => v == null ? '&ndash;' : Math.round(Number(v) * 1000) / 10 + '%';
+  const weeks = d.weekly || [];
+  const wmax = Math.max(1, ...weeks.map(w => (w.haggerty || 0) + (w.rhino || 0)));
+  const tags = d.mailchimp_tags || {};
+  const tagGroup = pre => Object.fromEntries(Object.entries(tags).filter(([k]) => k.startsWith(pre)).map(([k, v]) => [k.slice(pre.length), v]));
+  return `<main class="page" style="max-width:1060px">
+    <div class="bud-head"><h2 class="sec" style="margin:0">Newsletter</h2><span class="spacer"></span>
+      <a class="linkbtn" href="subscribe.html" target="_blank" rel="noopener">HAGGERTY form</a>
+      <a class="linkbtn" href="rhino-subscribe.html" target="_blank" rel="noopener" style="margin-left:12px">RHINO form</a></div>
+    <p class="hint" style="margin:0 0 16px">Year one: 250 subscribers, 5 meetings, 5 opportunities in the pipeline with 1 or 2 closed, and 2 bid invites.
+      Bid invites and closed deals are tracked in Pipedrive.</p>
+    <div class="stat-grid" style="margin-bottom:22px">
+      ${nlGoal('HAGGERTY subscribers', hagg, NL_GOALS.subscribers, `${num(sub.haggerty_forms || 0)} from the form, ${num(sub.haggerty_pipedrive || 0)} with the Newsletter label`)}
+      ${nlGoal('Meetings (advisory sessions booked)', L.advisory_booked, NL_GOALS.meetings, `${num(L.advisory_requested || 0)} requested`)}
+      ${nlGoal('Opportunities from signups', L.deals, NL_GOALS.opportunities, `${num(L.hot || 0)} hot leads (project inside 6 months)`)}
+      <div class="stat"><div class="k">RHINO subscribers</div><div class="v">${num(rhino)}</div></div>
+      <div class="stat accent"><div class="k">Leads from e-blasts</div><div class="v">${num(L.from_eblasts || 0)}</div>
+        <div class="hint" style="margin-top:6px">${num(L.from_eblasts_advisory || 0)} asked for an advisory session</div></div>
+    </div>
+    <div class="cols">
+      <section><h3 class="sec">Signups by week</h3>
+        ${weeks.length ? `<div style="display:flex;gap:6px;align-items:flex-end;height:120px;border-bottom:1px solid var(--rule)">${weeks.map(w => {
+          const t = (w.haggerty || 0) + (w.rhino || 0);
+          return `<div title="Week of ${esc(w.week)}: ${t}" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+            <div style="height:${Math.round(100 * (w.rhino || 0) / wmax)}%;background:#A6402C"></div>
+            <div style="height:${Math.round(100 * (w.haggerty || 0) / wmax)}%;background:var(--accent)"></div></div>`; }).join('')}</div>
+          <p class="hint">Orange HAGGERTY, red RHINO. Last 12 weeks.</p>` : `<p class="hint">No signups yet. Staff addresses are left out.</p>`}
+        <h3 class="sec" style="margin-top:22px">Where they came from</h3>${nlBars(d.sources)}
+      </section>
+      <section><h3 class="sec">What they build</h3>${nlBars(d.interests, k => NL_TYPES[k] || k)}
+        <h3 class="sec" style="margin-top:22px">Role</h3>${nlBars(d.roles)}
+        <h3 class="sec" style="margin-top:22px">Region</h3>${nlBars(d.regions)}</section>
+    </div>
+    <h3 class="sec" style="margin-top:28px">Project update e-blasts</h3>
+    ${(d.updates || []).length ? `<div class="scroll-x"><table class="api-table">
+      <thead><tr><th style="text-align:left">Update</th><th>Status</th><th>Sent</th><th>Recipients</th><th>Opened</th><th>Clicked</th><th>Unsubscribed</th><th>Video</th></tr></thead>
+      <tbody>${d.updates.map(u => `<tr>
+        <td style="text-align:left"><b>${esc(u.project)} #${u.seq}</b> ${esc(u.title)}<div class="hint">${esc(u.public_title)}</div></td>
+        <td>${esc(u.status)}</td><td>${u.sent_at ? esc(shortDate(u.sent_at)) : '&ndash;'}</td>
+        <td>${u.recipients == null ? '&ndash;' : num(u.recipients)}</td><td>${pct(u.open_rate)}</td><td>${pct(u.click_rate)}</td>
+        <td>${u.unsubscribes == null ? '&ndash;' : num(u.unsubscribes)}</td>
+        <td>${u.youtube_id ? `<a href="https://youtu.be/${esc(u.youtube_id)}" target="_blank" rel="noopener">YouTube</a>` : '&ndash;'}</td></tr>`).join('')}</tbody></table></div>
+      <p class="hint">Opens and clicks come from the daily Mailchimp refresh. Watch time per video arrives once YouTube is connected.</p>`
+      : `<p class="hint">No update videos yet.</p>`}
+    <div class="cols" style="margin-top:28px">
+      <section><h3 class="sec">Mailchimp: industries</h3>${nlBars(tagGroup('Industry: '))}</section>
+      <section><h3 class="sec">Mailchimp: regions</h3>${nlBars(tagGroup('Region: '))}</section>
+    </div>
+    <p class="hint">Mailchimp tags fill in once the Pipedrive to Mailchimp tag sync is switched on.</p>
+  </main>`;
+}
 
 async function loadApi(){
   const A = S.api;
