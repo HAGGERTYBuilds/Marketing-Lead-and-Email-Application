@@ -1011,6 +1011,39 @@
     .page{max-width:none;padding:0}
   }
 
+  /* ---------- social reports ---------- */
+  .sr-head .filters{flex-wrap:wrap}
+  .sr-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+  .sr-note{margin:0 0 14px;padding:10px 13px;border:1px solid var(--rule);border-left:3px solid var(--orange);
+        background:var(--card);font-size:13.5px}
+  .sr-note.bad{border-left-color:var(--red)}
+  .sr-page .cols{gap:16px}
+  .kpis.sr-kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+  .sr-posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  .sr-post{display:flex;gap:11px;align-items:flex-start;padding:9px;border:1px solid var(--rule-soft);border-radius:8px;
+        text-decoration:none;color:var(--ink);min-width:0}
+  .sr-post:hover{border-color:var(--orange)}
+  .sr-post-b{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .sr-post-meta{font-family:var(--mono);font-size:11px;color:var(--slate)}
+  .sr-post-meta i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  .sr-post-t{font-size:13px;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .sr-post-n{font-size:12px;color:var(--slate)}
+  .sr-post-n b{color:var(--ink);font-weight:600}
+  .sr-table{border:0}
+  .sr-table td{vertical-align:middle}
+  .sr-table td:first-child{min-width:240px}
+  .sr-cell{display:flex;gap:9px;align-items:center;text-decoration:none;color:var(--ink);font-size:13px;line-height:1.35}
+  .sr-sort,.sr-link{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-transform:inherit;letter-spacing:inherit}
+  .sr-sort.on{color:var(--ink)}
+  .sr-link{color:var(--ink);font-size:13.5px}
+  .sr-link:hover{text-decoration:underline}
+  @media (max-width:640px){ .sr-posts{grid-template-columns:1fr} .sr-head h2{width:100%} }
+  @media print{
+    .rail,.bottombar,.sr-noprint,.previewbar{display:none !important}
+    .shell{display:block}
+    .sr-page .panel{break-inside:avoid}
+  }
+
   /* ---------- email campaigns ---------- */
   .ec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
   .ec-list{border:1px solid var(--rule);background:var(--card)}
@@ -1453,7 +1486,7 @@ const KIND = { meeting:'Meeting', networking:'Event', site_visit:'Site visit',
 const PAGES = [
   ['home','Home'], ['today','Outreach'], ['calendar',"Pat's Calendar"],
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
-  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
+  ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['sreport','Social Reports'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
   ['sales','RHINO Sales'], ['api','API Usage']
 ];
@@ -1477,7 +1510,7 @@ const visiblePages = () => S.me === 'george'
   ? PAGES.filter(([k]) => k === 'sales')
   /* Iyanna works her own list, Social and Reel Ideas; nothing else. */
   : S.me === 'iyanna'
-  ? PAGES.filter(([k]) => k === 'iyanna' || k === 'social' || k === 'reels')
+  ? PAGES.filter(([k]) => k === 'iyanna' || k === 'social' || k === 'sreport' || k === 'reels')
   : S.me === 'reviewer'
   ? PAGES.filter(([k]) => k === 'social' || k === 'campaigns' || ((k === 'rjobs' || k === 'sales') && SOC_BRAND === 'rhino'))
   : PAGES.filter(([k]) => k !== 'rjobs')
@@ -1543,6 +1576,9 @@ const S = {
   socStyle:'', socStyleOpen:false, socStyleForm:'',
   socForm:{ post_date:'', topic:'', caption:'', hashtags:'', hashtags_li:'', focus:'' },
   socBusy:'', socErr:'', socNote:'', socProg:'',
+  /* social reports */
+  sr:{ range:'30', net:'all', sort:'interactions', idx:{}, posts:[], rows:0, at:null, period:null,
+       err:'', note:'', busy:false, googleLast:'' },
   /* permits */
   permits:null, permitsAt:null, permitFit:'all', permitView:'open', permitVert:'', permitQ:'',
   permitBusy:'', permitErr:'', permitSend:'', permitTo:'pat', permitNote:'', permitMsg:'',
@@ -3435,6 +3471,7 @@ async function ensureOnce(page){
   if(page === 'myday' && !S.loaded.requests) await loadRequests();
   if(page==='reels' && !S.loaded.reels) await loadReels();
   if(page==='social' && !S.loaded.social) await loadSocial();
+  if(page==='sreport' && !S.loaded.sreport) await loadSReport();
   if(page==='permits' && !S.loaded.permits) await loadPermits();
   if(page==='rjobs' && !S.loaded.rjobs) await loadRhinoJobs();
   if(page==='sales' && !S.loaded.sales) await loadSales();
@@ -3464,13 +3501,13 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACECAYAAABMBVWh
 const NAV_GROUPS = [
   ['Today',   ['home','rjobs','today','approvals']],
   ['People',  ['myday','calendar','iyanna','sales']],
-  ['Content', ['social','photos','voices','campaigns','reels']],
+  ['Content', ['social','sreport','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','newsletter','leads','bulk','permits']],
   ['Money',   ['budget','mileage']],
   ['System',  ['api']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
-  calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', campaigns:'Email', reels:'Reels',
+  calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', sreport:'Reports', campaigns:'Email', reels:'Reels',
   leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
@@ -3489,6 +3526,7 @@ const NAV_ICON = {
   iyanna:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
   calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   social:'<path d="M4 18V9M10 18V5M16 18v-7M21 18H3"/>',
+  sreport:'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/>',
   reels:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>',
   campaigns:'<path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/><path d="M15 18l3 3 4-5"/>',
   kpis:'<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
@@ -3880,6 +3918,7 @@ function pageHtml(){
   if(S.page==='voices')    return pageVoices();
   if(S.page==='reels')     return pageReels();
   if(S.page==='social')    return pageSocial();
+  if(S.page==='sreport')   return pageSReport();
   if(S.page==='campaigns') return pageCampaigns();
   if(OWNERS[S.page])       return pageDay(OWNERS[S.page]);
   if(S.page==='leads')     return pageLeads();
@@ -4032,6 +4071,7 @@ function wirePage(){
   wireRhinoJobs();
   wireSales();
   wireSocial();
+  wireSReport();
   wireCampaigns();
   wireBulk();
   wireApi();
@@ -14591,6 +14631,494 @@ function pageNewsletter(){
   </main>`;
 }
 
+/* ================= social reports ================= */
+/* A Metricool-style report for each brand: an overview across networks,
+   then one page per network (growth, reach, engagement, posts). Numbers
+   come from the n8n workflow "Haggerty Social Report Refresh"
+   (stX1j70Srag3rnee), daily at 6:45 AM and from the Refresh button,
+   which reads the Metricool API into social_report_daily (one number per
+   network, metric and day) and social_report_posts (sql/social_report.sql).
+   This page only reads. */
+const SR_URL = 'https://haggertybuilds.app.n8n.cloud/webhook/haggerty-social-report';
+const SR_NETS = {
+  instagram:{ label:'Instagram', color:'#D6458B' },
+  facebook: { label:'Facebook',  color:'#3B6FD8' },
+  linkedin: { label:'LinkedIn',  color:'#0E8A9A' },
+  google:   { label:'Google Business', color:'#3F7D5C' }
+};
+/* The metric each network counts as its views. */
+const SR_VIEWS = { instagram:'views', facebook:'views', linkedin:'impressions' };
+const SR_RANGES = [['7','7 days'], ['30','30 days'], ['90','90 days'], ['month','This month'], ['last','Last month'], ['year','This year']];
+const SR_GOOGLE_VIEWS = ['search_desktop','search_mobile','maps_desktop','maps_mobile'];
+const SR_GOOGLE_ACTS = ['website_clicks','calls','directions'];
+let SR_BRAND = 'haggerty';
+try{ const b = localStorage.getItem('srBrand'); if(SOC_BRANDS[b]) SR_BRAND = b; }catch(e){}
+try{ const r = localStorage.getItem('srRange'); if(SR_RANGES.some(x => x[0] === r)) S.sr.range = r; }catch(e){}
+
+const srAdd = (ymd, n) => { const d = new Date(ymd + 'T12:00:00'); d.setDate(d.getDate() + n); return ymdOf(d); };
+const srSpan = (a, b) => Math.round((Date.parse(b + 'T12:00:00') - Date.parse(a + 'T12:00:00')) / 864e5) + 1;
+const srDayLabel = ymd => new Date(ymd + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+
+/* The period on screen and the one before it, for the change figures. */
+function srPeriod(){
+  const r = S.sr.range, t = today(), y = daysAgo(1);
+  if(r === 'month'){
+    const from = t.slice(0, 8) + '01', n = srSpan(from, t);
+    const pfrom = ymdOf(new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 2, 1));
+    return { from, to:t, pfrom, pto:srAdd(pfrom, n - 1), label:'this month so far' };
+  }
+  if(r === 'last'){
+    const to = srAdd(t.slice(0, 8) + '01', -1), from = to.slice(0, 8) + '01';
+    const pto = srAdd(from, -1), pfrom = pto.slice(0, 8) + '01';
+    return { from, to, pfrom, pto, label:new Date(from + 'T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' }) };
+  }
+  if(r === 'year'){
+    const from = t.slice(0, 4) + '-01-01', ly = String(Number(t.slice(0, 4)) - 1);
+    return { from, to:t, pfrom:ly + '-01-01', pto:ly + t.slice(4), label:'this year so far' };
+  }
+  const n = Number(r) || 30, from = daysAgo(n);
+  return { from, to:y, pfrom:srAdd(from, -n), pto:srAdd(from, -1), label:'the last ' + n + ' days' };
+}
+
+async function loadSReport(){
+  const P = srPeriod(), rows = [];
+  S.sr.err = '';
+  /* A year of every metric runs past one page of 1,000 rows. */
+  for(let i = 0; i < 40; i++){
+    const { data, error } = await sb.from('social_report_daily').select('network,metric,day,value,fetched_at')
+      .eq('brand', SR_BRAND).gte('day', P.pfrom).lte('day', P.to)
+      .order('day').range(i * 1000, i * 1000 + 999);
+    if(error){ S.sr.err = error.message || String(error); break; }
+    rows.push(...(data || []));
+    if(!data || data.length < 1000) break;
+  }
+  const p = S.sr.err ? { data:[] } : await sb.from('social_report_posts').select('*')
+    .eq('brand', SR_BRAND).gte('post_date', P.from).lte('post_date', P.to)
+    .order('published_at', { ascending:false }).limit(1000);
+  if(p.error) S.sr.err = p.error.message || String(p.error);
+  /* Google's numbers can stop arriving (a lapsed connection in Metricool),
+     so the newest Google day is read on its own, outside the period. */
+  const g = S.sr.err ? { data:[] } : await sb.from('social_report_daily').select('day')
+    .eq('brand', SR_BRAND).eq('network', 'google').order('day', { ascending:false }).limit(1);
+  const idx = {};
+  let at = null;
+  for(const r of rows){
+    const k = r.network + '|' + r.metric;
+    (idx[k] ||= new Map()).set(String(r.day).slice(0, 10), Number(r.value));
+    if(!at || r.fetched_at > at) at = r.fetched_at;
+  }
+  Object.assign(S.sr, { idx, posts:p.data || [], at, period:P, rows:rows.length,
+    googleLast: (g.data && g.data[0] && String(g.data[0].day).slice(0, 10)) || '' });
+  S.loaded.sreport = true;
+}
+
+/* ---- reading the numbers ---- */
+const srMap = (net, m) => S.sr.idx[net + '|' + m] || new Map();
+function srSum(net, m, a, b){
+  let s = 0, any = false;
+  for(const [d, v] of srMap(net, m)) if(d >= a && d <= b && isFinite(v)){ s += v; any = true; }
+  return any ? s : null;
+}
+/* Followers is a running count: the newest value on or before b. */
+function srLast(net, m, a, b){
+  let best = null, bd = '';
+  for(const [d, v] of srMap(net, m)) if(d >= a && d <= b && d > bd){ bd = d; best = v; }
+  return best;
+}
+function srViews(net, a, b){
+  if(net === 'google') return srSumMany('google', SR_GOOGLE_VIEWS, a, b);
+  return srSum(net, SR_VIEWS[net], a, b);
+}
+function srSumMany(net, ms, a, b){
+  const v = ms.map(m => srSum(net, m, a, b)).filter(x => x != null);
+  return v.length ? v.reduce((s, x) => s + x, 0) : null;
+}
+function srNewFollows(net, a, b){
+  if(net === 'facebook'){
+    const g = srSum(net, 'follows_gained', a, b), l = srSum(net, 'follows_lost', a, b);
+    return g == null && l == null ? null : (g || 0) - (l || 0);
+  }
+  return srSum(net, 'net_follows', a, b);
+}
+/* Growth over the period: followers at the end against the end of the
+   period before; the sum of daily new follows when that is missing. */
+function srGrowth(net, P){
+  const now = srLast(net, 'followers', P.from, P.to), was = srLast(net, 'followers', P.pfrom, P.pto);
+  if(now != null && was != null) return now - was;
+  return srNewFollows(net, P.from, P.to);
+}
+/* Total followers per day, each network carried forward over gaps. */
+function srFollowerTotals(P, nets){
+  const carry = {};
+  return srDays(P).map(d => nets.reduce((s, n) => {
+    const v = srMap(n, 'followers').get(d);
+    if(v != null && isFinite(v)) carry[n] = v;
+    return s + (carry[n] || 0);
+  }, 0));
+}
+function srDays(P){ const out = []; for(let d = P.from; d <= P.to; d = srAdd(d, 1)) out.push(d); return out; }
+const srNets = () => ['instagram','facebook','linkedin'].filter(n => srLast(n, 'followers', S.sr.period.pfrom, S.sr.period.to) != null
+  || srSum(n, SR_VIEWS[n], S.sr.period.pfrom, S.sr.period.to) != null);
+
+/* ---- formatting ---- */
+const srN = v => v == null ? '&ndash;' : Math.abs(v) >= 10000
+  ? Number(v).toLocaleString('en-US', { notation:'compact', maximumFractionDigits:1 })
+  : Number(Math.round(v * 10) / 10).toLocaleString('en-US');
+const srSigned = v => v == null ? '&ndash;' : (v > 0 ? '+' : v < 0 ? '&minus;' : '') + srN(Math.abs(v));
+const srPct = v => v == null || !isFinite(v) ? '&ndash;' : (Math.round(v * 10) / 10) + '%';
+function srDelta(now, was){
+  if(now == null || was == null || !was) return '';
+  const p = Math.round((now - was) / Math.abs(was) * 100);
+  const tone = p > 0 ? 'var(--green)' : p < 0 ? 'var(--red)' : 'var(--slate)';
+  return `<span style="color:${tone};font-weight:600">${p > 0 ? '&#9650; +' : p < 0 ? '&#9660; &minus;' : ''}${Math.abs(p)}%</span> vs previous`;
+}
+function srTile(label, value, detail, vals, cap){
+  return `<div class="kpi" style="cursor:default">
+    <span class="k">${esc(label)}</span><span class="v">${value}</span><span class="d">${detail || '&nbsp;'}</span>
+    ${vals && vals.filter(v => v != null).length > 1 && vals.some(v => v) ? spark(vals.map(v => v || 0), label + ', ' + cap) + `<span class="cap">${esc(cap)}</span>` : ''}
+  </div>`;
+}
+/* A value per day, totalled into weeks or months for longer periods so a
+   bar chart stays readable. */
+function srBuckets(P, f){
+  const days = srDays(P), n = days.length;
+  const unit = n <= 31 ? 'day' : n <= 120 ? 'week' : 'month';
+  const out = [];
+  for(const d of days){
+    const key = unit === 'day' ? d : unit === 'week' ? days[Math.floor(days.indexOf(d) / 7) * 7] : d.slice(0, 7);
+    let b = out[out.length - 1];
+    if(!b || b.key !== key){ b = { key, first:d, last:d, v:0, v2:0 }; out.push(b); }
+    b.last = d;
+    const r = f(d); b.v += r.v || 0; b.v2 += r.v2 || 0;
+  }
+  return { unit, rows:out };
+}
+function srBarChart(P, f, o){
+  const { unit, rows } = srBuckets(P, f);
+  const lab = b => unit === 'month' ? new Date(b.first + 'T12:00:00').toLocaleDateString('en-US', { month:'short' }) : srDayLabel(b.first);
+  const span = b => unit === 'day' ? srDayLabel(b.first) : unit === 'week' ? 'Week of ' + srDayLabel(b.first)
+    : new Date(b.first + 'T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  const data = rows.map(b => ({ tick:lab(b), v:b.v, v2:b.v2,
+    tip:`${span(b)}: ${num(Math.round(b.v))} ${o.what}${o.what2 ? ', ' + num(Math.round(b.v2)) + ' ' + o.what2 : ''}` }));
+  if(!data.some(d => d.v || d.v2)) return `<p class="hint">No ${esc(o.what)} in this period.</p>`;
+  return barChart(data, { aria:o.aria, fmt:v => srN(v), left:40, every:Math.max(1, Math.ceil(data.length / 8)), min:1 })
+    + `<div class="legend"><span><i style="background:var(--orange)"></i>${esc(o.label)}</span>${o.label2 ? `<span><i style="background:var(--green)"></i>${esc(o.label2)}</span>` : ''}<span>Per ${unit}. Hover for numbers.</span></div>`;
+}
+/* Lines over the period, one per series, on a shared scale. */
+function srLineChart(P, series, aria){
+  const days = srDays(P);
+  const pts = series.map(s => {
+    let carry = null;
+    return days.map(d => { const v = srMap(s.net, s.metric).get(d); if(v != null && isFinite(v)) carry = v; return carry; });
+  });
+  const all = pts.flat().filter(v => v != null);
+  if(all.length < 2) return `<p class="hint">Not enough follower numbers in this period yet.</p>`;
+  const W = 560, H = 190, L = 44, R = 8, T = 10, B = 24, iw = W - L - R, ih = H - T - B;
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if(hi - lo < 4){ lo -= 2; hi += 2; }
+  const step = niceStep(hi - lo) || 1;
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const x = i => L + (days.length === 1 ? iw / 2 : i * iw / (days.length - 1));
+  const y = v => T + ih - (v - lo) / (hi - lo) * ih;
+  const grid = [];
+  for(let v = lo; v <= hi + 1e-9; v += step)
+    grid.push(`<line class="${v === lo ? 'base' : 'grid'}" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
+      <text x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${srN(v)}</text>`);
+  const every = Math.max(1, Math.ceil(days.length / 7));
+  const ticks = days.map((d, i) => (days.length - 1 - i) % every === 0
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(srDayLabel(d))}</text>` : '').join('');
+  const lines = series.map((s, k) => {
+    const seg = pts[k].map((v, i) => v == null ? null : [x(i), y(v)]).filter(Boolean);
+    if(seg.length < 2) return '';
+    const d = seg.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    const last = seg[seg.length - 1];
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"><title>${esc(s.label)}</title></path>
+      <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.5" fill="${s.color}"/>`;
+  }).join('');
+  /* Invisible day columns carry the hover numbers. */
+  const hits = days.map((d, i) => {
+    const tip = srDayLabel(d) + ': ' + series.map((s, k) => s.label + ' ' + (pts[k][i] == null ? 'n/a' : num(pts[k][i]))).join(', ');
+    const w = iw / Math.max(1, days.length - 1);
+    return `<rect x="${(x(i) - w / 2).toFixed(1)}" y="${T}" width="${w.toFixed(1)}" height="${ih}" fill="transparent"><title>${esc(tip)}</title></rect>`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">${grid.join('')}${lines}${ticks}${hits}</svg>`;
+}
+
+/* ---- posts ---- */
+function srEng(p){
+  if(p.engagement != null && isFinite(p.engagement)) return Number(p.engagement);
+  const base = p.reach || p.impressions;
+  return base ? 100 * (p.interactions || 0) / base : null;
+}
+const SR_TYPE = { CAROUSEL_ALBUM:'Carousel', IMAGE:'Photo', REEL:'Reel', ALBUM:'Album', PHOTO:'Photo', VIDEO:'Video',
+  MULTIIMAGE:'Carousel', TEXT:'Text', ARTICLE:'Article', DOCUMENT:'Document', POLL:'Poll', LINK:'Link', STATUS:'Text' };
+const srType = t => SR_TYPE[String(t || '').toUpperCase()] || (t ? String(t).charAt(0) + String(t).slice(1).toLowerCase() : 'Post');
+function srThumb(p, size){
+  return p.image_url
+    ? `<img src="${esc(p.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"
+        style="width:${size}px;height:${size}px;object-fit:cover;border-radius:6px;background:var(--wash);flex:none">`
+    : `<span style="width:${size}px;height:${size}px;border-radius:6px;background:var(--wash);flex:none;display:inline-block"></span>`;
+}
+function srPostCard(p){
+  const n = SR_NETS[p.network] || {};
+  return `<a class="sr-post" href="${esc(p.permalink || '#')}" target="_blank" rel="noopener">
+    ${srThumb(p, 64)}
+    <span class="sr-post-b">
+      <span class="sr-post-meta"><i style="background:${n.color}"></i>${esc(n.label || p.network)} &middot; ${esc(srType(p.post_type))} &middot; ${esc(srDayLabel(String(p.post_date)))}</span>
+      <span class="sr-post-t">${esc(String(p.content || '').replace(/#\S+/g, '').trim().slice(0, 110) || '(no caption)')}</span>
+      <span class="sr-post-n"><b>${srN(p.interactions)}</b> interactions &middot; <b>${srN(p.reach || p.impressions)}</b> ${p.reach ? 'reached' : 'impressions'} &middot; ${srPct(srEng(p))} eng.</span>
+    </span></a>`;
+}
+const SR_COLS = {
+  instagram:[['reach','Reach'], ['impressions','Views'], ['interactions','Interactions'], ['likes','Likes'], ['comments','Comments'], ['shares','Shares'], ['saves','Saves'], ['eng','Eng.']],
+  facebook: [['reach','Reach'], ['impressions','Impr./plays'], ['interactions','Interactions'], ['likes','Reactions'], ['comments','Comments'], ['shares','Shares'], ['clicks','Clicks'], ['eng','Eng.']],
+  linkedin: [['impressions','Impressions'], ['clicks','Clicks'], ['likes','Reactions'], ['comments','Comments'], ['shares','Shares'], ['interactions','Interactions'], ['eng','Eng.']]
+};
+function srPostsTable(net, posts){
+  if(!posts.length) return `<p class="hint">No ${esc(SR_NETS[net].label)} posts in this period.</p>`;
+  const cols = SR_COLS[net], key = cols.some(c => c[0] === S.sr.sort) || S.sr.sort === 'date' ? S.sr.sort : 'interactions';
+  const val = (p, k) => k === 'eng' ? srEng(p) : k === 'date' ? String(p.published_at) : p[k];
+  const rows = posts.slice().sort((a, b) => {
+    const x = val(a, key), y = val(b, key);
+    if(x == null) return 1; if(y == null) return -1;
+    return x < y ? 1 : x > y ? -1 : 0;
+  });
+  const th = (k, l) => `<th class="num"><button class="sr-sort ${key === k ? 'on' : ''}" data-srsort="${k}">${esc(l)}${key === k ? ' &#9662;' : ''}</button></th>`;
+  return `<div class="scroll-x"><table class="sr-table">
+    <thead><tr><th><button class="sr-sort ${key === 'date' ? 'on' : ''}" data-srsort="date">Post${key === 'date' ? ' &#9662;' : ''}</button></th>${cols.map(c => th(c[0], c[1])).join('')}</tr></thead>
+    <tbody>${rows.map(p => `<tr>
+      <td><a class="sr-cell" href="${esc(p.permalink || '#')}" target="_blank" rel="noopener">${srThumb(p, 40)}
+        <span><span class="hint">${esc(srDayLabel(String(p.post_date)))} &middot; ${esc(srType(p.post_type))}</span><br>
+        ${esc(String(p.content || '').replace(/#\S+/g, '').trim().slice(0, 70) || '(no caption)')}</span></a></td>
+      ${cols.map(c => `<td class="num">${c[0] === 'eng' ? srPct(srEng(p)) : srN(p[c[0]])}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div><p class="hint">Click a column to sort. Eng. is Metricool's engagement rate: interactions per 100 people reached (impressions on LinkedIn).</p>`;
+}
+/* Average interactions by format and by weekday: what to post, and when. */
+function srByType(posts){
+  const g = {};
+  for(const p of posts){ const t = srType(p.post_type); (g[t] ||= []).push(p); }
+  const rows = Object.entries(g).map(([t, ps]) => ({ t, n:ps.length,
+    inter:ps.reduce((s, p) => s + (p.interactions || 0), 0) / ps.length,
+    reach:ps.reduce((s, p) => s + (p.reach || p.impressions || 0), 0) / ps.length }))
+    .sort((a, b) => b.inter - a.inter);
+  if(!rows.length) return `<p class="hint">No posts in this period.</p>`;
+  return hBars(rows.map(r => ({ label:r.t, v:r.inter, text:`${srN(r.inter)} <em>${r.n}</em>`,
+      tip:`${r.t}: ${plural(r.n, 'post')}, ${srN(r.inter)} interactions and ${srN(r.reach)} reach on average` })))
+    + `<div class="legend"><span>Average interactions per post. The small number is how many posts.</span></div>`;
+}
+function srByDay(posts){
+  if(posts.length < 3) return `<p class="hint">Needs a few more posts in this period.</p>`;
+  const names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const g = names.map(() => []);
+  for(const p of posts) g[new Date(p.published_at).getDay()].push(p);
+  const rows = [1,2,3,4,5,6,0].map(i => ({ label:names[i].slice(0, 3), n:g[i].length,
+    v:g[i].length ? g[i].reduce((s, p) => s + (p.interactions || 0), 0) / g[i].length : 0 }));
+  const best = rows.reduce((a, r) => r.v > a.v ? r : a, rows[0]);
+  return hBars(rows.map(r => ({ label:r.label, v:r.v, color:r === best && r.v ? 'var(--green)' : 'var(--orange)',
+      text:r.n ? `${srN(r.v)} <em>${r.n}</em>` : '&ndash;', tip:`${r.label}: ${plural(r.n, 'post')}` })))
+    + `<div class="legend"><span>Average interactions per post by the day it went out. Green is the best day.</span></div>`;
+}
+
+/* ---- the page ---- */
+function pageSReport(){
+  if(!S.loaded.sreport) return loading();
+  const P = S.sr.period, net = S.sr.net, busy = S.sr.busy;
+  const head = `<div class="bud-head sr-head">
+      <h2 class="sec" style="margin:0">Social Reports</h2>
+      <div class="filters" role="group" aria-label="Brand">${Object.entries(SOC_BRANDS).map(([k, l]) =>
+        `<button class="filt ${SR_BRAND === k ? 'on' : ''}" data-srbrand="${k}" ${busy ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>
+      <div class="filters" role="group" aria-label="Period">${SR_RANGES.map(([k, l]) =>
+        `<button class="filt ${S.sr.range === k ? 'on' : ''}" data-srrange="${k}" ${busy ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>
+      <span class="spacer"></span>
+      <button class="btn small ghost sr-noprint" id="srPrint">Print / PDF</button>
+      <button class="btn small sr-noprint" id="srRefresh" ${busy ? 'disabled' : ''}>${busy ? 'Refreshing&hellip;' : 'Refresh'}</button>
+    </div>`;
+  const tabs = `<div class="fchips sr-noprint" role="tablist">${[['all','Overview']].concat(Object.entries(SR_NETS).map(([k, n]) => [k, n.label]))
+    .map(([k, l]) => `<button class="fchip ${net === k ? 'on' : ''}" data-srnet="${k}">${k !== 'all' ? `<i class="sr-dot" style="background:${SR_NETS[k].color}"></i>` : ''}${esc(l)}</button>`).join('')}</div>`;
+  const when = S.sr.at ? `Numbers from Metricool, last pulled ${esc(new Date(S.sr.at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}. They refresh every morning at 6:45.` : '';
+  const sub = `<p class="hint" style="margin:-6px 0 14px">${esc(SOC_BRANDS[SR_BRAND])}, ${esc(P.label)} (${esc(srDayLabel(P.from))} to ${esc(srDayLabel(P.to))}), compared with the same length of time before it. ${when}</p>`;
+  const notes = (S.sr.note ? `<p class="sr-note">${esc(S.sr.note)}</p>` : '')
+    + (S.sr.err ? `<p class="sr-note bad">${/does not exist|schema cache/i.test(S.sr.err)
+        ? 'The report tables are not in Supabase yet. Run sql/social_report.sql in the SQL editor, then press Refresh.'
+        : 'The report could not load: ' + esc(S.sr.err)}</p>` : '');
+  if(!S.sr.err && !S.sr.rows && !S.sr.posts.length)
+    return `<main class="page wide">${head}${notes}<div class="empty"><h2>No numbers yet</h2>
+      <p>Press Refresh to pull the last 13 months from Metricool. It takes a minute or two the first time.</p></div></main>`;
+  let body = '';
+  try{ body = net === 'all' ? srOverview(P) : net === 'google' ? srGoogle(P) : srNetwork(net, P); }
+  catch(e){ body = `<p class="sr-note bad">Could not draw this view: ${esc(e.message || e)}</p>`; }
+  return `<main class="page wide sr-page">${head}${sub}${notes}${tabs}${body}</main>`;
+}
+
+function srOverview(P){
+  const nets = srNets();
+  const sumNets = f => { const v = nets.map(f).filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) : null; };
+  const fol = sumNets(n => srLast(n, 'followers', P.from, P.to));
+  const grow = sumNets(n => srGrowth(n, P));
+  const views = sumNets(n => srViews(n, P.from, P.to)), viewsWas = sumNets(n => srViews(n, P.pfrom, P.pto));
+  const inter = sumNets(n => srSum(n, 'interactions', P.from, P.to)), interWas = sumNets(n => srSum(n, 'interactions', P.pfrom, P.pto));
+  const posts = sumNets(n => srSum(n, 'posts', P.from, P.to)), postsWas = sumNets(n => srSum(n, 'posts', P.pfrom, P.pto));
+  const days = srDays(P);
+  const daySum = f => days.map(d => nets.reduce((s, n) => s + (f(n, d) || 0), 0));
+  const tiles = `<div class="kpis">
+    ${srTile('Community', srN(fol), `${srSigned(grow)} followers in this period`, srFollowerTotals(P, nets), 'Followers, all networks')}
+    ${srTile('Views and impressions', srN(views), srDelta(views, viewsWas), daySum((n, d) => srMap(n, SR_VIEWS[n]).get(d)), 'Per day, all networks')}
+    ${srTile('Interactions', srN(inter), srDelta(inter, interWas), daySum((n, d) => srMap(n, 'interactions').get(d)), 'Per day, all networks')}
+    ${srTile('Posts published', srN(posts), srDelta(posts, postsWas), null, '')}
+  </div>`;
+  const lines = srLineChart(P, nets.map(n => ({ net:n, metric:'followers', label:SR_NETS[n].label, color:SR_NETS[n].color })), 'Followers by network');
+  const legend = `<div class="legend">${nets.map(n => `<span><i style="background:${SR_NETS[n].color}"></i>${esc(SR_NETS[n].label)} ${srSigned(srGrowth(n, P))}</span>`).join('')}</div>`;
+  const table = `<div class="scroll-x"><table class="sr-table">
+    <thead><tr><th>Network</th><th class="num">Followers</th><th class="num">Growth</th><th class="num">Posts</th><th class="num">Views / impr.</th><th class="num">Interactions</th><th class="num">Eng.</th></tr></thead>
+    <tbody>${nets.map(n => {
+      const v = srViews(n, P.from, P.to), i = srSum(n, 'interactions', P.from, P.to);
+      return `<tr><td><button class="sr-link" data-srnet="${n}"><i class="sr-dot" style="background:${SR_NETS[n].color}"></i>${esc(SR_NETS[n].label)}</button></td>
+        <td class="num">${srN(srLast(n, 'followers', P.from, P.to))}</td><td class="num">${srSigned(srGrowth(n, P))}</td>
+        <td class="num">${srN(srSum(n, 'posts', P.from, P.to))}</td><td class="num">${srN(v)}</td><td class="num">${srN(i)}</td>
+        <td class="num">${v ? srPct(100 * (i || 0) / v) : '&ndash;'}</td></tr>`; }).join('')}</tbody></table></div>
+    <p class="hint">Views are Instagram and Facebook content views and LinkedIn impressions. Eng. here is interactions per 100 views.</p>`;
+  const share = (f, what) => {
+    const rows = nets.map(n => ({ n, v:f(n) || 0 })), tot = rows.reduce((s, r) => s + r.v, 0);
+    if(!tot) return `<p class="hint">No ${what} in this period.</p>`;
+    return hBars(rows.map(r => ({ label:SR_NETS[r.n].label, v:r.v, color:SR_NETS[r.n].color,
+      text:`${srN(r.v)} <em>${Math.round(100 * r.v / tot)}%</em>`, tip:`${SR_NETS[r.n].label}: ${num(Math.round(r.v))} ${what}` })));
+  };
+  const top = S.sr.posts.filter(p => p.network !== 'google').slice()
+    .sort((a, b) => (b.interactions || 0) - (a.interactions || 0)).slice(0, 6);
+  return `${tiles}
+    <section class="panel"><div class="panel-head"><h2>By network</h2></div>${table}</section>
+    <div class="cols">
+      <section class="panel"><div class="panel-head"><h2>Community growth</h2></div>${lines}${legend}</section>
+      <section class="panel"><div class="panel-head"><h2>Where the views came from</h2></div>${share(n => srViews(n, P.from, P.to), 'views')}
+        <div class="panel-head" style="margin-top:20px"><h2>Where the interactions came from</h2></div>${share(n => srSum(n, 'interactions', P.from, P.to), 'interactions')}</section>
+    </div>
+    <section class="panel"><div class="panel-head"><h2>Top posts</h2></div>
+      ${top.length ? `<div class="sr-posts">${top.map(srPostCard).join('')}</div>` : `<p class="hint">No posts in this period.</p>`}</section>
+    <div class="cols">
+      <section class="panel"><div class="panel-head"><h2>What works</h2></div>${srByType(S.sr.posts.filter(p => p.network !== 'google'))}</section>
+      <section class="panel"><div class="panel-head"><h2>Best day to post</h2></div>${srByDay(S.sr.posts.filter(p => p.network !== 'google'))}</section>
+    </div>`;
+}
+
+function srNetwork(net, P){
+  const N = SR_NETS[net], posts = S.sr.posts.filter(p => p.network === net);
+  const fol = srLast(net, 'followers', P.from, P.to), grow = srGrowth(net, P);
+  const vk = SR_VIEWS[net];
+  const cur = m => srSum(net, m, P.from, P.to), was = m => srSum(net, m, P.pfrom, P.pto);
+  const days = srDays(P), daily = m => days.map(d => srMap(net, m).get(d));
+  const gained = net === 'facebook' || net === 'instagram' ? cur('follows_gained') : null;
+  const lost = net === 'facebook' || net === 'instagram' ? cur('follows_lost') : null;
+  const tiles = [
+    srTile('Followers', srN(fol), `${srSigned(grow)} in this period${gained != null ? ` (${srN(gained)} new, ${srN(lost)} lost)` : ''}`, null, ''),
+    net === 'instagram' ? srTile('Reach', srN(cur('reach')), srDelta(cur('reach'), was('reach')), daily('reach'), 'People reached per day') : '',
+    srTile(net === 'linkedin' ? 'Impressions' : 'Views', srN(cur(vk)), srDelta(cur(vk), was(vk)), daily(vk), 'Per day'),
+    srTile('Interactions', srN(cur('interactions')), srDelta(cur('interactions'), was('interactions')), daily('interactions'), 'Per day'),
+    net === 'linkedin' ? srTile('Clicks', srN(cur('clicks')), srDelta(cur('clicks'), was('clicks')), daily('clicks'), 'Per day') : '',
+    net === 'facebook' ? srTile('Page visits', srN(cur('page_views')), srDelta(cur('page_views'), was('page_views')), daily('page_views'), 'Per day') : '',
+    net === 'instagram' ? srTile('Accounts engaged', srN(cur('engaged')), srDelta(cur('engaged'), was('engaged')), null, '') : '',
+    srTile('Posts', srN(cur('posts') != null ? cur('posts') : posts.length), srDelta(cur('posts'), was('posts')), null, '')
+  ].filter(Boolean);
+  const views = net === 'instagram'
+    ? srBarChart(P, d => ({ v:srMap(net, 'views').get(d), v2:srMap(net, 'reach').get(d) }), { what:'views', what2:'reached', label:'Views', label2:'Reach', aria:'Instagram views and reach' })
+    : net === 'facebook'
+    ? srBarChart(P, d => ({ v:srMap(net, 'views').get(d), v2:srMap(net, 'page_views').get(d) }), { what:'views', what2:'page visits', label:'Content views', label2:'Page visits', aria:'Facebook views' })
+    : srBarChart(P, d => ({ v:srMap(net, 'impressions').get(d), v2:srMap(net, 'clicks').get(d) }), { what:'impressions', what2:'clicks', label:'Impressions', label2:'Clicks', aria:'LinkedIn impressions and clicks' });
+  const inter = srBarChart(P, d => ({ v:srMap(net, 'interactions').get(d) }), { what:'interactions', label:'Interactions', aria:N.label + ' interactions' });
+  const follows = net === 'linkedin'
+    ? srBarChart(P, d => ({ v:Math.max(0, srMap(net, 'net_follows').get(d) || 0) }), { what:'new followers', label:'New followers', aria:'LinkedIn new followers' })
+    : srBarChart(P, d => ({ v:srMap(net, 'follows_gained').get(d), v2:srMap(net, 'follows_lost').get(d) }), { what:'new followers', what2:'lost', label:'New followers', label2:'Lost', aria:N.label + ' followers gained and lost' });
+  return `<div class="kpis sr-kpis">${tiles.join('')}</div>
+    <div class="cols">
+      <section class="panel"><div class="panel-head"><h2>Community</h2></div>
+        ${srLineChart(P, [{ net, metric:'followers', label:'Followers', color:N.color }], N.label + ' followers')}
+        <div style="margin-top:10px">${follows}</div></section>
+      <section class="panel"><div class="panel-head"><h2>${net === 'linkedin' ? 'Impressions and clicks' : 'Views and reach'}</h2></div>${views}
+        <div style="margin-top:10px">${inter}</div></section>
+    </div>
+    <div class="cols">
+      <section class="panel"><div class="panel-head"><h2>What works</h2></div>${srByType(posts)}</section>
+      <section class="panel"><div class="panel-head"><h2>Best day to post</h2></div>${srByDay(posts)}</section>
+    </div>
+    <section class="panel"><div class="panel-head"><h2>Posts</h2><span class="hint">${plural(posts.length, 'post')}</span></div>${srPostsTable(net, posts)}</section>`;
+}
+
+function srGoogle(P){
+  const cur = m => srSum('google', m, P.from, P.to), was = m => srSum('google', m, P.pfrom, P.pto);
+  const days = srDays(P), daily = ms => days.map(d => ms.reduce((s, m) => s + (srMap('google', m).get(d) || 0), 0));
+  const views = srSumMany('google', SR_GOOGLE_VIEWS, P.from, P.to), viewsWas = srSumMany('google', SR_GOOGLE_VIEWS, P.pfrom, P.pto);
+  const acts = srSumMany('google', SR_GOOGLE_ACTS, P.from, P.to), actsWas = srSumMany('google', SR_GOOGLE_ACTS, P.pfrom, P.pto);
+  const last = S.sr.googleLast, stale = !last || last < daysAgo(10);
+  const warn = stale ? `<p class="sr-note">${last
+      ? `Metricool has had no Google Business numbers for ${esc(SOC_BRANDS[SR_BRAND])} since ${esc(srDayLabel(last))}${last.slice(0, 4) !== today().slice(0, 4) ? ', ' + last.slice(0, 4) : ''}.`
+      : `Metricool has no Google Business numbers for ${esc(SOC_BRANDS[SR_BRAND])} yet.`}
+      Posting still works. To get the numbers back, reconnect Google Business Profile in Metricool (Settings, Connections) for this brand.</p>` : '';
+  const split = hBars([
+      ['Search, phone', 'search_mobile'], ['Search, computer', 'search_desktop'],
+      ['Maps, phone', 'maps_mobile'], ['Maps, computer', 'maps_desktop']]
+    .map(([l, m]) => ({ label:l, v:cur(m) || 0, text:srN(cur(m) || 0), tip:`${l}: ${num(cur(m) || 0)} profile views` })));
+  const actBars = hBars([['Website clicks', 'website_clicks'], ['Calls', 'calls'], ['Directions', 'directions']]
+    .map(([l, m]) => ({ label:l, v:cur(m) || 0, color:'var(--green)', text:srN(cur(m) || 0), tip:`${l}: ${num(cur(m) || 0)}` })));
+  return `${warn}<div class="kpis">
+      ${srTile('Profile views', srN(views), srDelta(views, viewsWas), daily(SR_GOOGLE_VIEWS), 'Per day')}
+      ${srTile('Actions', srN(acts), srDelta(acts, actsWas), daily(SR_GOOGLE_ACTS), 'Clicks, calls and directions per day')}
+      ${srTile('Website clicks', srN(cur('website_clicks')), srDelta(cur('website_clicks'), was('website_clicks')), null, '')}
+      ${srTile('Calls', srN(cur('calls')), srDelta(cur('calls'), was('calls')), null, '')}
+    </div>
+    <div class="cols">
+      <section class="panel"><div class="panel-head"><h2>Where people saw the profile</h2></div>${split}</section>
+      <section class="panel"><div class="panel-head"><h2>What they did</h2></div>${actBars}</section>
+    </div>
+    <section class="panel"><div class="panel-head"><h2>Views and actions</h2></div>
+      ${srBarChart(P, d => ({ v:SR_GOOGLE_VIEWS.reduce((s, m) => s + (srMap('google', m).get(d) || 0), 0),
+          v2:SR_GOOGLE_ACTS.reduce((s, m) => s + (srMap('google', m).get(d) || 0), 0) }),
+        { what:'profile views', what2:'actions', label:'Profile views', label2:'Actions', aria:'Google Business profile views and actions' })}</section>`;
+}
+
+async function srReload(){
+  S.loaded.sreport = false; render();
+  try{ await loadSReport(); }catch(e){ S.sr.err = e.message || String(e); S.sr.idx = {}; S.sr.posts = []; S.loaded.sreport = true; }
+  render();
+}
+async function srRefresh(){
+  if(S.sr.busy) return;
+  S.sr.busy = true; S.sr.note = 'Pulling the latest numbers from Metricool. This takes about a minute; the page updates by itself.'; render();
+  try{
+    const r = await fetch(SR_URL, { method:'POST', headers: await authHeaders(), body: JSON.stringify({ brand: SR_BRAND }) });
+    if(r.status === 401) throw new Error('Sign in again, then press Refresh.');
+    if(!r.ok) throw new Error('n8n answered ' + r.status + '.');
+  }catch(e){ S.sr.busy = false; S.sr.note = 'Refresh did not start: ' + (e.message || e); render(); return; }
+  /* Realtime repaints when the rows land; this is the fallback. */
+  setTimeout(async () => {
+    S.sr.busy = false; S.sr.note = '';
+    if(S.page === 'sreport') await srReload(); else S.loaded.sreport = false;
+  }, 90000);
+}
+
+function wireSReport(){
+  if(S.page !== 'sreport') return;
+  document.querySelectorAll('[data-srbrand]').forEach(el => el.addEventListener('click', () => {
+    const b = el.dataset.srbrand;
+    if(!SOC_BRANDS[b] || b === SR_BRAND) return;
+    SR_BRAND = b; try{ localStorage.setItem('srBrand', b); }catch(e){}
+    srReload();
+  }));
+  document.querySelectorAll('[data-srrange]').forEach(el => el.addEventListener('click', () => {
+    if(el.dataset.srrange === S.sr.range) return;
+    S.sr.range = el.dataset.srrange; try{ localStorage.setItem('srRange', S.sr.range); }catch(e){}
+    srReload();
+  }));
+  document.querySelectorAll('[data-srnet]').forEach(el => el.addEventListener('click', () => {
+    S.sr.net = el.dataset.srnet; render(); window.scrollTo(0, 0);
+  }));
+  document.querySelectorAll('[data-srsort]').forEach(el => el.addEventListener('click', () => {
+    S.sr.sort = el.dataset.srsort; render();
+  }));
+  const rf = document.getElementById('srRefresh');
+  if(rf) rf.addEventListener('click', srRefresh);
+  const pr = document.getElementById('srPrint');
+  if(pr) pr.addEventListener('click', () => window.print());
+}
+
 async function loadApi(){
   const A = S.api;
   const since = apiDay(-89);
@@ -16577,7 +17105,7 @@ const LOADERS = {
   board:loadBoard, tiles:loadTiles, week:loadWeek, seq:loadSequences, assets:loadAssets,
   voice:loadVoice, health:loadHealth, mc:loadMailchimp, invites:loadInvites,
   approvals:loadApprovals, budget:loadBudget, mileage:loadMileage, requests:loadRequests,
-  reels:loadReels, social:loadSocial, permits:loadPermits, rjobs:loadRhinoJobs, sales:loadSales, ec:loadCampaigns, bulk:loadBulk,
+  reels:loadReels, social:loadSocial, sreport:loadSReport, permits:loadPermits, rjobs:loadRhinoJobs, sales:loadSales, ec:loadCampaigns, bulk:loadBulk,
   photos:loadPhotos, voices:loadVoices, kpis:loadKpis, metrics:loadMetrics, ret:loadReturn,
   'tasks.liam':() => loadTasks('liam'), 'tasks.iyanna':() => loadTasks('iyanna'),
   clicks:() => { const ids = Object.keys(S.clicks); S.clicks = {}; return loadClicks(ids); }
@@ -16606,7 +17134,7 @@ function pageKeys(page){
     mileage: () => ['mileage'], photos: () => ['photos'], voices: () => ['voices'],
     kpis: () => ['kpis','metrics'].concat(S.kpiView === 'scorecard' ? [] : ['ret']),
     myday: () => ['tasks.liam','requests'], iyanna: () => ['tasks.iyanna'],
-    reels: () => ['reels'], social: () => ['social'], permits: () => ['permits'], rjobs: () => ['rjobs'], sales: () => ['sales'],
+    reels: () => ['reels'], social: () => ['social'], sreport: () => ['sreport'], permits: () => ['permits'], rjobs: () => ['rjobs'], sales: () => ['sales'],
     campaigns: () => ['ec'], bulk: () => ['bulk'], leads: () => ['clicks']
   };
   return P[page] ? P[page]() : [];
@@ -16623,7 +17151,7 @@ const LIVE_TABLES = {
   tasks: row => row && row.owner ? ['tasks.' + row.owner] : ['tasks.liam','tasks.iyanna'],
   requests:['requests'], request_files:['requests'],
   social_posts:['social','home.socDrafts'], social_post_media:['social'], social_jobs:['social'],
-  social_results:['home.reach'],
+  social_results:['home.reach'], social_report_daily:['sreport'],
   email_queue:['board','tiles'], email_drafts:['board'],
   email_sends:['board','seq','health','metrics','home.daily','home.hot'],
   email_events:['health','metrics','home.daily'],
