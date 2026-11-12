@@ -1488,7 +1488,7 @@ const PAGES = [
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['sreport','Social Reports'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
-  ['sales','RHINO Sales'], ['api','API Usage']
+  ['sales','RHINO Sales'], ['uniforms','Uniforms'], ['api','API Usage']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -3503,12 +3503,12 @@ const NAV_GROUPS = [
   ['People',  ['myday','calendar','iyanna','sales']],
   ['Content', ['social','sreport','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','newsletter','leads','bulk','permits']],
-  ['Money',   ['budget','mileage']],
+  ['Money',   ['budget','mileage','uniforms']],
   ['System',  ['api']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', sreport:'Reports', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', uniforms:'Uniforms', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'george' ? ['sales']
@@ -3539,6 +3539,7 @@ const NAV_ICON = {
   permits:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
   rjobs:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/>',
   sales:'<path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/>',
+  uniforms:'<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c0 2-1.8 3-4 3S8 5 8 3z"/>',
   api:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
@@ -3913,6 +3914,7 @@ function pageHtml(){
   if(S.page==='approvals') return pageApprovals();
   if(S.page==='budget')    return pageBudget();
   if(S.page==='mileage')   return pageMileage();
+  if(S.page==='uniforms')  return pageUniforms();
   if(S.page==='photos')    return pagePhotos();
   if(S.page==='newsletter') return pageNewsletter();
   if(S.page==='voices')    return pageVoices();
@@ -3987,6 +3989,11 @@ function wirePage(){
     el.addEventListener('click',()=>skipToday(el.dataset.skip, true)));
   document.querySelectorAll('[data-unskip]').forEach(el=>
     el.addEventListener('click',e=>{ e.stopPropagation(); skipToday(el.dataset.unskip, false); }));
+  const uc = document.getElementById('uniCopy');
+  if(uc) uc.addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(UNIFORMS_URL); uc.textContent = 'Link copied'; }
+    catch(e){ prompt('Copy this link', UNIFORMS_URL); }
+  });
   const st = document.getElementById('skipToggle');
   if(st) st.addEventListener('click',()=>{ S.skipOpen=!S.skipOpen; render(); });
   const sn = document.getElementById('sentToggle');
@@ -13396,6 +13403,24 @@ function milBlankForm(over){
   const day = S.mil.month === today().slice(0, 7) ? today() : S.mil.month + '-01';
   return Object.assign({ id:null, trip_date:day, start_loc:last ? last.destination : '', destination:'',
     purpose:'', odo_start:last && last.odo_end != null ? String(last.odo_end) : '', odo_end:'', miles:'' }, over || {});
+}
+
+/* Uniforms live in the Shop-Inventory app (uniforms-admin.html, Supabase
+   uniform_* tables) so the shop and anyone with the link use the same
+   page. Both sites are on haggertybuilds.github.io, so the frame shares
+   the manager key the page remembers. */
+const UNIFORMS_URL = 'https://haggertybuilds.github.io/Shop-Inventory/uniforms-admin.html';
+function pageUniforms(){
+  return `<main class="page" style="max-width:1200px">
+    <div class="bud-head">
+      <h2 style="margin:0">Uniforms</h2>
+      <span class="spacer"></span>
+      <button class="btn small ghost" id="uniCopy">Copy share link</button>
+      <a class="btn small" href="${UNIFORMS_URL}" target="_blank" rel="noopener">Open in a new tab</a>
+    </div>
+    <iframe class="uni-frame" src="${UNIFORMS_URL}" title="Uniform inventory and ordering"
+      style="display:block;width:100%;height:calc(100vh - 170px);min-height:560px;border:1px solid var(--line, #ddd);border-radius:12px;background:#111"></iframe>
+  </main>`;
 }
 
 function pageMileage(){
