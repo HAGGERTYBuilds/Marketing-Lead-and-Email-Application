@@ -1180,6 +1180,64 @@
             color:var(--slate);padding:7px 12px;background:var(--card);border:1px solid var(--rule)}
   .api-table td{vertical-align:top}
   @media (max-width:640px){ .api-axis span:nth-child(2){display:none} }
+  /* ---------- Health (Liam only) ---------- */
+  .ah-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}
+  .ah-tile{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--rule);padding:10px 12px}
+  .ah-tile .k{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:12.5px;font-weight:600;color:var(--slate)}
+  .ah-tile .v{font-family:var(--display);font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+  .ah-tile .s{font-size:11.5px;color:var(--slate)}
+  .ah-tile.red{border-top-color:var(--danger)} .ah-tile.red .v{color:var(--danger)}
+  .ah-tile.amber{border-top-color:var(--warning)} .ah-tile.amber .v{color:var(--warning)}
+  .ah-tile.green{border-top-color:var(--success)} .ah-tile.green .v{color:var(--success)}
+  .ah-tile.blk{border-top-color:var(--ink)} .ah-tile.stale{border-top-color:var(--slate)}
+  .ah-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .ah-f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--slate)}
+  .ah-f select{min-width:150px}
+  .ah-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .ah-card{display:flex;flex-direction:column;gap:7px;text-align:left;font:inherit;color:inherit;cursor:pointer;
+           background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule);padding:12px 14px;min-width:0}
+  .ah-card:hover{background:var(--hover)}
+  .ah-card:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+  .ah-card.red{border-left-color:var(--danger)} .ah-card.amber{border-left-color:var(--warning)} .ah-card.green{border-left-color:var(--success)}
+  .ah-card-h{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+  .ah-name{font-weight:600;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+  .ah-tags{display:flex;gap:5px;flex-wrap:wrap}
+  .ah-reason{font-size:13px;color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ah-build{display:flex;flex-direction:column;gap:2px;font-size:12.5px;border-top:1px solid var(--rule-soft);padding-top:7px}
+  .ah-build span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ah-build b{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;color:var(--slate);margin-right:4px}
+  .ah-build .ah-blk b{color:var(--danger)}
+  .ah-pill{flex:0 0 auto;font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:11.5px;font-weight:700;
+           padding:3px 9px;border-radius:999px;background:var(--neutral-pill,var(--wash));color:var(--slate);white-space:nowrap}
+  .ah-pill.red{background:var(--danger-soft);color:var(--danger)}
+  .ah-pill.amber{background:var(--warning-soft);color:var(--warning)}
+  .ah-pill.green{background:var(--success-soft);color:var(--success)}
+  .ah-dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+  .ah-dh h2{font-family:var(--display);font-size:28px;font-weight:700;margin:0;line-height:1.1}
+  .ah-sig{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule);padding:11px 13px;margin-bottom:10px}
+  .ah-sig.red{border-left-color:var(--danger)} .ah-sig.amber{border-left-color:var(--warning)} .ah-sig.green{border-left-color:var(--success)}
+  .ah-sig-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ah-sig-n{font-weight:600}
+  .ah-sig-d{font-size:13.5px;margin:6px 0 4px;overflow-wrap:anywhere}
+  .ah-fails{margin:6px 0;padding-left:18px;font-size:13px}
+  .ah-fails li{margin-bottom:6px}
+  .ah-err{font-family:var(--mono);font-size:12px;color:var(--grey);background:var(--wash);padding:5px 8px;margin:3px 0;
+          white-space:pre-wrap;overflow-wrap:anywhere}
+  .ah-wfs summary{cursor:pointer;font-size:13px;color:var(--slate)}
+  .ah-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-width:560px}
+  .ah-day{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--slate)}
+  .ah-day i{display:block;width:100%;height:26px;background:var(--rule-soft)}
+  .ah-day.red i{background:var(--danger)} .ah-day.amber i{background:var(--warning)} .ah-day.green i{background:var(--success)}
+  .ah-day em{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--danger)}
+  .ah-items td{vertical-align:top}
+  .ah-items td input[type=text],.ah-items td select{width:100%;min-width:90px}
+  .ah-items tr.ah-stale td:first-child{border-left:3px solid var(--slate)}
+  .ah-acts{white-space:nowrap;text-align:right}
+  .ah-acts .linkbtn{padding:2px 4px}
+  .ah-stage{font-size:12px;font-weight:600}
+  .ah-stage.s-blocked{color:var(--danger)} .ah-stage.s-inflight{color:var(--orange-ink)} .ah-stage.s-done{color:var(--success)}
+  @media (max-width:820px){ .ah-strip{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media (max-width:480px){ .ah-strip{grid-template-columns:repeat(2,minmax(0,1fr))} .ah-grid{grid-template-columns:1fr} .ah-f select{min-width:0} }
   /* ---------- budget ---------- */
   .bud-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .bud-year{display:flex;align-items:center;gap:2px}
@@ -2117,7 +2175,7 @@ const PAGES = [
   ['kpis','Pipeline & KPIs'], ['approvals','Approvals'], ['budget','Budget'], ['mileage','Mileage'], ['myday',"Liam's Day"],
   ['iyanna',"Iyanna's Day"], ['reels','Reel Ideas'], ['social','Social'], ['sreport','Social Reports'], ['photos','Photo & Video Approvals'], ['voices','Executive Voices'], ['campaigns','Email Campaigns'], ['newsletter','Newsletter'],
   ['leads','Leads'], ['bulk','Mr. Workflow'], ['permits','Permits'], ['rjobs','RHINO jobs'],
-  ['sales','RHINO Sales'], ['uniforms','Uniforms'], ['api','API Usage']
+  ['sales','RHINO Sales'], ['uniforms','Uniforms'], ['api','API Usage'], ['health','Health']
 ];
 
 /* Which tab belongs to whom. tasks.owner already existed and every row
@@ -2147,7 +2205,9 @@ const visiblePages = () => S.me === 'george'
   .filter(([k]) => !OWNERS[k] || canSeeDay(OWNERS[k]))
   .filter(([k]) => k !== 'budget' || BUDGET_USERS.includes(S.me))
   .filter(([k]) => k !== 'home' || HOME_USERS.includes(S.me))
-  .filter(([k]) => k !== 'api' || API_USERS.includes(S.me));
+  .filter(([k]) => k !== 'api' || API_USERS.includes(S.me))
+  /* Health: every app's status and build. Liam only (sql/app_health.sql). */
+  .filter(([k]) => k !== 'health' || HEALTH_USERS.includes(S.me));
 
 /* A day list is its owner's. Liam runs both lists, so he can see and
    work Iyanna's; Iyanna sees only her own, and Pat neither. The handlers
@@ -4088,6 +4148,7 @@ async function ensureOnce(page){
   if(page==='newsletter' && !S.loaded.newsletter) await loadNewsletter();
   if(page==='voices' && !S.loaded.voices) await loadVoices();
   if(page==='api' && !S.loaded.api) await loadApi();
+  if(page==='health' && !S.loaded.apphealth) await loadAppHealth();
   if(page==='kpis'){
     /* Independent reads, so they go together rather than one by one. */
     await Promise.all([
@@ -4133,11 +4194,11 @@ const NAV_GROUPS = [
   ['Content', ['social','sreport','photos','voices','campaigns','reels']],
   ['Growth',  ['kpis','newsletter','leads','bulk','permits']],
   ['Money',   ['budget','mileage','uniforms']],
-  ['System',  ['api']]
+  ['System',  ['api','health']]
 ];
 const NAV_SHORT = { home:'Home', today:'Outreach', approvals:'Approvals', kpis:'Pipeline',
   calendar:'Calendar', myday:'My Day', iyanna:'My Day', social:'Social', sreport:'Reports', campaigns:'Email', reels:'Reels',
-  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', uniforms:'Uniforms', photos:'Photos', voices:'Voices', api:'API Usage', newsletter:'Newsletter' };
+  leads:'Leads', bulk:'Mr. Workflow', permits:'Permits', rjobs:'RHINO jobs', sales:'Sales', budget:'Budget', mileage:'Mileage', uniforms:'Uniforms', photos:'Photos', voices:'Voices', api:'API Usage', health:'Health', newsletter:'Newsletter' };
 /* The phone bar has room for four tabs and More. First four of these that
    the person can see; Iyanna has no Home, so her list leads. */
 const NAV_PHONE = me => me === 'george' ? ['sales']
@@ -4169,6 +4230,7 @@ const NAV_ICON = {
   rjobs:'<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/>',
   sales:'<path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/>',
   uniforms:'<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c0 2-1.8 3-4 3S8 5 8 3z"/>',
+  health:'<path d="M3 12h4l2-5 4 10 2-5h6"/>',
   api:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3"/>',
   more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
@@ -4183,6 +4245,7 @@ function navCount(k){
   if(k === 'rjobs' && S.loaded.rjobs) return { n:(S.rjobs || []).filter(j => !j.state).length };
   if(k === 'voices' && S.loaded.voices) return { n:S.exv.answers.filter(a => a.status === 'ready' && a.use_status === 'new').length };
   if(k === 'api' && S.loaded.api) return { n:apiHighCount() };
+  if(k === 'health' && S.loaded.apphealth && !S.ah.loadErr) return { n:ahRedCount() };
   if(k === 'today' && S.me === 'pat' && S.loaded.board) return { n:homeBoardCounts().open.length, quiet:true };
   return { n:0 };
 }
@@ -4558,6 +4621,7 @@ function pageHtml(){
   if(S.page==='sales')     return pageSales();
   if(S.page==='bulk')      return pageBulk();
   if(S.page==='api')       return pageApi();
+  if(S.page==='health')    return pageAppHealth();
   return '';
 }
 
@@ -4711,6 +4775,7 @@ function wirePage(){
   wireCampaigns();
   wireBulk();
   wireApi();
+  wireAppHealth();
   wireBoard();
   wireLeads();
 }
@@ -16234,6 +16299,410 @@ function wireApi(){
     try{ await loadApi(); }catch(e){}
     A.busy = false; A.note = name + ' limit saved.'; render();
   });
+}
+
+/* ================= Health =================
+   Every HAGGERTY and RHINO app: how it is running and where its build
+   stands. Liam only (HEALTH_USERS here, and the liam_only policy on the
+   tables in sql/app_health.sql, so Pat's login gets no rows even by hand).
+   n8n "Haggerty App Health Check" fills app_health hourly: site, Supabase
+   and n8n per app, read-only toward every app. This tab reads those and
+   edits only the build tracker (app_build_items). Nothing here changes
+   n8n or Supabase; fixes go through Claude, by Copy for Claude. */
+const HEALTH_USERS = ['liam'];
+const AH_RANK = { red:3, amber:2, green:1 };
+const AH_STAGES = ['In flight','Next up','Blocked','Parked','Done'];
+const AH_LIFE = ['Live','Building','Planning','Parked','Retired'];
+const AH_SIGNAL = { site:'Site', supabase:'Supabase', n8n:'n8n' };
+const AH_STALE_DAYS = 14;
+S.ah = { apps:[], health:[], items:[], daily:[], loadErr:'', err:'', note:'', busy:false,
+         brand:'all', life:'all', needs:false, open:null, edit:null, draft:{}, add:null, showDone:false, copied:'' };
+
+async function loadAppHealth(){
+  const A = S.ah;
+  const since = apiDay(-8);
+  const [r, h, b, d] = await Promise.all([
+    sb.from('app_registry').select('*').order('app'),
+    sb.from('app_health').select('*'),
+    sb.from('app_build_items').select('*').order('rank', { ascending:true, nullsFirst:false }).order('id'),
+    sb.from('v_app_health_daily').select('*').gte('day', since)
+  ]);
+  const bad = [r, h, b, d].find(x => x.error);
+  if(bad){
+    const m = bad.error.message || String(bad.error);
+    A.loadErr = /does not exist|schema cache|PGRST205|42P01/i.test(m + ' ' + (bad.error.code || ''))
+      ? 'The Health tables are not set up yet. Run 1-patch.sql (Patch) in the Supabase SQL editor, then reload.'
+      : 'Could not load the Health tab. ' + m;
+    S.loaded.apphealth = true;
+    return;
+  }
+  A.loadErr = '';
+  A.apps = r.data || [];
+  A.health = h.data || [];
+  A.items = b.data || [];
+  A.daily = d.data || [];
+  S.loaded.apphealth = true;
+}
+
+/* Days since an ISO time. */
+const ahDays = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : Infinity;
+function ahAgo(iso){
+  if(!iso) return 'never';
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if(h < 48) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+  return Math.round(h / 24) + ' days ago';
+}
+const ahOpenItems = app => S.ah.items.filter(i => i.app === app && i.stage !== 'Done')
+  .sort((x, y) => (x.rank ?? 1e9) - (y.rank ?? 1e9) || x.id - y.id);
+const ahIsStale = i => i.stage !== 'Done' && i.stage !== 'Parked' && ahDays(i.updated_at) > AH_STALE_DAYS;
+
+/* One row per app, with its worst signal and build state worked out. */
+function ahApps(){
+  const A = S.ah;
+  return A.apps.map(a => {
+    const sig = A.health.filter(h => h.app === a.app)
+      .sort((x, y) => (AH_RANK[y.status] || 0) - (AH_RANK[x.status] || 0) || x.signal.localeCompare(y.signal));
+    /* A Parked or Planning app whose old workflows are quiet shows its
+       lifecycle, not a green pill; it only shows a colour when something
+       it still runs is failing. */
+    const active = a.lifecycle === 'Live' || a.lifecycle === 'Building';
+    const worst = !sig.length ? null : (!active && sig[0].status === 'green') ? null : sig[0].status;
+    const items = ahOpenItems(a.app);
+    const blocked = items.filter(i => i.stage === 'Blocked');
+    const stale = items.filter(ahIsStale);
+    const days = A.daily.filter(x => x.app === a.app);
+    const weekAgo = days.find(x => String(x.day).slice(0, 10) === apiDay(-7));
+    return { ...a, sig, worst, items, blocked, stale, days,
+             was: weekAgo && weekAgo.worst !== worst ? weekAgo.worst : null,
+             needs: worst === 'red' || blocked.length > 0 || stale.length > 0 };
+  }).sort((x, y) =>
+    (AH_RANK[y.worst] || 0) - (AH_RANK[x.worst] || 0)
+    || AH_LIFE.indexOf(x.lifecycle) - AH_LIFE.indexOf(y.lifecycle)
+    || x.app.localeCompare(y.app));
+}
+/* The sidebar count: apps that are red now. */
+function ahRedCount(){ return ahApps().filter(a => a.worst === 'red').length; }
+
+function ahPill(status, lifecycle){
+  if(status) return `<span class="ah-pill ${status}">${status === 'red' ? 'Red' : status === 'amber' ? 'Amber' : 'Green'}</span>`;
+  return `<span class="ah-pill none">${esc(lifecycle === 'Live' || lifecycle === 'Building' ? 'Not checked' : lifecycle)}</span>`;
+}
+function ahBuildLine(a){
+  const by = s => a.items.filter(i => i.stage === s);
+  const name = list => list.length ? esc(list[0].item) + (list.length > 1 ? ` <span class="muted">+${list.length - 1}</span>` : '') : '';
+  const parts = [];
+  if(by('In flight').length) parts.push(`<span><b>In flight</b> ${name(by('In flight'))}</span>`);
+  if(by('Next up').length) parts.push(`<span><b>Next up</b> ${name(by('Next up'))}</span>`);
+  if(a.blocked.length) parts.push(`<span class="ah-blk"><b>Blocked</b> ${esc(a.blocked[0].item)}${a.blocked[0].blocked_on ? ' <span class="muted">on ' + esc(a.blocked[0].blocked_on) + '</span>' : ''}${a.blocked.length > 1 ? ` <span class="muted">+${a.blocked.length - 1}</span>` : ''}</span>`);
+  if(!parts.length && by('Parked').length) parts.push(`<span><b>Parked</b> ${name(by('Parked'))}</span>`);
+  return parts.length ? parts.join('') : '<span class="muted">No build items.</span>';
+}
+
+/* The last 7 Pacific days, worst status each day. */
+function ahWeekHtml(a){
+  const cells = [];
+  for(let i = 6; i >= 0; i--){
+    const day = apiDay(-i);
+    const d = a.days.find(x => String(x.day).slice(0, 10) === day);
+    const lbl = new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday:'short', timeZone:'UTC' });
+    const tip = d ? `${lbl}: worst ${d.worst}. Red ${d.red_runs} of ${d.runs} hourly checks, amber ${d.amber_runs}.` : `${lbl}: no checks`;
+    cells.push(`<div class="ah-day ${d ? d.worst : 'none'}" title="${esc(tip)}"><i></i><span>${esc(lbl)}</span>${d && d.red_runs ? `<em>${d.red_runs}h red</em>` : ''}</div>`);
+  }
+  return `<div class="ah-week" aria-label="Last 7 days">${cells.join('')}</div>`;
+}
+
+function ahCopyText(a, h){
+  const lines = [`Health tab: ${a.app} is ${(h ? h.status : a.worst || 'not checked').toUpperCase()}${h ? ' (' + AH_SIGNAL[h.signal] + ')' : ''}.`,
+    `App: ${a.app} (${a.brand}, ${a.lifecycle})`];
+  const sigs = h ? [h] : a.sig.filter(s => s.status !== 'green');
+  for(const s of sigs){
+    const m = s.meta || {};
+    if(s.signal === 'n8n' && (m.failing || []).length){
+      for(const f of m.failing){
+        lines.push(`Workflow: ${f.name} (n8n id ${f.id}${f.active ? '' : ', inactive'})`);
+        lines.push(`Error: failed ${f.fail} of ${f.runs} runs in the last 24 hours` + (f.node ? ` at node "${f.node}"` : '') + (f.message ? `: ${f.message}` : ''));
+        if(f.execution) lines.push(`Last failed run: https://haggertybuilds.app.n8n.cloud/workflow/${f.id}/executions/${f.execution}`);
+      }
+      if((m.missing || []).length) lines.push('Not found in n8n: ' + m.missing.join(', '));
+    } else if(s.signal === 'supabase'){
+      lines.push(`Supabase project: ${m.ref || a.supabase_ref || ''}`);
+      lines.push(`Error: ${s.detail || ''}`);
+      for(const n of (m.new || []).slice(0, 10)) lines.push(`- ${n.level} ${n.name}: ${n.detail || n.title || ''}`);
+    } else {
+      lines.push(`${AH_SIGNAL[s.signal]}: ${s.detail || ''}`);
+    }
+    if(s.link) lines.push(`Link: ${s.link}`);
+  }
+  if(!sigs.length) lines.push('No failing signal right now.');
+  const when = (h || a.sig[0] || {}).checked_at;
+  if(when) lines.push(`Checked: ${new Date(when).toLocaleString('en-US', { timeZone:'America/Los_Angeles', dateStyle:'medium', timeStyle:'short' })} Pacific`);
+  lines.push('', 'Please find the cause and propose a fix. Do not change n8n or Supabase until I approve.');
+  return lines.join('\n');
+}
+
+function ahStripHtml(apps){
+  const n = s => apps.filter(a => a.worst === s).length;
+  const blocked = S.ah.items.filter(i => i.stage === 'Blocked').length;
+  const stale = S.ah.items.filter(ahIsStale).length;
+  const tile = (cls, label, v, sub) => `<div class="ah-tile ${cls}"><div class="k">${label}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  return `<div class="ah-strip">
+    ${tile('red', 'Red', n('red'))}${tile('amber', 'Amber', n('amber'))}${tile('green', 'Green', n('green'))}
+    ${tile('blk', 'Blocked', blocked, 'build items')}${tile('stale', 'Stale', stale, `not updated in ${AH_STALE_DAYS} days`)}
+  </div>`;
+}
+
+function ahFiltersHtml(){
+  const A = S.ah;
+  const sel = (id, val, opts, label) => `<label class="ah-f"><span>${label}</span><select id="${id}">${opts.map(([v, t]) =>
+    `<option value="${esc(v)}"${val === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+  return `<div class="ah-filters">
+    ${sel('ahBrand', A.brand, [['all','All brands'],['HAGGERTY','HAGGERTY'],['RHINO','RHINO'],['Shared','Shared']], 'Brand')}
+    ${sel('ahLife', A.life, [['all','All'],['active','Live and Building']].concat(AH_LIFE.map(l => [l, l])), 'Lifecycle')}
+    <button class="btn small ${A.needs ? '' : 'ghost'}" id="ahNeeds"${A.needs ? ' aria-pressed="true"' : ''}>Needs me</button>
+  </div>`;
+}
+
+function ahCardHtml(a){
+  const top = a.sig[0];
+  const reason = top ? top.detail : (a.lifecycle === 'Live' || a.lifecycle === 'Building' ? 'Nothing to check yet: no site, Supabase project or workflows listed.' : (a.notes || ''));
+  return `<button class="ah-card ${a.worst || 'none'}" data-ah-open="${esc(a.app)}">
+    <div class="ah-card-h">
+      <span class="ah-name">${esc(a.app)}</span>
+      ${ahPill(a.worst, a.lifecycle)}
+    </div>
+    <div class="ah-tags"><span class="chip">${esc(a.brand)}</span><span class="chip">${esc(a.lifecycle)}</span>
+      ${a.stale.length ? `<span class="chip bad">${a.stale.length} stale</span>` : ''}
+      ${a.was ? `<span class="chip">was ${esc(a.was)} a week ago</span>` : ''}</div>
+    <div class="ah-reason">${esc(reason || '')}</div>
+    <div class="ah-build">${ahBuildLine(a)}</div>
+  </button>`;
+}
+
+function ahSignalHtml(a, h){
+  const m = h.meta || {};
+  const view = h.signal === 'n8n' ? 'View in n8n' : h.signal === 'supabase' ? 'View in Supabase' : 'Open site';
+  let more = '';
+  if(h.signal === 'n8n' && (m.failing || []).length){
+    more = `<ul class="ah-fails">${m.failing.map(f => `<li>
+      <b>${esc(f.name)}</b>${f.active ? '' : ' <span class="chip">inactive</span>'}
+      <span class="muted">failed ${f.fail} of ${f.runs} in 24h${f.every ? ', every run' : ''}</span>
+      ${f.node || f.message ? `<div class="ah-err">${f.node ? esc(f.node) + ': ' : ''}${esc(f.message || '')}</div>` : ''}
+      <a href="https://haggertybuilds.app.n8n.cloud/workflow/${esc(f.id)}/executions${f.execution ? '/' + esc(f.execution) : ''}" target="_blank" rel="noopener">View in n8n</a>
+    </li>`).join('')}</ul>`;
+  } else if(h.signal === 'supabase' && (m.new || []).length){
+    more = `<ul class="ah-fails">${m.new.map(n => `<li><b>${esc(n.level)}</b> ${esc(n.name)}<div class="ah-err">${esc(n.detail || n.title || '')}</div></li>`).join('')}</ul>`;
+  }
+  return `<div class="ah-sig ${h.status}">
+    <div class="ah-sig-h"><span class="ah-sig-n">${AH_SIGNAL[h.signal] || esc(h.signal)}</span>${ahPill(h.status)}
+      <span class="spacer"></span>
+      ${h.link ? `<a class="btn small ghost" href="${esc(h.link)}" target="_blank" rel="noopener">${view}</a>` : ''}
+      ${h.status !== 'green' ? `<button class="btn small ghost" data-ah-copy="${esc(h.signal)}">${S.ah.copied === a.app + '|' + h.signal ? 'Copied' : 'Copy for Claude'}</button>` : ''}
+    </div>
+    <div class="ah-sig-d">${esc(h.detail || '')}</div>
+    ${more}
+    <div class="hint">Checked ${esc(ahAgo(h.checked_at))}</div>
+  </div>`;
+}
+
+function ahItemRowHtml(i){
+  const A = S.ah;
+  if(A.edit === i.id){
+    const d = A.draft;
+    return `<tr class="ah-edit">
+      <td><input type="text" data-ah-d="item" value="${esc(d.item)}" aria-label="Item"></td>
+      <td><select data-ah-d="stage" aria-label="Stage">${AH_STAGES.map(s => `<option${d.stage === s ? ' selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td><input type="text" data-ah-d="rank" value="${esc(d.rank)}" inputmode="numeric" style="width:56px" aria-label="Rank"></td>
+      <td><input type="text" data-ah-d="blocked_on" value="${esc(d.blocked_on)}" aria-label="Blocked on"></td>
+      <td><input type="text" data-ah-d="done_when" value="${esc(d.done_when)}" aria-label="Done when"></td>
+      <td class="ah-acts"><button class="btn small" id="ahSave"${A.busy ? ' disabled' : ''}>Save</button><button class="linkbtn" id="ahCancel">Cancel</button></td>
+    </tr>`;
+  }
+  return `<tr class="${ahIsStale(i) ? 'ah-stale' : ''}">
+    <td>${esc(i.item)}${i.notes ? `<div class="hint">${esc(i.notes)}</div>` : ''}${i.build_in ? `<div class="hint">Build in: ${esc(i.build_in)}</div>` : ''}</td>
+    <td><span class="ah-stage s-${esc(i.stage.replace(/\s/g, '').toLowerCase())}">${esc(i.stage)}</span>${i.done_at ? `<div class="hint">${esc(i.done_at)}</div>` : ''}</td>
+    <td class="num">${i.rank == null ? '' : esc(i.rank)}</td>
+    <td>${esc(i.blocked_on || '')}</td>
+    <td>${esc(i.done_when || '')}</td>
+    <td class="ah-acts">
+      <button class="linkbtn" data-ah-edit="${i.id}">Edit</button>
+      ${i.stage !== 'Done' ? `<button class="linkbtn" data-ah-done="${i.id}"${S.ah.busy ? ' disabled' : ''}>Done</button>` : ''}
+      <div class="hint" title="${esc(i.updated_by || '')}">${esc(ahAgo(i.updated_at))}</div>
+    </td>
+  </tr>`;
+}
+
+function ahDetailHtml(a){
+  const A = S.ah;
+  const all = A.items.filter(i => i.app === a.app);
+  const open = all.filter(i => i.stage !== 'Done')
+    .sort((x, y) => AH_STAGES.indexOf(x.stage) - AH_STAGES.indexOf(y.stage) || (x.rank ?? 999) - (y.rank ?? 999) || x.id - y.id);
+  const done = all.filter(i => i.stage === 'Done').sort((x, y) => String(y.done_at).localeCompare(String(x.done_at)));
+  const add = A.add;
+  return `<main class="page">
+    <div class="bud-head">
+      <button class="btn small ghost" id="ahBack">All apps</button>
+      <span class="spacer"></span>
+      ${a.worst && a.worst !== 'green' ? `<button class="btn small ghost" data-ah-copy="">${A.copied === a.app + '|' ? 'Copied' : 'Copy for Claude'}</button>` : ''}
+    </div>
+    ${A.err ? `<p class="hint err" style="margin-bottom:14px">${esc(A.err)}</p>` : ''}
+    ${A.note ? `<div class="done-banner" style="margin-bottom:14px"><p style="margin:0">${esc(A.note)}</p></div>` : ''}
+    <div class="ah-dh">
+      <h2>${esc(a.app)}</h2>${ahPill(a.worst, a.lifecycle)}
+    </div>
+    <div class="ah-tags" style="margin-bottom:6px"><span class="chip">${esc(a.brand)}</span><span class="chip">${esc(a.lifecycle)}</span>
+      ${a.owner_users ? `<span class="chip">${esc(a.owner_users)}</span>` : ''}</div>
+    ${a.notes ? `<p class="hint" style="margin:0 0 18px">${esc(a.notes)}</p>` : ''}
+    <div class="block"><h2 class="sec">Signals</h2>
+      ${a.sig.length ? a.sig.map(h => ahSignalHtml(a, h)).join('') : `<p class="hint">Not checked. ${a.lifecycle === 'Live' || a.lifecycle === 'Building' ? 'Add a site, Supabase project or workflows to its row in app_registry.' : 'Only Live and Building apps get site and Supabase checks.'}</p>`}
+      ${(a.workflow_names || []).length ? `<details class="ah-wfs"><summary>${a.workflow_names.length} workflow${a.workflow_names.length === 1 ? '' : 's'} listed for this app</summary><p class="hint">${a.workflow_names.map(esc).join(', ')}</p></details>` : ''}
+    </div>
+    <div class="block"><h2 class="sec">Last 7 days</h2>${ahWeekHtml(a)}</div>
+    <div class="block"><h2 class="sec">Build</h2>
+      <div class="bud-scroll"><table class="ah-items">
+        <thead><tr><th>Item</th><th>Stage</th><th class="num">Rank</th><th>Blocked on</th><th>Done when</th><th></th></tr></thead>
+        <tbody>${open.length ? open.map(ahItemRowHtml).join('') : `<tr><td colspan="6" class="muted">No open build items.</td></tr>`}
+        ${add ? `<tr class="ah-edit">
+          <td><input type="text" data-ah-a="item" value="${esc(add.item)}" placeholder="What to build" aria-label="New item"></td>
+          <td><select data-ah-a="stage" aria-label="Stage">${AH_STAGES.filter(s => s !== 'Done').map(s => `<option${add.stage === s ? ' selected' : ''}>${s}</option>`).join('')}</select></td>
+          <td><input type="text" data-ah-a="rank" value="${esc(add.rank)}" inputmode="numeric" style="width:56px" aria-label="Rank"></td>
+          <td><input type="text" data-ah-a="blocked_on" value="${esc(add.blocked_on)}" aria-label="Blocked on"></td>
+          <td><input type="text" data-ah-a="done_when" value="${esc(add.done_when)}" aria-label="Done when"></td>
+          <td class="ah-acts"><button class="btn small" id="ahAddSave"${A.busy ? ' disabled' : ''}>Add</button><button class="linkbtn" id="ahAddCancel">Cancel</button></td>
+        </tr>` : ''}</tbody>
+      </table></div>
+      ${add ? '' : `<button class="btn small ghost" id="ahAdd" style="margin-top:10px">Add build item</button>`}
+      ${done.length ? `<div style="margin-top:16px"><button class="linkbtn" id="ahDoneToggle">${A.showDone ? 'Hide' : 'Show'} done (${done.length})</button>
+        ${A.showDone ? `<div class="bud-scroll"><table class="ah-items" style="margin-top:6px"><tbody>${done.map(i => `<tr><td>${esc(i.item)}</td><td>${esc(i.done_at || '')}</td>
+          <td class="ah-acts"><button class="linkbtn" data-ah-edit="${i.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>` : ''}</div>` : ''}
+    </div>
+  </main>`;
+}
+
+function pageAppHealth(){
+  const A = S.ah;
+  if(!S.loaded.apphealth) return loading();
+  if(A.loadErr) return `<main class="page"><div class="empty"><h2>Health is not set up yet</h2><p>${esc(A.loadErr)}</p></div></main>`;
+  const apps = ahApps();
+  if(A.open){
+    const a = apps.find(x => x.app === A.open);
+    if(a) return ahDetailHtml(a);
+  }
+  const shown = apps
+    .filter(a => A.brand === 'all' || a.brand === A.brand)
+    .filter(a => A.life === 'all' || (A.life === 'active' ? (a.lifecycle === 'Live' || a.lifecycle === 'Building') : a.lifecycle === A.life))
+    .filter(a => !A.needs || a.needs);
+  const last = A.health.reduce((m, h) => h.checked_at > m ? h.checked_at : m, '');
+  const late = !last || ahDays(last) > 2 / 24;
+  return `<main class="page">
+    <div class="bud-head">
+      <span class="hint">${last ? 'Last check ' + esc(ahAgo(last)) : 'No checks yet'}</span>
+      <span class="spacer"></span>
+      <button class="btn small ghost" id="ahRefresh"${A.busy ? ' disabled' : ''}>Refresh</button>
+    </div>
+    ${late ? `<div class="warn" style="margin-bottom:14px"><b>${last ? 'The hourly check has not run since ' + esc(ahAgo(last)) + '.' : 'The hourly check has not run yet.'}</b>
+      Statuses below may be out of date. Check "Haggerty App Health Check" in n8n.</div>` : ''}
+    ${A.err ? `<p class="hint err" style="margin-bottom:14px">${esc(A.err)}</p>` : ''}
+    ${ahStripHtml(apps)}
+    ${ahFiltersHtml()}
+    <div class="ah-grid">${shown.length ? shown.map(ahCardHtml).join('') : `<p class="hint">No apps match these filters.</p>`}</div>
+    <p class="hint" style="margin-top:18px">Checked hourly by n8n "Haggerty App Health Check", read-only toward every app.
+      n8n: 0 failures in 24 hours is green, 1 to 3 amber, more than 3 or failing every run red.
+      Supabase: only advisor warnings newer than the saved baseline count. Nothing on this tab changes n8n or Supabase.</p>
+  </main>`;
+}
+
+async function ahCopy(a, signal){
+  const h = signal ? a.sig.find(s => s.signal === signal) : null;
+  const text = ahCopyText(a, h);
+  try{ await navigator.clipboard.writeText(text); S.ah.copied = a.app + '|' + (signal || ''); }
+  catch(e){ prompt('Copy this for Claude', text); }
+  render();
+  setTimeout(() => { if(S.ah.copied === a.app + '|' + (signal || '')){ S.ah.copied = ''; render(); } }, 2500);
+}
+
+function ahClean(d){
+  const t = v => { const s = String(v ?? '').trim(); return s ? s : null; };
+  const rank = String(d.rank ?? '').trim();
+  if(rank && !/^\d+$/.test(rank)) return { error:'Rank must be a whole number, or blank.' };
+  if(!t(d.item)) return { error:'Give the item a name.' };
+  return { row:{ item:t(d.item), stage:d.stage || 'Next up', rank:rank ? Number(rank) : null,
+                 blocked_on:t(d.blocked_on), done_when:t(d.done_when) } };
+}
+async function ahSaveItem(id, patch, note){
+  const A = S.ah;
+  A.busy = true; A.err = ''; A.note = ''; render();
+  const { error } = await sb.from('app_build_items').update(patch).eq('id', id);
+  if(error){ A.err = 'Could not save. ' + (error.message || error); A.busy = false; render(); return false; }
+  try{ await loadAppHealth(); }catch(e){}
+  A.busy = false; A.note = note || 'Saved.'; render();
+  return true;
+}
+
+function wireAppHealth(){
+  if(S.page !== 'health') return;
+  const A = S.ah;
+  const byId = id => document.getElementById(id);
+  const apps = () => ahApps();
+  const onClick = (id, fn) => { const el = byId(id); if(el) el.addEventListener('click', fn); };
+  onClick('ahRefresh', async () => {
+    A.busy = true; A.err = ''; render();
+    try{ await loadAppHealth(); }catch(e){ A.err = 'Could not refresh. ' + (e.message || e); }
+    A.busy = false; render();
+  });
+  const fb = byId('ahBrand'); if(fb) fb.addEventListener('change', () => { A.brand = fb.value; render(); });
+  const fl = byId('ahLife'); if(fl) fl.addEventListener('change', () => { A.life = fl.value; render(); });
+  onClick('ahNeeds', () => { A.needs = !A.needs; render(); });
+  document.querySelectorAll('[data-ah-open]').forEach(el => el.addEventListener('click', () => {
+    A.open = el.dataset.ahOpen; A.edit = null; A.add = null; A.err = ''; A.note = ''; A.showDone = false;
+    render(); window.scrollTo(0, 0);
+  }));
+  onClick('ahBack', () => { A.open = null; A.edit = null; A.add = null; A.err = ''; A.note = ''; render(); });
+  document.querySelectorAll('[data-ah-copy]').forEach(el => el.addEventListener('click', () => {
+    const a = apps().find(x => x.app === A.open); if(a) ahCopy(a, el.dataset.ahCopy);
+  }));
+  /* Build tracker: the only writes on this tab. */
+  document.querySelectorAll('[data-ah-edit]').forEach(el => el.addEventListener('click', () => {
+    const i = A.items.find(x => String(x.id) === el.dataset.ahEdit); if(!i) return;
+    A.edit = i.id; A.add = null; A.err = ''; A.note = '';
+    A.draft = { item:i.item, stage:i.stage, rank:i.rank ?? '', blocked_on:i.blocked_on || '', done_when:i.done_when || '' };
+    render();
+  }));
+  document.querySelectorAll('[data-ah-d]').forEach(el => {
+    const k = el.dataset.ahD;
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { A.draft[k] = el.value; });
+  });
+  onClick('ahCancel', () => { A.edit = null; A.err = ''; render(); });
+  onClick('ahSave', async () => {
+    const c = ahClean(A.draft);
+    if(c.error){ A.err = c.error; render(); return; }
+    if(await ahSaveItem(A.edit, c.row)){ A.edit = null; render(); }
+  });
+  document.querySelectorAll('[data-ah-done]').forEach(el => el.addEventListener('click', () => {
+    const i = A.items.find(x => String(x.id) === el.dataset.ahDone); if(!i) return;
+    ahSaveItem(i.id, { stage:'Done' }, `"${i.item}" moved to Done, dated today.`);
+  }));
+  onClick('ahAdd', () => { A.add = { item:'', stage:'Next up', rank:'', blocked_on:'', done_when:'' }; A.edit = null; A.err = ''; A.note = ''; render();
+    const f = document.querySelector('[data-ah-a="item"]'); if(f) f.focus(); });
+  document.querySelectorAll('[data-ah-a]').forEach(el => {
+    const k = el.dataset.ahA;
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { if(A.add) A.add[k] = el.value; });
+  });
+  onClick('ahAddCancel', () => { A.add = null; A.err = ''; render(); });
+  onClick('ahAddSave', async () => {
+    const c = ahClean(A.add || {});
+    if(c.error){ A.err = c.error; render(); return; }
+    A.busy = true; A.err = ''; render();
+    const row = { ...c.row, app:A.open, build_in:null };
+    const { error } = await sb.from('app_build_items').insert(row);
+    if(error){ A.err = 'Could not add. ' + (error.message || error); A.busy = false; render(); return; }
+    A.add = null;
+    try{ await loadAppHealth(); }catch(e){}
+    A.busy = false; A.note = 'Added.'; render();
+  });
+  onClick('ahDoneToggle', () => { A.showDone = !A.showDone; render(); });
 }
 
 /* ================= executive voices ================= */

@@ -1,0 +1,598 @@
+{
+  "name": "Haggerty App Health Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 7
+            }
+          ]
+        }
+      },
+      "id": "b4faaada-f087-4a35-af88-e9657ae6648b",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://ekatzukprjpisdiwubjq.supabase.co/rest/v1/app_registry?select=app,brand,lifecycle,front_end_url,supabase_ref,workflow_names",
+        "authentication": "predefinedCredentialType",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        },
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "91f8b0c4-c3ab-426d-9cb0-c94f7d3772b1",
+      "name": "Read Registry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "name": "App Health - Marketing Supabase (service role)"
+        }
+      },
+      "notes": "Reads app_registry (sql/app_health.sql) with the service role. One item, the list in body."
+    },
+    {
+      "parameters": {
+        "url": "https://ekatzukprjpisdiwubjq.supabase.co/rest/v1/app_advisor_baseline?select=supabase_ref,cache_key",
+        "authentication": "predefinedCredentialType",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        },
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "4d9b2fe6-12c7-4bd6-8eda-d33996844de8",
+      "name": "Read Baselines",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "name": "App Health - Marketing Supabase (service role)"
+        }
+      },
+      "executeOnce": true,
+      "notes": "Advisor findings already known. Only findings not in here count as new."
+    },
+    {
+      "parameters": {
+        "url": "=https://ekatzukprjpisdiwubjq.supabase.co/rest/v1/workflow_alerts?select=workflow_id,node_name,message,last_at&alert_day=gte.{{ $now.setZone('America/Los_Angeles').minus({ days: 1 }).toFormat('yyyy-MM-dd') }}&order=last_at.desc",
+        "authentication": "predefinedCredentialType",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        },
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "d339cb39-2a0d-4b43-b1af-accfaa5b381f",
+      "name": "Recent Alert Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "name": "App Health - Marketing Supabase (service role)"
+        }
+      },
+      "executeOnce": true,
+      "notes": "The failing node and error message Haggerty Workflow Alerts saved, so the Health tab can say what broke."
+    },
+    {
+      "parameters": {
+        "jsCode": "// The front ends to check: Live and Building apps with a URL.\nconst reg = $('Read Registry').first().json.body || [];\nconst urls = [...new Set(reg\n  .filter(a => (a.lifecycle === 'Live' || a.lifecycle === 'Building') && a.front_end_url)\n  .map(a => a.front_end_url))];\nreturn urls.length ? urls.map(url => ({ json: { url } })) : [{ json: { url: null } }];\n"
+      },
+      "id": "0eb3c2e6-920a-497b-9d12-1e81f6f5a870",
+      "name": "List Sites",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000,
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "d34ef545-1612-451a-aa81-2870dc355374",
+      "name": "Check Site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Plain GET of each front end. 200 = green, anything else = red."
+    },
+    {
+      "parameters": {
+        "jsCode": "// The Supabase projects to check: haggerty-marketing, HCI Inventory and\n// 3-week-Lookahead today, read from app_registry.supabase_ref.\nconst reg = $('Read Registry').first().json.body || [];\nconst refs = [...new Set(reg\n  .filter(a => (a.lifecycle === 'Live' || a.lifecycle === 'Building') && a.supabase_ref)\n  .map(a => a.supabase_ref))];\nreturn refs.length ? refs.map(ref => ({ json: { ref } })) : [{ json: { ref: null } }];\n"
+      },
+      "id": "0b831d69-cbb1-4586-b652-c6fddc03dc67",
+      "name": "List Projects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.supabase.com/v1/projects/{{ $json.ref }}",
+        "authentication": "genericCredentialType",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "2d836c29-9412-440e-9764-8155ab39750d",
+      "name": "Project Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "App Health - Supabase Management token"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Supabase Management API, GET only."
+    },
+    {
+      "parameters": {
+        "url": "=https://api.supabase.com/v1/projects/{{ $('List Projects').item.json.ref }}/advisors/security",
+        "authentication": "genericCredentialType",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "960796ef-9341-43cf-85cd-58bb3e70e6af",
+      "name": "Security Advisors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "App Health - Supabase Management token"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Supabase Management API, GET only."
+    },
+    {
+      "parameters": {
+        "url": "https://haggertybuilds.app.n8n.cloud/api/v1/workflows?limit=250",
+        "authentication": "predefinedCredentialType",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "cursor",
+                    "value": "={{ $response.body.nextCursor }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.nextCursor }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20
+            }
+          }
+        },
+        "nodeCredentialType": "n8nApi"
+      },
+      "id": "5f09e9f1-4ff7-467d-b1f8-0aad2f6a531b",
+      "name": "n8n Workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        300
+      ],
+      "credentials": {
+        "n8nApi": {
+          "name": "App Health - n8n API key"
+        }
+      },
+      "executeOnce": true,
+      "notes": "n8n public API, GET only. Names and ids of every workflow."
+    },
+    {
+      "parameters": {
+        "url": "https://haggertybuilds.app.n8n.cloud/api/v1/executions?limit=250",
+        "authentication": "predefinedCredentialType",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "cursor",
+                    "value": "={{ $response.body.nextCursor }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.nextCursor || !($response.body.data || []).length || new Date($response.body.data[$response.body.data.length - 1].startedAt).getTime() < Date.now() - 86400000 }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20
+            }
+          }
+        },
+        "nodeCredentialType": "n8nApi"
+      },
+      "id": "d9452b21-767c-42dd-b75e-a945d725812b",
+      "name": "n8n Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "n8nApi": {
+          "name": "App Health - n8n API key"
+        }
+      },
+      "executeOnce": true,
+      "notes": "n8n public API, GET only. Pages back until it passes 24 hours."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Works out green / amber / red for every app and signal, from what the\n// read-only checks before this one found. Nothing here writes anywhere.\nconst N8N = 'https://haggertybuilds.app.n8n.cloud';\nconst SB = 'https://supabase.com/dashboard/project/';\nconst DAY = 24 * 3600 * 1000;\nconst now = Date.now();\nconst errText = j => {\n  if (!j) return 'no response';\n  const e = j.error;\n  if (!e) return 'no response';\n  return String(typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e))).slice(0, 200);\n};\n\nconst reg = $('Read Registry').first().json.body || [];\nconst checked = a => a.lifecycle === 'Live' || a.lifecycle === 'Building';\nconst results = [];\nconst push = (app, signal, status, detail, link, meta) =>\n  results.push({ app, signal, status, detail, link: link || null, meta: meta || {} });\n\n// ---- Site: a 200 is green, anything else is red.\nconst sites = $('List Sites').all().map(i => i.json);\nconst answers = $('Check Site').all().map(i => i.json);\nconst siteBy = {};\nsites.forEach((s, i) => { if (s.url) siteBy[s.url] = answers[i] || {}; });\nfor (const a of reg.filter(a => checked(a) && a.front_end_url)) {\n  const r = siteBy[a.front_end_url] || {};\n  const code = r.statusCode;\n  if (code === 200) push(a.app, 'site', 'green', 'Site up (200).', a.front_end_url, { code });\n  else if (code) push(a.app, 'site', 'red', 'Site returned ' + code + '.', a.front_end_url, { code });\n  else push(a.app, 'site', 'red', 'Site did not answer: ' + errText(r), a.front_end_url, {});\n}\n\n// ---- Supabase: project status, then security advisor findings that are\n// not in the saved baseline. New WARN = amber, new ERROR = red.\nconst refs = $('List Projects').all().map(i => i.json.ref);\nconst stat = $('Project Status').all().map(i => i.json);\nconst adv = $('Security Advisors').all().map(i => i.json);\nconst base = $('Read Baselines').first().json.body || [];\nconst known = new Set(base.map(b => b.supabase_ref + '|' + b.cache_key));\nconst hasBase = new Set(base.map(b => b.supabase_ref));\nconst baseline_add = [];\nconst sb = {};\nrefs.forEach((ref, i) => {\n  if (!ref) return;\n  const p = stat[i] || {};\n  const lints = (adv[i] || {}).lints;\n  const advLink = SB + ref + '/advisors/security';\n  if (p.error || !p.status) { sb[ref] = { status: 'amber', detail: 'Could not read the project status: ' + errText(p), link: SB + ref }; return; }\n  if (p.status !== 'ACTIVE_HEALTHY') { sb[ref] = { status: 'red', detail: 'Project ' + (p.name || ref) + ' is ' + p.status + '.', link: SB + ref }; return; }\n  if (!Array.isArray(lints)) { sb[ref] = { status: 'amber', detail: 'Project healthy, but the security advisor could not be read: ' + errText(adv[i]), link: advLink }; return; }\n  // One entry per finding. The API gives a cache_key per finding; if it\n  // ever groups them under findings[], key each by its name and object.\n  const issues = lints.flatMap(x => Array.isArray(x.findings)\n      ? x.findings.map(f => ({ name: x.name, level: x.level, title: x.title, detail: f.detail, metadata: f.metadata }))\n      : [x])\n    .filter(x => x.level === 'WARN' || x.level === 'ERROR')\n    .map(x => Object.assign({}, x, { cache_key: x.cache_key || (x.name + ':' + JSON.stringify(x.metadata || x.detail || '')) }));\n  if (!hasBase.has(ref)) {\n    issues.forEach(x => baseline_add.push({ ref, cache_key: x.cache_key, name: x.name, level: x.level }));\n    sb[ref] = { status: 'green', detail: 'Healthy. Baseline saved: ' + issues.length + ' known advisor warnings.', link: advLink, meta: { known: issues.length, new: [] } };\n    return;\n  }\n  const fresh = issues.filter(x => !known.has(ref + '|' + x.cache_key));\n  const knownCount = issues.length - fresh.length;\n  if (!fresh.length) {\n    sb[ref] = { status: 'green', detail: 'Healthy. No new advisor warnings (' + knownCount + ' known).', link: advLink, meta: { known: knownCount, new: [] } };\n    return;\n  }\n  const isErr = fresh.some(x => x.level === 'ERROR');\n  const byName = {};\n  fresh.forEach(x => { byName[x.name] = (byName[x.name] || 0) + 1; });\n  const list = Object.entries(byName).map(([n, c]) => n + (c > 1 ? ' x' + c : '')).join(', ');\n  sb[ref] = {\n    status: isErr ? 'red' : 'amber',\n    detail: 'Healthy, but ' + fresh.length + ' new security advisor ' + (isErr ? 'finding' : 'warning') + (fresh.length > 1 ? 's' : '') + ': ' + list + '.',\n    link: advLink,\n    meta: { known: knownCount, new: fresh.slice(0, 20).map(x => ({ name: x.name, level: x.level, title: x.title, detail: String(x.detail || '').slice(0, 300) })) }\n  };\n});\nfor (const a of reg.filter(a => checked(a) && a.supabase_ref)) {\n  const s = sb[a.supabase_ref];\n  if (s) push(a.app, 'supabase', s.status, s.detail, s.link, Object.assign({ ref: a.supabase_ref }, s.meta || {}));\n}\n\n// ---- n8n: failed runs in the last 24 hours, matched to apps by name.\n// 0 = green, 1-3 = amber, more than 3 or failing every run = red.\nconst wfs = $('n8n Workflows').all().flatMap(i => i.json.data || []);\nconst exs = $('n8n Executions').all().flatMap(i => i.json.data || [])\n  .filter(e => new Date(e.startedAt).getTime() >= now - DAY);\nconst byName = {};\nwfs.forEach(w => { (byName[w.name] = byName[w.name] || []).push(w); });\nconst stats = {};\nfor (const e of exs) {\n  const s = stats[e.workflowId] = stats[e.workflowId] || { fail: 0, ok: 0, lastFail: '', lastFailId: null };\n  if (e.status === 'error' || e.status === 'crashed') {\n    s.fail++;\n    if (String(e.startedAt) > s.lastFail) { s.lastFail = String(e.startedAt); s.lastFailId = e.id; }\n  } else if (e.status === 'success') s.ok++;\n}\nconst alerts = $('Recent Alert Messages').first().json.body || [];\nconst alertBy = {};\nfor (const a of alerts) if (!alertBy[a.workflow_id]) alertBy[a.workflow_id] = a;\n\nconst mapped = new Set();\nreg.forEach(a => (a.workflow_names || []).forEach(n => (byName[n] || []).forEach(w => mapped.add(w.id))));\n\nconst failingOf = ws => ws.map(w => {\n  const s = stats[w.id];\n  if (!s || !s.fail) return null;\n  const al = alertBy[w.id] || {};\n  return {\n    id: w.id, name: w.name, active: !!w.active, fail: s.fail, ok: s.ok, runs: s.fail + s.ok,\n    every: s.fail >= 2 && s.ok === 0, last_failed_at: s.lastFail || null, execution: s.lastFailId,\n    node: al.node_name || null, message: al.message ? String(al.message).slice(0, 400) : null\n  };\n}).filter(Boolean).sort((x, y) => y.fail - x.fail);\n\nconst describe = f => f.name + ' failed ' + f.fail + ' of ' + f.runs + ' run' + (f.runs === 1 ? '' : 's') + ' in 24h'\n  + (f.node ? ' at ' + f.node : '') + (f.message ? ': ' + f.message.slice(0, 160) : '');\nconst failLink = f => N8N + '/workflow/' + f.id + '/executions' + (f.execution ? '/' + f.execution : '');\n\nfunction n8nSignal(app, ws, missing, extra) {\n  const failing = failingOf(ws);\n  const total = failing.reduce((t, f) => t + f.fail, 0);\n  const ran = ws.filter(w => stats[w.id]).length;\n  const meta = Object.assign({ failing, missing, workflows: ws.length, ran }, extra || {});\n  let status = 'green', detail = '', link = N8N + '/home/workflows';\n  if (failing.length) {\n    status = (total > 3 || failing.some(f => f.every)) ? 'red' : 'amber';\n    detail = describe(failing[0]) + (failing.length > 1 ? '. Also: ' + failing.slice(1).map(f => f.name + ' (' + f.fail + ')').join(', ') : '') + '.';\n    link = failLink(failing[0]);\n  } else {\n    detail = 'No failed runs in 24h across ' + ws.length + ' workflow' + (ws.length === 1 ? '' : 's') + ' (' + ran + ' ran).';\n  }\n  if (missing.length) {\n    if (status === 'green') { status = 'amber'; detail = ''; }\n    detail += (detail ? ' ' : '') + 'Not found in n8n (renamed?): ' + missing.join(', ') + '.';\n  }\n  if (extra && extra.unlisted && extra.unlisted.length) {\n    if (status === 'green') { status = 'amber'; detail = ''; }\n    detail += (detail ? ' ' : '') + extra.unlisted.length + ' active workflow' + (extra.unlisted.length === 1 ? ' is' : 's are') + ' not listed under any app: ' + extra.unlisted.slice(0, 6).join(', ') + (extra.unlisted.length > 6 ? ', ...' : '') + '.';\n  }\n  push(app, 'n8n', status, detail, link, meta);\n}\n\nfor (const a of reg) {\n  if (a.lifecycle === 'Retired' || a.app === 'Other n8n workflows') continue;\n  const names = a.workflow_names || [];\n  if (!names.length) continue;\n  const ws = names.flatMap(n => byName[n] || []);\n  const missing = names.filter(n => !byName[n]);\n  n8nSignal(a.app, ws, missing);\n}\n// Anything not listed under an app lands here, so nothing slips through.\nconst others = wfs.filter(w => !mapped.has(w.id));\nif (reg.some(a => a.app === 'Other n8n workflows')) {\n  n8nSignal('Other n8n workflows', others, [], { unlisted: others.filter(w => w.active).map(w => w.name) });\n}\n\nreturn [{ json: { run_at: new Date(now).toISOString(), results, baseline_add } }];\n"
+      },
+      "id": "ec0f280c-e6bc-43db-96fb-1ea065ffb83a",
+      "name": "Work Out Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://ekatzukprjpisdiwubjq.supabase.co/rest/v1/rpc/app_health_record",
+        "authentication": "predefinedCredentialType",
+        "options": {},
+        "nodeCredentialType": "supabaseApi",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p: $json }) }}"
+      },
+      "id": "a7c82265-c240-455c-b6ab-4516bf2646f5",
+      "name": "Save Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "name": "App Health - Marketing Supabase (service role)"
+        }
+      },
+      "notes": "The only write: app_health_record() in haggerty-marketing. Replaces app_health, appends app_health_runs, keeps 30 days, returns the apps that just turned red."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "287e86da-57a3-4680-9e97-3e323d65f208",
+              "leftValue": "={{ ($json.newly_red || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "36a141bc-5a79-443f-b7ac-76ec7cb79f07",
+      "name": "Newly Red?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One email listing every app that just turned red. Apps that were\n// already red last hour are not in the list, so this stays quiet.\nconst red = $json.newly_red || [];\nconst esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst rows = red.map(r =>\n  '<div style=\"border-left:3px solid #A6402C;padding:6px 0 6px 14px;margin:0 0 14px;\">'\n  + '<div style=\"font-size:16px;font-weight:bold;color:#1C1B1A;\">' + esc(r.app) + '</div>'\n  + '<div style=\"font-size:13.5px;color:#1C1B1A;white-space:pre-wrap;margin-top:4px;\">' + esc(r.detail) + '</div>'\n  + (r.link ? '<div style=\"margin-top:6px;font-size:13px;\"><a href=\"' + esc(r.link) + '\" style=\"color:#F68922;font-weight:bold;\">Open it</a></div>' : '')\n  + '</div>').join('');\nconst html = '<div style=\"font-family:Arial,Helvetica,sans-serif;max-width:620px;\">'\n  + '<div style=\"font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#A6402C;font-weight:bold;margin-bottom:12px;\">'\n  + (red.length === 1 ? 'An app turned red' : red.length + ' apps turned red') + '</div>'\n  + rows\n  + '<p style=\"margin-top:18px;font-size:14px;\"><a href=\"https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/#health\" style=\"color:#F68922;font-weight:bold;\">Open the Health tab</a></p>'\n  + '<p style=\"margin-top:18px;font-size:12px;color:#6E7477;\">Sent by Haggerty App Health Check, only when an app turns red. '\n  + 'No email while it stays red. Use Copy for Claude on the Health tab to ask for a fix.</p></div>';\nreturn [{ json: {\n  subject: '[Haggerty] ' + (red.length === 1 ? red[0].app + ' turned red' : red.length + ' apps turned red'),\n  html\n} }];\n"
+      },
+      "id": "0fb167f8-e193-4043-8721-4c83fc75ddce",
+      "name": "Write Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "toRecipients": "liam@haggertybuilds.com",
+        "subject": "={{ $json.subject }}",
+        "bodyContent": "={{ $json.html }}",
+        "additionalFields": {
+          "bodyContentType": "html"
+        }
+      },
+      "id": "1b847856-f6ab-4541-90bb-ce89e5635b06",
+      "name": "Email Liam",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        200
+      ],
+      "webhookId": "7ab80517-ab8c-437b-811f-581700dae52c",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "EABKrZto1U5uf1SS",
+          "name": "Liam Outlook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Haggerty App Health Check\n\nHourly, at :07. Feeds the Health tab on the Marketing Dashboard (Liam only).\n\n**Read-only toward every app.** Every call to a site, Supabase or n8n is a GET. The one write is `app_health_record()` in haggerty-marketing, into the Health tab's own tables.\n\n### Its own credentials (create these, then pick them on each node)\n1. **App Health - Supabase Management token**: Header Auth, name `Authorization`, value `Bearer sbp_...` (Supabase, Account, Access Tokens).\n2. **App Health - n8n API key**: n8n API credential, base URL `https://haggertybuilds.app.n8n.cloud/api/v1`, key from Settings, n8n API (made by the owner, so it sees every project).\n3. **App Health - Marketing Supabase (service role)**: Supabase API credential for haggerty-marketing.\n\n### Email\nOnly when an app turns red. Nothing while it stays red.\n\n### Mapping\nWorkflows are matched to apps by name through `app_registry.workflow_names`. A workflow under no app shows on **Other n8n workflows**.",
+        "height": 620,
+        "width": 560,
+        "color": 4
+      },
+      "id": "8224ced6-7e26-442e-bc25-f8873a3d7a57",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -380
+      ]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Read Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Registry": {
+      "main": [
+        [
+          {
+            "node": "Read Baselines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Baselines": {
+      "main": [
+        [
+          {
+            "node": "Recent Alert Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent Alert Messages": {
+      "main": [
+        [
+          {
+            "node": "List Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Sites": {
+      "main": [
+        [
+          {
+            "node": "Check Site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Site": {
+      "main": [
+        [
+          {
+            "node": "List Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Projects": {
+      "main": [
+        [
+          {
+            "node": "Project Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project Status": {
+      "main": [
+        [
+          {
+            "node": "Security Advisors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security Advisors": {
+      "main": [
+        [
+          {
+            "node": "n8n Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Workflows": {
+      "main": [
+        [
+          {
+            "node": "n8n Executions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Executions": {
+      "main": [
+        [
+          {
+            "node": "Work Out Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Work Out Health": {
+      "main": [
+        [
+          {
+            "node": "Save Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Health": {
+      "main": [
+        [
+          {
+            "node": "Newly Red?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Newly Red?": {
+      "main": [
+        [
+          {
+            "node": "Write Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Write Email": {
+      "main": [
+        [
+          {
+            "node": "Email Liam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "jwbd5a9mDJrfeuKc",
+    "timezone": "America/Los_Angeles"
+  },
+  "pinData": {}
+}
