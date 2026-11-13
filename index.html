@@ -12398,11 +12398,17 @@ const EC_TYPES = {
   header:'Logo header', heading:'Heading', text:'Text', image:'Image', button:'Button',
   spotlight:'Project spotlight', divider:'Divider', spacer:'Space', html:'Your own HTML', footer:'Footer',
   callbar:'Phone bar', hero:'Hero', card:'Callout box', pair:'Before and after', checklist:'Checklist',
-  buttons:'Two buttons', signoff:'Sign-off', brandfooter:'Brand footer'
+  buttons:'Two buttons', signoff:'Sign-off', brandfooter:'Brand footer',
+  topbar:'Emergency bar', lightheader:'Logo and tagline', lighthero:'Photo hero', note:'Note from a person',
+  steps:'Three steps', proof:'Before and after (labelled)', callband:'Call band', tiles:'Service tiles',
+  creds:'Credentials', lightfooter:'Dark footer'
 };
 const EC_ADD = ['heading','text','image','button','spotlight','divider','spacer','html',
-  'callbar','hero','card','pair','checklist','buttons','signoff'];
-const EC_FOOTERS = ['footer','brandfooter'];
+  'callbar','hero','card','pair','checklist','buttons','signoff',
+  'topbar','lightheader','lighthero','note','steps','proof','callband','tiles','creds'];
+const EC_FOOTERS = ['footer','brandfooter','lightfooter'];
+// Hosted photos the light layout starts with (Supabase "Public Assets").
+const EC_PA = 'https://ekatzukprjpisdiwubjq.supabase.co/storage/v1/object/public/Public%20Assets/';
 const EC_STATUS = { draft:['Draft',''], pushed:['In Mailchimp','good'], scheduled:['Scheduled','good'], sent:['Sent','hot'] };
 const mcEditUrl = webId => 'https://us11.admin.mailchimp.com/campaigns/edit?id=' + encodeURIComponent(webId);
 
@@ -12458,7 +12464,51 @@ function ecBlock(type, brand){
                                     label2:'See our work', href2:b.site };
   if(type === 'signoff')   return { type, closing:'Talk soon,', name:'Your name', role:'Your title, ' + b.name, phone:o.phone };
   if(type === 'brandfooter') return { type, badge:'', name1:o.name1, name2:o.name2, tagline:o.tagline, links:'', phone:o.phone, site:b.site, small:o.area };
+  /* Light layout blocks (RHINO e-blast, Nov 2026) */
+  if(type === 'topbar')      return { type, label:o.callLabel || '24/7 Emergency line', phone:o.phone || '' };
+  if(type === 'lightheader') return { type, logo:o.logo || '', line1:'Water · Fire · Mold · Storm', line2:'Commercial & residential · Stockton, CA' };
+  if(type === 'lighthero')   return { type, src:'', alt:'', eyebrow:'24/7 emergency mitigation & restoration',
+                                      title:'Your headline here', text:'One or two sentences under the headline.',
+                                      label:o.phone ? 'Call ' + o.phone : 'Get in touch', href:o.phone ? 'tel:' + o.phone : b.site };
+  if(type === 'note')        return { type, src:'', eyebrow:'A note from [Name]', text:'[Two or three sentences in their voice.]', name:'[Name]', role:'[Title]' };
+  if(type === 'steps')       return { type, title:'When water gets in', intro:"Here's what happens after you call.",
+                                      t1:'You call', d1:'A real person answers, any hour of any day.',
+                                      t2:'We stop the damage', d2:'Crews arrive fast to extract water, tarp, or board up.',
+                                      t3:'We dry and rebuild', d3:"Daily moisture readings until it's dry, then repairs through to the finish." };
+  if(type === 'proof')       return { type, title:'Before and after', src:'', src2:'', label:'Before', label2:'After', caption:'[One line about the job.]' };
+  if(type === 'callband')    return { type, title:'Save our number before you need it.', text:'One tap adds us to your phone.',
+                                      phone:o.phone || '', saveLabel:'Save to contacts', saveHref:'' };
+  if(type === 'tiles')       return { type, title:'What we handle', intro:'Commercial and residential, start to finish.',
+                                      items:'Water Mitigation\nFire & Smoke\nMold Remediation\nStorm & Tarping\nContents Packout\nReconstruction' };
+  if(type === 'creds')       return { type, badge:'', items:'IICRC Certified\nGoogle Guaranteed\nCSLB #1156046', division:'HAGGERTY',
+                                      mark:EC_PA + 'haggerty-mark.png' };
+  if(type === 'lightfooter') return { type, name:b.name, phone:o.phone || '', site:b.site, links:'LinkedIn | https://www.linkedin.com/company/rhino-restores' };
   return { type };
+}
+/* The light layout: RHINO's own e-blast design (Nov 2026). Light page,
+   orange emergency bar, photo hero, a note from a person, three steps,
+   before and after, call band, service tiles, credentials, dark footer. */
+function ecLightStarter(brand){
+  const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
+  const rhino = brand === 'rhino';
+  return [
+    B('topbar'),
+    B('lightheader', rhino ? { logo:EC_PA + 'rhino-logo.png' } : { line1:'Commercial construction', line2:'Northern California' }),
+    B('lighthero', rhino ? { src:EC_PA + 'rhino-pm3-hero.jpg', alt:'RHINO technician documenting a loss on a tablet',
+      title:'Water, fire, or storm damage? Call RHINO first.',
+      text:'Our Stockton crews answer day or night and reach most of the Central Valley in about 30 minutes. One call covers the whole job, from stopping the damage to the final repair.' } : {}),
+    B('note', rhino ? { src:EC_PA + 'freddie-solari.jpg', eyebrow:'A note from Freddie',
+      text:'Most of our calls come in after hours, once a leak has already spread. Save our number now, and one call gets a crew moving. We document everything, keep your adjuster in the loop, and bill your carrier directly.',
+      name:'Freddie Solari', role:'Operations Manager' } : {}),
+    B('steps', rhino ? { d1:'A real person answers at (209) 323-6200, any hour of any day.',
+      d2:'Crews arrive in about 30 minutes on average to extract water, tarp, or board up.' } : {}),
+    B('proof', rhino ? { src:EC_PA + 'rhino-pm3-before.jpg', src2:EC_PA + 'rhino-pm3-after.jpg',
+      caption:"A storm-downed tree took out this Central Valley home's roof. RHINO tarped it, cleared it, and rebuilt it." } : {}),
+    B('callband', rhino ? { text:'One tap adds RHINO to your phone.', saveHref:EC_PA + 'RHINO-Restores.vcf' } : {}),
+    B('tiles'),
+    B('creds', rhino ? {} : { items:'', division:'' }),
+    B('lightfooter', rhino ? {} : { links:'' })
+  ].filter(x => x.type !== 'topbar' || x.phone);
 }
 function ecStarter(brand){
   return ['header','heading','text','button','footer'].map(t => ecBlock(t, brand));
@@ -12505,6 +12555,8 @@ const EC_TEMPLATES = {
       subject:'Free lunch and learn for property managers: [Date]', preview:'[Topic], with lunch on us. Seats are limited.' },
     { key:'news', name:'Company news', use:'New certification, equipment, location or team member.',
       subject:'[News headline]', preview:'What it means for your properties.' },
+    { key:'eblast', name:'RHINO e-blast', use:"RHINO's own layout: photo hero, Freddie's note, three steps, before and after.",
+      subject:'Water, fire, or storm damage? Save this number.', preview:'RHINO answers 24/7 and reaches most of the Central Valley in about 30 minutes.' },
     { key:'ready', name:'Save our number', use:'A short 24/7 reminder to keep RHINO on the vendor list.',
       subject:'Save this number before you need it', preview:'RHINO answers 24/7 and bills your insurance directly.' },
     { key:'update', name:'Project update video', use:'A new video on a restoration or rebuild in progress. One job per email.',
@@ -12516,6 +12568,7 @@ const EC_TEMPLATES = {
 const EC_ADVISORY = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/subscribe.html?advisory=1&src=eblast&first_name=*|FNAME|*&last_name=*|LNAME|*&email=*|EMAIL|*';
 const EC_STORM = 'https://haggertybuilds.github.io/Marketing-Lead-and-Email-Application/rhino-storm-checklist.html';
 function ecTemplateBlocks(brand, key){
+  if(key === 'eblast') return ecLightStarter(brand);
   const o = (EC_BRANDS[brand] || EC_BRANDS.haggerty).bold;
   const B = (type, over) => Object.assign(ecBlock(type, brand), over || {});
   const head = B('header');
@@ -12653,7 +12706,7 @@ function ecTemplateHtml(brand, key){
     if(x.type === 'hero' || x.type === 'pair' || x.type === 'spotlight') x.src = x.src || EC_PHOTO;
     if(x.type === 'pair') x.src2 = x.src2 || EC_PHOTO;
     if(x.type === 'header' && brand === 'haggerty') x.logo = LOGO;
-    if(EC_FOOTERS.includes(x.type) && EC_BRANDS[brand].badge) x.badge = EC_BRANDS[brand].badge.data;
+    if((EC_FOOTERS.includes(x.type) || x.type === 'creds') && EC_BRANDS[brand].badge) x.badge = EC_BRANDS[brand].badge.data;
     return x;
   });
   const t = EC_TEMPLATES[brand].find(x => x.key === key);
@@ -12809,6 +12862,113 @@ function ecRow(b, c, accent){
         <p style="margin:0"><a href="*|UPDATE_PROFILE|*" style="color:#999999">Update preferences</a> &nbsp;|&nbsp; <a href="*|UNSUB|*" style="color:#999999">Unsubscribe</a></p></div>
     </td></tr>`;
   }
+  const LP = 'padding-left:32px;padding-right:32px;';
+  const H2 = `margin:0 0 6px;${F}font-size:24px;line-height:30px;font-weight:bold;color:#000000`;
+  const SUB = `margin:0 0 20px;${F}font-size:15px;line-height:22px;color:#5C5C5C`;
+  if(b.type === 'topbar'){
+    if(!b.phone) return '';
+    return `<tr><td class="ec-px" bgcolor="${accent}" style="background:${accent};padding:11px 32px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td class="ec-hide" style="${F}font-size:12px;line-height:16px;font-weight:bold;letter-spacing:1.5px;color:#000000;text-transform:uppercase">${esc(b.label || '')}</td>
+      <td align="right" class="ec-center" style="${F}font-size:15px;line-height:18px;font-weight:bold"><a href="${tel(b.phone)}" style="color:#000000;text-decoration:none">&#9742;&nbsp; ${esc(b.phone)}</a></td>
+      </tr></table></td></tr>`;
+  }
+  if(b.type === 'lightheader'){
+    const site = ecUrl(brand.site);
+    const logo = b.logo ? `<img src="${esc(b.logo)}" width="96" alt="${esc(brand.name)}" style="display:block;width:96px;height:auto;border:0">`
+      : `<span style="${F}font-size:20px;font-weight:900;letter-spacing:2px;color:#000000">${esc(brand.name)}</span>`;
+    return `<tr><td class="ec-px" bgcolor="#FFFFFF" style="background:#FFFFFF;padding:20px 32px 18px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td valign="middle" width="110">${site ? `<a href="${esc(site)}">${logo}</a>` : logo}</td>
+      <td valign="middle" align="right" style="${F}font-size:12px;line-height:19px;color:#5C5C5C">
+        ${b.line1 ? `<span style="font-weight:bold;letter-spacing:1.5px;color:#000000;text-transform:uppercase">${esc(b.line1)}</span><br>` : ''}${esc(b.line2 || '')}</td>
+      </tr></table></td></tr>`;
+  }
+  if(b.type === 'lighthero'){
+    const pic = b.src ? `<tr><td style="line-height:0;font-size:0"><img class="ec-full" src="${esc(b.src)}" width="600" alt="${esc(b.alt || '')}" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>` : '';
+    const u = /^tel:/i.test(b.href || '') ? tel(b.href.slice(4)) : ecUrl(b.href);
+    return `${pic}<tr><td class="ec-px" style="padding:30px 32px 34px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="border-left:5px solid ${accent};padding:0 0 0 18px">${eyebrow(b.eyebrow, accent, 10)}
+        <h1 class="ec-h1" style="margin:0 0 14px;${F}font-size:34px;line-height:1.2;font-weight:900;color:#000000">${esc(b.title || '')}</h1>
+        ${b.text ? `<p style="margin:0;${F}font-size:16px;line-height:25px;color:#3D3D3D">${ecInline(b.text, accent)}</p>` : ''}</td></tr></table>
+      ${b.label && u ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px"><tr><td bgcolor="#000000" style="background:#000000;border-radius:4px">
+        <a href="${esc(u)}" target="_blank" style="display:inline-block;padding:15px 26px;${F}font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none">${esc(b.label)} &nbsp;<span style="color:${accent}">&rarr;</span></a></td></tr></table>` : ''}
+      </td></tr>`;
+  }
+  if(b.type === 'note'){
+    const pic = b.src ? `<td class="ec-col" width="88" valign="top" style="padding:2px 18px 0 0"><img src="${esc(b.src)}" width="70" height="70" alt="${esc(b.name || '')}" style="display:block;width:70px;height:70px;border-radius:35px;border:0"></td>` : '';
+    return `<tr><td class="ec-px" bgcolor="#FBF6EF" style="background:#FBF6EF;padding:28px 32px;border-top:1px solid #EADFD0;border-bottom:1px solid #EADFD0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      ${pic}<td class="ec-col" valign="top">${eyebrow(b.eyebrow, accent, 8)}
+        ${ecParas(b.text, accent, 'margin:0 0 12px;font-family:Georgia,\'Times New Roman\',serif;font-size:17px;line-height:27px;font-style:italic;color:#222222')}
+        ${b.name ? `<p style="margin:0;${F}font-size:13px;line-height:18px;color:#5C5C5C"><strong style="color:#000000">${esc(b.name)}</strong>${b.role ? ' &middot; ' + esc(b.role) : ''}</p>` : ''}
+      </td></tr></table></td></tr>`;
+  }
+  if(b.type === 'steps'){
+    const step = (n, t, d, p) => `<td class="ec-step" width="33%" valign="top" style="padding:${p}">
+      <p style="margin:0 0 6px;${F}font-size:34px;line-height:36px;font-weight:900;color:${accent}">0${n}</p>
+      <p style="margin:0 0 6px;${F}font-size:16px;line-height:21px;font-weight:bold;color:#000000">${esc(t || '')}</p>
+      <p style="margin:0;${F}font-size:14px;line-height:21px;color:#4A4A4A">${ecInline(d || '', accent)}</p></td>`;
+    return `<tr><td class="ec-px" style="${LP}padding-top:36px;padding-bottom:30px">
+      ${b.title ? `<h2 style="${H2}">${esc(b.title)}</h2>` : ''}${b.intro ? `<p style="${SUB}">${esc(b.intro)}</p>` : ''}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      ${step(1, b.t1, b.d1, '0 14px 0 0')}${step(2, b.t2, b.d2, '0 7px')}${step(3, b.t3, b.d3, '0 0 0 14px')}</tr></table></td></tr>`;
+  }
+  if(b.type === 'proof'){
+    if(!b.src && !b.src2) return '';
+    const one = (src, label, bg, fg, p) => `<td class="ec-stack" width="50%" valign="top" style="padding:${p}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      ${src ? `<tr><td style="line-height:0;font-size:0"><img class="ec-ba" src="${esc(src)}" width="262" alt="${esc(label || '')}" style="display:block;width:100%;max-width:262px;height:auto;border:0"></td></tr>` : ''}
+      ${label ? `<tr><td bgcolor="${bg}" style="background:${bg};padding:7px 12px;${F}font-size:11px;line-height:14px;font-weight:bold;letter-spacing:2px;color:${fg};text-transform:uppercase">${esc(label)}</td></tr>` : ''}
+      </table></td>`;
+    return `<tr><td class="ec-px" style="${LP}padding-top:6px;padding-bottom:36px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E6E1D8"><tr><td style="padding:28px 0 16px">
+      ${b.title ? `<h2 style="${H2};margin:0">${esc(b.title)}</h2>` : ''}</td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      ${one(b.src, b.label, '#000000', '#FFFFFF', '0 6px 12px 0')}${one(b.src2, b.label2, accent, '#000000', '0 0 12px 6px')}</tr></table>
+      ${b.caption ? `<p style="margin:2px 0 0;${F}font-size:14px;line-height:21px;color:#4A4A4A">${ecInline(b.caption, accent)}</p>` : ''}</td></tr>`;
+  }
+  if(b.type === 'callband'){
+    const save = ecUrl(b.saveHref);
+    return `<tr><td class="ec-px" bgcolor="#000000" style="background:#000000;padding:34px 32px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td class="ec-col ec-center" valign="middle">
+        <p style="margin:0 0 4px;${F}font-size:22px;line-height:27px;font-weight:900;color:#FFFFFF">${esc(b.title || '')}</p>
+        ${b.text ? `<p style="margin:0;${F}font-size:14px;line-height:20px;color:#BDBDBD">${esc(b.text)}</p>` : ''}</td>
+      ${b.phone ? `<td class="ec-col ec-center" width="210" valign="middle" align="right"><table role="presentation" class="ec-auto" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 0 auto">
+        <tr><td bgcolor="${accent}" align="center" style="background:${accent};border-radius:4px"><a href="${tel(b.phone)}" style="display:block;padding:13px 20px;${F}font-size:14px;font-weight:bold;color:#000000;text-decoration:none;white-space:nowrap">Call ${esc(b.phone)}</a></td></tr>
+        ${save && b.saveLabel ? `<tr><td align="center" style="padding:10px 0 0"><a href="${esc(save)}" style="${F}font-size:13px;font-weight:bold;color:${accent};text-decoration:underline">${esc(b.saveLabel)}</a></td></tr>` : ''}
+      </table></td>` : ''}</tr></table></td></tr>`;
+  }
+  if(b.type === 'tiles'){
+    const items = String(b.items || '').split('\n').map(x => x.trim()).filter(Boolean);
+    if(!items.length) return '';
+    const rows = [];
+    for(let k = 0; k < items.length; k += 3) rows.push(items.slice(k, k + 3));
+    const tile = (t, n) => `<td class="ec-tile" width="33%" valign="top" style="padding:0 ${n === 2 ? 0 : 5}px 10px ${n === 0 ? 0 : 5}px">${t ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td bgcolor="#F6F3EE" style="background:#F6F3EE;border-left:4px solid ${accent};padding:14px 12px;${F}font-size:14px;line-height:18px;font-weight:bold;color:#000000">${esc(t)}</td></tr></table>` : ''}</td>`;
+    return `<tr><td class="ec-px" style="${LP}padding-top:34px;padding-bottom:26px">
+      ${b.title ? `<h2 style="${H2}">${esc(b.title)}</h2>` : ''}${b.intro ? `<p style="${SUB}">${esc(b.intro)}</p>` : ''}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      ${rows.map(r => `<tr>${[0, 1, 2].map(n => tile(r[n], n)).join('')}</tr>`).join('')}</table></td></tr>`;
+  }
+  if(b.type === 'creds'){
+    const items = String(b.items || '').split('\n').map(x => x.trim()).filter(Boolean)
+      .map(t => `<span style="white-space:nowrap">${esc(t)}</span>`).join(` &nbsp;<span style="color:${accent}">/</span>&nbsp; `);
+    const div = b.division ? `<span style="font-weight:normal;color:#7A7A7A">A division of</span>&nbsp;&nbsp;${b.mark ? `<img src="${esc(b.mark)}" width="14" height="14" alt="" style="display:inline-block;width:14px;height:14px;vertical-align:baseline;border:0">&nbsp;` : ''}<span style="letter-spacing:2px;color:#000000">${esc(b.division)}</span>` : '';
+    if(!b.badge && !items && !div) return '';
+    return `<tr><td class="ec-px" style="${LP}padding-bottom:30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E6E1D8"><tr>
+      ${b.badge ? `<td class="ec-col ec-center" width="150" valign="middle" style="padding:22px 18px 0 0"><img src="${esc(b.badge)}" width="130" alt="${esc((brand.badge && brand.badge.alt) || 'Certification')}" style="display:block;width:130px;height:auto;border:0"></td>` : ''}
+      <td class="ec-col ec-center" valign="middle" style="padding:22px 0 0;${F}font-size:12px;line-height:20px;font-weight:bold;letter-spacing:1px;color:#3D3D3D;text-transform:uppercase">
+        ${items}${items && div ? '<br>' : ''}${div}</td></tr></table></td></tr>`;
+  }
+  if(b.type === 'lightfooter'){
+    const site = ecUrl(b.site);
+    const links = String(b.links || '').split('\n').map(l => l.split('|')).filter(x => x[0] && x[0].trim() && ecUrl((x[1] || '').trim()))
+      .map(([t, u]) => `<a href="${esc(ecUrl(u.trim()))}" style="color:#FFFFFF;text-decoration:none">${esc(t.trim())}</a>`);
+    const parts = [b.phone ? `<a href="${tel(b.phone)}" style="color:${accent};text-decoration:none;font-weight:bold">${esc(b.phone)}</a>` : '',
+      site ? `<a href="${esc(site)}" style="color:#FFFFFF;text-decoration:none">${esc(site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : '', ...links].filter(Boolean);
+    return `<tr><td class="ec-px" bgcolor="#1A1A1A" align="center" style="background:#1A1A1A;padding:28px 32px 30px;${F}font-size:12px;line-height:19px;color:#9A9A9A;text-align:center">
+      <p style="margin:0 0 6px;font-size:15px;line-height:20px;font-weight:bold;color:#FFFFFF">${esc(b.name || brand.name)}</p>
+      ${parts.length ? `<p style="margin:0 0 14px">${parts.join(' &nbsp;&middot;&nbsp; ')}</p>` : ''}
+      <p style="margin:0 0 4px">*|HTML:LIST_ADDRESS_HTML|*</p>
+      <p style="margin:0"><a href="*|UPDATE_PROFILE|*" style="color:#9A9A9A">Update preferences</a> &nbsp;|&nbsp; <a href="*|UNSUB|*" style="color:#9A9A9A">Unsubscribe</a></p>
+    </td></tr>`;
+  }
   if(b.type === 'footer')
     return badge + `<tr><td style="background:#F4F2EE;padding:24px 32px;${F}font-size:12px;line-height:1.6;color:#6E7477;text-align:center">
       ${b.text ? `<div style="margin-bottom:8px">${ecInline(b.text, '#6E7477')}</div>` : ''}
@@ -12846,6 +13006,14 @@ function ecHtml(c, preview){
     .ec-btn{display:block!important;width:100%!important;box-sizing:border-box}
     .ec-btn a{display:block!important}
     .ec-gap{display:block!important;width:100%!important;height:10px!important;line-height:10px!important}
+    .ec-step,.ec-tile{display:block!important;width:100%!important;box-sizing:border-box;padding-left:0!important;padding-right:0!important}
+    .ec-step{padding-bottom:18px!important}
+    .ec-tile{padding-bottom:10px!important}
+    .ec-hide{display:none!important}
+    .ec-center{text-align:center!important}
+    .ec-center img{margin:0 auto!important}
+    .ec-auto{margin:0 auto!important}
+    .ec-full{width:100%!important;max-width:100%!important;height:auto!important}
   }
 </style></head>
 <body style="margin:0;padding:0;background:#F4F2EE">
@@ -12983,8 +13151,8 @@ async function ecNew(brand, layout, tpl){
   const row = {
     brand, title: (brand === 'rhino' ? 'RHINO' : 'HAGGERTY') + ' email ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
     subject:'', preview_text:'', from_name: EC_BRANDS[brand].name, reply_to: EC_BRANDS[brand].email,
-    list_id: a.list_id || null, accent: layout === 'bold' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
-    blocks: layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
+    list_id: a.list_id || null, accent: layout === 'bold' || layout === 'light' ? EC_BRANDS[brand].bold.accent : EC_BRANDS[brand].accent,
+    blocks: layout === 'light' ? ecLightStarter(brand) : layout === 'bold' ? ecBoldStarter(brand) : ecStarter(brand), created_by: S.me
   };
   if(t) Object.assign(row, { title:(brand === 'rhino' ? 'RHINO ' : 'HAGGERTY ') + t.name + ' ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }),
     subject:t.subject, preview_text:t.preview, accent:EC_BRANDS[brand].bold.accent, blocks:ecTemplateBlocks(brand, t.key) });
@@ -12992,7 +13160,9 @@ async function ecNew(brand, layout, tpl){
   const head = row.blocks.find(x => x.type === 'header');
   if(brand === 'haggerty' && head) head.logo = await ecLogoUrl().catch(() => '');
   const foot = row.blocks.find(x => EC_FOOTERS.includes(x.type));
-  if(foot && EC_BRANDS[brand].badge) foot.badge = await ecBadgeUrl(brand).catch(() => '');
+  if(foot && foot.type !== 'lightfooter' && EC_BRANDS[brand].badge) foot.badge = await ecBadgeUrl(brand).catch(() => '');
+  const creds = row.blocks.find(x => x.type === 'creds');
+  if(creds && EC_BRANDS[brand].badge) creds.badge = await ecBadgeUrl(brand).catch(() => '');
   const { data, error } = await sb.from('email_campaigns').insert(row).select('*').single();
   E.busy = '';
   if(error){ E.err = 'Could not start a campaign: ' + error.message; render(); return; }
@@ -13151,6 +13321,7 @@ function ecListPage(){
       <div class="actions" style="margin:0">
         <button class="btn small accent" data-ec-new="haggerty" data-layout="bold" ${E.busy ? 'disabled' : ''}>New HAGGERTY bold email</button>
         <button class="btn small ghost" data-ec-new="haggerty" ${E.busy ? 'disabled' : ''}>HAGGERTY simple</button>
+        <button class="btn small accent" data-ec-new="rhino" data-layout="light" ${E.busy ? 'disabled' : ''}>New RHINO e-blast</button>
         <button class="btn small ghost" data-ec-new="rhino" data-layout="bold" ${E.busy ? 'disabled' : ''}>RHINO bold</button>
         <button class="btn small ghost" data-ec-new="rhino" ${E.busy ? 'disabled' : ''}>RHINO simple</button>
       </div>
@@ -13162,7 +13333,7 @@ function ecListPage(){
         <p class="hint" style="margin:0">Pick the kind of news. Fill in the [bracketed] parts and add photos.</p></div>
       <div class="actions" style="margin:0">${['haggerty', 'rhino'].map(k => `<button class="btn small ${tb === k ? 'accent' : 'ghost'}" data-ec-tbrand="${k}">${esc(EC_BRANDS[k].name)}</button>`).join('')}</div>
     </div>
-    <div class="ec-tpls">${EC_TEMPLATES[tb].map(t => `<button class="ec-tpl" data-ec-new="${tb}" data-layout="bold" data-tpl="${t.key}" ${E.busy ? 'disabled' : ''}>
+    <div class="ec-tpls">${EC_TEMPLATES[tb].map(t => `<button class="ec-tpl" data-ec-new="${tb}" data-layout="${t.key === 'eblast' ? 'light' : 'bold'}" data-tpl="${t.key}" ${E.busy ? 'disabled' : ''}>
       <div class="ec-thumb"><iframe data-ec-thumb="${tb}:${t.key}" title="${esc(t.name)} preview" sandbox="" tabindex="-1" loading="lazy"></iframe></div>
       <div class="ec-tpl-txt"><b>${esc(t.name)}</b><span>${esc(t.use)}</span></div></button>`).join('')}</div>
     <h3 class="ec-h3">Your emails</h3>
@@ -13239,6 +13410,36 @@ function ecBlockForm(b, i){
     ${ecBField(i, 'Links, one per line as Label | link', 'links', b.links, { area:true, rows:3 })}
     <div class="ec-two">${ecBField(i, 'Phone (optional)', 'phone', b.phone)}${ecBField(i, 'Website', 'site', b.site)}</div>
     ${ecBField(i, 'Small print', 'small', b.small, { area:true, rows:2 })}
+    <p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
+  if(b.type === 'topbar') return ecBField(i, 'Small label (hidden on phones)', 'label', b.label) + ecBField(i, 'Phone number', 'phone', b.phone, { ph:'(209) 555-0100' })
+    + `<p class="hint">An orange bar across the top. Tapping it calls the number.</p>`;
+  if(b.type === 'lightheader') return ecImageField(i, 'logo', b.logo, 'Logo') + ecBField(i, 'Top line (bold capitals)', 'line1', b.line1)
+    + ecBField(i, 'Second line', 'line2', b.line2);
+  if(b.type === 'lighthero') return ecImageField(i, 'src', b.src, 'Photo') + ecBField(i, 'Photo description for screen readers', 'alt', b.alt)
+    + ecBField(i, 'Small line above the headline', 'eyebrow', b.eyebrow) + ecBField(i, 'Headline', 'title', b.title)
+    + ecBField(i, 'Text under the headline', 'text', b.text, { area:true, rows:3 })
+    + `<div class="ec-two">${ecBField(i, 'Button text', 'label', b.label)}${ecBField(i, 'Button link', 'href', b.href, { ph:'https:// or tel:' })}</div>
+    <p class="hint">A wide photo works best, about twice as wide as it is tall.</p>`;
+  if(b.type === 'note') return ecImageField(i, 'src', b.src, 'Their photo (square)') + ecBField(i, 'Small label', 'eyebrow', b.eyebrow)
+    + ecBField(i, 'Note', 'text', b.text, { area:true, rows:4, hint:'Written in their voice, so have them read it before it goes out.' })
+    + `<div class="ec-two">${ecBField(i, 'Name', 'name', b.name)}${ecBField(i, 'Title', 'role', b.role)}</div>`;
+  if(b.type === 'steps') return ecBField(i, 'Heading', 'title', b.title) + ecBField(i, 'Line under the heading', 'intro', b.intro)
+    + [1, 2, 3].map(n => `<div class="ec-two">${ecBField(i, 'Step ' + n, 't' + n, b['t' + n])}${ecBField(i, 'Step ' + n + ' text', 'd' + n, b['d' + n])}</div>`).join('');
+  if(b.type === 'proof') return ecBField(i, 'Heading', 'title', b.title)
+    + `<div class="ec-two"><div>${ecImageField(i, 'src', b.src, 'Before photo')}${ecBField(i, 'Label', 'label', b.label)}</div>
+      <div>${ecImageField(i, 'src2', b.src2, 'After photo')}${ecBField(i, 'Label', 'label2', b.label2)}</div></div>`
+    + ecBField(i, 'Caption', 'caption', b.caption) + `<p class="hint">Use two photos taken from the same angle.</p>`;
+  if(b.type === 'callband') return ecBField(i, 'Headline', 'title', b.title) + ecBField(i, 'Line under it', 'text', b.text)
+    + ecBField(i, 'Phone number', 'phone', b.phone)
+    + `<div class="ec-two">${ecBField(i, 'Contact card link text', 'saveLabel', b.saveLabel)}${ecBField(i, 'Contact card link (.vcf)', 'saveHref', b.saveHref, { ph:'https://' })}</div>`;
+  if(b.type === 'tiles') return ecBField(i, 'Heading', 'title', b.title) + ecBField(i, 'Line under the heading', 'intro', b.intro)
+    + ecBField(i, 'Tiles, one per line', 'items', b.items, { area:true, rows:6, hint:'Three to a row on a computer, stacked on a phone.' });
+  if(b.type === 'creds') return ecImageField(i, 'badge', b.badge, 'Certification logo (optional)')
+    + ecBField(i, 'Credentials, one per line', 'items', b.items, { area:true, rows:3 })
+    + `<div class="ec-two">${ecBField(i, '"A division of" name (optional)', 'division', b.division)}${ecBField(i, 'Small mark before the name (image link)', 'mark', b.mark, { ph:'https://' })}</div>`;
+  if(b.type === 'lightfooter') return `<div class="ec-two">${ecBField(i, 'Name', 'name', b.name)}${ecBField(i, 'Phone', 'phone', b.phone)}</div>
+    ${ecBField(i, 'Website', 'site', b.site)}
+    ${ecBField(i, 'Links, one per line as Label | link', 'links', b.links, { area:true, rows:2 })}
     <p class="hint">Mailchimp adds your mailing address and the unsubscribe and preferences links here. Every email needs them.</p>`;
   if(b.type === 'html') return ecBField(i, 'HTML', 'code', b.code, { area:true, rows:10,
     hint:'Paste a section to drop in here, or a whole email from another tool. A whole email (one with &lt;html&gt; or &lt;body&gt;) replaces the layout, so it needs its own *|UNSUB|* link.' })
